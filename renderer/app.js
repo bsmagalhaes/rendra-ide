@@ -1,0 +1,870 @@
+/*! Rendra IDE v1.1.0 | MIT | © 2026 Bruno Magalhaes | brunomagalhaes.me */
+// Rendra IDE renderer — UI logic, routing, chart rendering
+
+const tm = window.rendra;
+
+// ── State ──────────────────────────────────────────────────────────────────
+let usageData = null;
+let charts = {};
+let currentSettings = null;
+let alertFiredForDate = '';
+
+// ── Toast ──────────────────────────────────────────────────────────────────
+let toastTimer = null;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.add('visible');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('visible'), 3500);
+}
+
+function updateStatus(msg) {
+  const el = document.getElementById('status-text');
+  if (el) el.textContent = msg;
+}
+
+// ── Formatting Helpers ─────────────────────────────────────────────────────
+function fmtTokens(n) {
+  if (n == null || isNaN(n)) return '0';
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(2).replace('.', ',') + 'M';
+  if (n >= 1_000)     return (n / 1_000).toFixed(1).replace('.', ',') + 'K';
+  return String(n);
+}
+
+function fmtCost(n) {
+  if (n == null || isNaN(n)) n = 0;
+  return '~US$ ' + n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function fmtRelTime(mtime) {
+  const diff = Date.now() - mtime;
+  const min  = Math.floor(diff / 60000);
+  const hr   = Math.floor(diff / 3600000);
+  const day  = Math.floor(diff / 86400000);
+  if (min < 1)   return 'agora';
+  if (min < 60)  return `há ${min} min`;
+  if (hr < 24)   return `há ${hr} h`;
+  return `há ${day} ${day === 1 ? 'dia' : 'dias'}`;
+}
+
+function fmtTimestamp(ts) {
+  const d = new Date(ts);
+  return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
+// "2026-09-25" → "25/09/2026"
+function fmtDateBR(isoDate) {
+  const [y, m, d] = isoDate.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+function pct(val, total) {
+  if (!total) return 0;
+  return Math.min(100, (val / total) * 100);
+}
+
+// ── Navigation ─────────────────────────────────────────────────────────────
+function navigate(pageId) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(`page-${pageId}`)?.classList.add('active');
+  document.querySelector(`.nav-tab[data-page="${pageId}"]`)?.classList.add('active');
+  if (pageId === 'rtk' && !rtkLoaded) loadRtk();
+  // DevCode takes the whole content area (no padding/scroll) and owns the keyboard
+  // full-height pages (no padding/scroll, no idle dim, Ctrl+R free for the terminal)
+  document.body.classList.toggle('dev-mode', pageId === 'devcode' || pageId === 'terminal');
+  if (pageId === 'devcode') window.devcode?.activate();
+  if (pageId === 'terminal') window.devcode?.activateTerminalPage();
+  if (pageId === 'precos') window.pricingPage?.open();
+  if (pageId === 'sobre') window.aboutPage?.open();
+  if (pageId === 'novidades') window.changelogPage?.open();
+}
+
+// ── Filters (projects + period) ────────────────────────────────────────────
+let activeFilters = { days: 90, projects: [] };
+
+function periodLabel(days) {
+  return days === 1 ? 'hoje' : `${days} dias`;
+}
+
+function renderFilters(cl) {
+  activeFilters = cl.filters || activeFilters;
+  document.querySelectorAll('.period-btn').forEach(b =>
+    b.classList.toggle('active', +b.dataset.days === activeFilters.days));
+  document.querySelectorAll('.daily-heading').forEach(h => {
+    h.textContent = `Atividade diária (${periodLabel(activeFilters.days)})`;
+  });
+
+  const sel = activeFilters.projects;
+  document.getElementById('project-filter-value').textContent =
+    !sel.length ? 'Todos' : sel.length === 1 ? sel[0] : `${sel.length} selecionados`;
+
+  // Don't rebuild the list while the user is picking projects in the open panel
+  if (document.getElementById('project-filter').classList.contains('open')) return;
+  const list = document.getElementById('project-list');
+  list.innerHTML = (cl.projects || []).map(p => `
+    <label class="project-option" data-name="${escapeHtml(p.name.toLowerCase())}">
+      <input type="checkbox" value="${escapeHtml(p.name)}"${sel.includes(p.name) ? ' checked' : ''}>
+      <span>${escapeHtml(p.name)}</span>
+      <span class="project-tokens">${fmtTokens(p.totalTokens)}</span>
+    </label>`).join('');
+  document.getElementById('project-all').checked = !sel.length;
+}
+
+async function applyFilters(next) {
+  activeFilters = { ...activeFilters, ...next };
+  updateStatus('* Filtrando…');
+  const data = await tm.setFilters(activeFilters);
+  if (data) render(data);
+}
+
+function initFilters() {
+  const box = document.getElementById('project-filter');
+  const all = document.getElementById('project-all');
+  const list = document.getElementById('project-list');
+  const boxes = () => [...list.querySelectorAll('input[type=checkbox]')];
+
+  document.querySelectorAll('.period-btn').forEach(b =>
+    b.addEventListener('click', () => applyFilters({ days: +b.dataset.days })));
+
+  document.getElementById('project-filter-btn').addEventListener('click', e => {
+    e.stopPropagation();
+    box.classList.toggle('open');
+    if (box.classList.contains('open')) document.getElementById('project-search').focus();
+  });
+  document.addEventListener('click', e => { if (!box.contains(e.target)) box.classList.remove('open'); });
+
+  document.getElementById('project-search').addEventListener('input', e => {
+    const q = e.target.value.trim().toLowerCase();
+    list.querySelectorAll('.project-option').forEach(o => {
+      o.style.display = o.dataset.name.includes(q) ? '' : 'none';
+    });
+  });
+
+  // "Todos" and individual projects are mutually exclusive; nothing picked falls back to "Todos"
+  all.addEventListener('change', () => { if (all.checked) boxes().forEach(b => { b.checked = false; }); });
+  list.addEventListener('change', () => { all.checked = !boxes().some(b => b.checked); });
+
+  document.getElementById('project-clear').addEventListener('click', () => {
+    boxes().forEach(b => { b.checked = false; });
+    all.checked = true;
+  });
+  document.getElementById('project-apply').addEventListener('click', () => {
+    const picked = all.checked ? [] : boxes().filter(b => b.checked).map(b => b.value);
+    box.classList.remove('open');
+    applyFilters({ projects: picked });
+  });
+}
+
+// ── Account & plan limits ──────────────────────────────────────────────────
+function fmtPlan(plan, tier) {
+  const p = plan ? plan[0].toUpperCase() + plan.slice(1) : '';
+  const max = String(tier || '').match(/max_(\d+x)/i);
+  return [p, max ? `Max ${max[1]}` : ''].filter(Boolean).join(' · ') || '—';
+}
+
+function fmtResetIn(ts) {
+  if (!ts) return '';
+  const min = Math.max(0, Math.round((ts - Date.now()) / 60000));
+  const d = Math.floor(min / 1440), h = Math.floor((min % 1440) / 60), m = min % 60;
+  if (d > 0) return `Reinicia em ${d} d ${h} h`;
+  if (h > 0) return `Reinicia em ${h} h ${m} min`;
+  return `Reinicia em ${m} min`;
+}
+
+function limitName(l) {
+  if (l.label) return l.label;
+  if (l.kind === 'session') return 'Limite de 5 horas';
+  if (l.kind === 'weekly_all') return 'Semanal · todos os modelos';
+  if (l.kind === 'weekly_scoped') return `Semanal · ${l.model || 'modelo'}`;
+  return l.kind;
+}
+
+async function loadAccount() {
+  let res;
+  try { res = await tm.claudeAccount(); } catch { return; }
+  const acc = res?.account;
+  document.getElementById('acc-org').textContent = acc ? (acc.organization || acc.name || '—') : 'Nenhuma conta conectada';
+  document.getElementById('acc-email').textContent = acc?.email || '—';
+  document.getElementById('acc-email').title = acc?.name || '';
+  document.getElementById('acc-plan').textContent = acc ? fmtPlan(acc.plan, acc.tier) : '—';
+
+  const list = document.getElementById('limits-list');
+  const updated = document.getElementById('limits-updated');
+  if (!res?.limits) {
+    list.innerHTML = `<div class="limits-empty">${escapeHtml(res?.error || 'Limites indisponíveis')}</div>` +
+      (res?.needsBridge ? '<button class="btn btn-primary limits-enable" id="limits-enable" type="button">Ativar leitura de limites</button>' : '');
+    updated.textContent = '';
+    document.getElementById('limits-enable')?.addEventListener('click', enableLimitsBridge);
+    return;
+  }
+  list.innerHTML = limitRowsHtml(res.limits);
+  // statusline data is as fresh as the last Claude Code refresh
+  const at = res.source === 'statusline'
+    ? `lido do Claude Code às ${fmtTimestamp(res.fetchedAt || Date.now())}`
+    : `atualizado às ${fmtTimestamp(res.fetchedAt || Date.now())}`;
+  updated.textContent = res.note ? `${at} · ${res.note}` : at;
+  updated.classList.toggle('stale', !!res.note);
+}
+
+// Installs the statusline bridge (src/statusline.sh) into ~/.claude/settings.json, keeping the
+// user's current statusline running after it
+async function enableLimitsBridge() {
+  if (!confirm('Ativar a leitura de limites?\n\nO Rendra IDE vai configurar a statusline do Claude Code para registrar os limites de uso que o próprio Claude Code informa. Sua statusline atual continua funcionando. Nenhuma senha ou token é lido.')) return;
+  try {
+    await tm.limitsBridge.install();
+    showToast('Leitura de limites ativada · os limites aparecem na próxima atualização do Claude Code');
+  } catch (e) {
+    showToast(`Não foi possível ativar: ${e.message}`);
+  }
+  loadAccount();
+}
+
+function limitRowsHtml(limits) {
+  return (limits || []).map(l => {
+    const level = l.percent >= 90 ? 'danger' : l.percent >= 70 ? 'warn' : '';
+    return `
+      <div class="limit-row">
+        <span class="limit-name">${escapeHtml(limitName(l))}</span>
+        <span class="limit-reset">${fmtResetIn(l.resetsAt)}</span>
+        <span class="limit-pct ${level}">${l.percent}%</span>
+        <div class="limit-bar"><div class="limit-fill ${level}" style="width:${Math.min(100, l.percent)}%"></div></div>
+      </div>`;
+  }).join('') || '<div class="limits-empty">Nenhum limite informado para esta conta</div>';
+}
+
+// ── RTK ────────────────────────────────────────────────────────────────────
+let rtkLoaded = false;
+
+function fmtDuration(ms) {
+  const s = Math.round((ms || 0) / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}min ${s % 60}s`;
+  return `${Math.floor(m / 60)}h ${m % 60}min`;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+
+// `rtk init --show` only speaks English; translate the phrases it uses
+const RTK_CHECK_PT = [
+  [/exists but rtk not configured/i, 'existe, mas sem RTK configurado'],
+  [/RTK hook configured/i, 'hook do RTK configurado'],
+  [/native binary command/i, 'binário nativo'],
+  [/plugin not found/i, 'plugin não encontrado'],
+  [/hook: not found/i, 'hook: não encontrado'],
+  [/not found/i, 'não encontrado'],
+  [/slim mode/i, 'modo enxuto'],
+  [/ reference/i, ' referenciado'],
+];
+function translateRtkCheck(text) {
+  return RTK_CHECK_PT.reduce((s, [re, pt]) => s.replace(re, pt), text);
+}
+
+async function loadRtk() {
+  rtkLoaded = true;
+  const data = await tm.rtkStatus();
+  const missing = document.getElementById('rtk-missing');
+  const body = document.getElementById('rtk-body');
+  if (!data?.installed) {
+    missing.style.display = 'block';
+    body.style.display = 'none';
+    document.getElementById('rtk-header-sub').textContent = 'não instalado';
+    return;
+  }
+  missing.style.display = 'none';
+  body.style.display = 'block';
+  document.getElementById('rtk-header-sub').textContent = data.version;
+
+  const checks = document.getElementById('rtk-checks');
+  checks.innerHTML = (data.checks || []).map(c =>
+    `<span class="rtk-check${c.ok ? ' ok' : ''}">${escapeHtml(translateRtkCheck(c.text))}</span>`).join('');
+
+  // Agents RTK is wired into: Claude Code (hook) and Codex (AGENTS.md + RTK.md)
+  const claudeHook = (data.checks || []).some(c => c.ok && /hook/i.test(c.text));
+  const setAgent = (id, ok, text) => {
+    const el = document.getElementById(id);
+    el.textContent = text;
+    el.classList.toggle('ok', ok);
+  };
+  setAgent('rtk-claude-state', claudeHook, claudeHook ? 'RTK ativo (hook configurado)' : 'RTK não configurado');
+  const cx = data.codex || {};
+  setAgent('rtk-codex-state', !!cx.configured,
+    !cx.installed ? 'Codex não instalado' : cx.configured ? 'RTK ativo (AGENTS.md + RTK.md)' : 'RTK ainda não configurado no Codex');
+  document.getElementById('rtk-codex-enable').style.display = cx.installed && !cx.configured ? '' : 'none';
+
+  const sum = data.gain?.summary || {};
+  document.getElementById('rtk-saved').textContent    = fmtTokens(sum.total_saved || 0);
+  document.getElementById('rtk-saved-sub').textContent = 'tokens que não entraram no contexto';
+  document.getElementById('rtk-pct').textContent      = (sum.avg_savings_pct || 0).toFixed(1).replace('.', ',') + '%';
+  document.getElementById('rtk-commands').textContent = (sum.total_commands || 0).toLocaleString('pt-BR');
+  document.getElementById('rtk-input').textContent    = fmtTokens(sum.total_input || 0);
+  document.getElementById('rtk-output').textContent   = fmtTokens(sum.total_output || 0);
+  document.getElementById('rtk-time').textContent     = fmtDuration(sum.total_time_ms);
+  document.getElementById('rtk-time-sub').textContent = `média de ${sum.avg_time_ms || 0} ms por comando`;
+
+  const daily = (data.gain?.daily || []).slice(-30);
+  makeBarChart('chart-rtk-daily', daily.map(d => fmtDateBR(d.date).slice(0, 5)), [
+    { label: 'Economizados', data: daily.map(d => d.saved_tokens), backgroundColor: 'rgba(76,175,117,0.8)', borderRadius: 3, borderSkipped: false, maxBarThickness: 40 },
+  ]);
+
+  const tbody = document.getElementById('rtk-cmd-tbody');
+  tbody.innerHTML = (data.byCommand || []).slice(0, 10).map(r => `
+    <tr>
+      <td class="mono" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(r.command)}">${escapeHtml(r.command)}</td>
+      <td class="mono dim">${r.count}</td>
+      <td class="mono dim">${escapeHtml(r.saved.replace('.', ','))}</td>
+      <td class="mono dim">${r.pct.toFixed(1).replace('.', ',')}%</td>
+      <td class="mono dim">${escapeHtml(r.time)}</td>
+    </tr>`).join('') || '<tr><td class="dim" colspan="5">Sem dados ainda.</td></tr>';
+}
+
+async function runRtkCommand(btn) {
+  const out = document.getElementById('rtk-term-out');
+  const cmd = document.getElementById('rtk-term-cmd');
+  document.querySelectorAll('.rtk-btn').forEach(b => { b.disabled = true; });
+  btn.classList.add('running');
+  cmd.textContent = `$ executando…`;
+  out.textContent = btn.dataset.rtk === 'discover'
+    ? 'Analisando o histórico do Claude Code, isso pode levar até alguns minutos…'
+    : 'Executando…';
+  try {
+    const res = await tm.rtkRun(btn.dataset.rtk);
+    cmd.textContent = `$ ${res.command || 'rtk'}`;
+    out.textContent = (res.output || '').trim() || '(sem saída)';
+    if (!res.ok) out.textContent += '\n\n[o comando terminou com erro]';
+  } finally {
+    btn.classList.remove('running');
+    document.querySelectorAll('.rtk-btn').forEach(b => { b.disabled = false; });
+  }
+}
+
+// ── Chart Helpers ──────────────────────────────────────────────────────────
+const chartDefaults = () => ({
+  responsive: true,
+  maintainAspectRatio: true,
+  animation: { duration: 400 },
+  plugins: { legend: { display: false }, tooltip: {
+    backgroundColor: '#1e1e1e',
+    borderColor: '#3d3d3d',
+    borderWidth: 1,
+    titleFont: { family: "'Space Mono', monospace", size: 9 },
+    bodyFont:  { family: "'Space Mono', monospace", size: 10 },
+    callbacks: { label: ctx => ` ${fmtTokens(ctx.raw)} tokens` },
+  }},
+  scales: {
+    x: {
+      stacked: true,
+      grid: { color: '#2e2e2e' },
+      ticks: { color: '#525252', font: { family: "'Space Mono', monospace", size: 9 } },
+    },
+    y: {
+      stacked: true,
+      grid: { color: '#2e2e2e' },
+      ticks: {
+        color: '#525252',
+        font: { family: "'Space Mono', monospace", size: 9 },
+        callback: v => fmtTokens(v),
+      },
+    },
+  },
+});
+
+function makeBarChart(canvasId, labels, datasets) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return null;
+  if (charts[canvasId]) { charts[canvasId].destroy(); }
+  charts[canvasId] = new Chart(canvas, {
+    type: 'bar',
+    data: { labels, datasets },
+    options: chartDefaults(),
+  });
+  return charts[canvasId];
+}
+
+function dailyLabels(daily) { return daily.map(d => d.label); }
+
+// ── Heatmap ────────────────────────────────────────────────────────────────
+function renderHeatmap(heatmap) {
+  const grid = document.getElementById('heatmap-grid');
+  if (!grid || !heatmap || !heatmap.length) return;
+
+  const maxTokens = Math.max(...heatmap.map(d => d.totalTokens), 1);
+  grid.innerHTML = '';
+
+  // Pad front so column 0 starts on the right day-of-week (Mon=0)
+  const firstDow = (new Date(heatmap[0].date).getDay() + 6) % 7;
+  for (let i = 0; i < firstDow; i++) {
+    const pad = document.createElement('div');
+    pad.className = 'heatmap-cell';
+    grid.appendChild(pad);
+  }
+
+  for (const day of heatmap) {
+    const cell = document.createElement('div');
+    cell.className = 'heatmap-cell';
+    const t = day.totalTokens;
+    if (t > 0) {
+      const ratio = t / maxTokens;
+      const level = ratio < 0.15 ? 1 : ratio < 0.40 ? 2 : ratio < 0.70 ? 3 : 4;
+      cell.setAttribute('data-level', level);
+    }
+    cell.title = `${fmtDateBR(day.date)}: ${fmtTokens(t)} tokens`;
+    grid.appendChild(cell);
+  }
+}
+
+// ── Peak Hours ─────────────────────────────────────────────────────────────
+function renderPeakHours(hourly) {
+  const canvas = document.getElementById('chart-peak-hours');
+  if (!canvas || !hourly) return;
+  if (charts['chart-peak-hours']) charts['chart-peak-hours'].destroy();
+
+  const maxH = Math.max(...hourly, 1);
+  charts['chart-peak-hours'] = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: hourly.map((_, i) => i % 6 === 0 ? `${i}h` : ''),
+      datasets: [{
+        data: hourly,
+        backgroundColor: hourly.map(v => `rgba(232,101,10,${(0.15 + (v / maxH) * 0.75).toFixed(2)})`),
+        borderRadius: 2, borderSkipped: false,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: true,
+      animation: { duration: 300 },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1e1e1e', borderColor: '#3d3d3d', borderWidth: 1,
+          titleFont: { family: "'Space Mono', monospace", size: 9 },
+          bodyFont:  { family: "'Space Mono', monospace", size: 10 },
+          callbacks: {
+            title: ctx => `${ctx[0].dataIndex}h às ${ctx[0].dataIndex + 1}h`,
+            label: ctx => ` ${fmtTokens(ctx.raw)} tokens`,
+          },
+        },
+      },
+      scales: {
+        x: { grid: { color: '#2e2e2e' }, ticks: { color: '#525252', font: { family: "'Space Mono', monospace", size: 9 } } },
+        y: { grid: { color: '#2e2e2e' }, ticks: { color: '#525252', font: { family: "'Space Mono', monospace", size: 9 }, callback: v => fmtTokens(v) } },
+      },
+    },
+  });
+}
+
+// ── Sparkline ──────────────────────────────────────────────────────────────
+function drawSparkline(canvas, data) {
+  if (!canvas || !data || data.length < 2) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  const max = Math.max(...data, 1);
+  const step = w / (data.length - 1);
+
+  ctx.beginPath();
+  for (let i = 0; i < data.length; i++) {
+    const x = i * step;
+    const y = h - (data[i] / max) * h * 0.88 - 1;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = 'rgba(232,101,10,0.8)';
+  ctx.lineWidth = 1.5;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+
+  ctx.lineTo((data.length - 1) * step, h);
+  ctx.lineTo(0, h);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(232,101,10,0.12)';
+  ctx.fill();
+}
+
+// ── Cost Alert ─────────────────────────────────────────────────────────────
+function checkCostAlert(data) {
+  if (!currentSettings) return;
+  const threshold = parseFloat(currentSettings.dailyCostAlert) || 0;
+  if (threshold <= 0) return;
+  const daily = data.claude?.daily || [];
+  if (!daily.length) return;
+  const todayEntry = daily[daily.length - 1];
+  const todayCost = todayEntry?.estimatedCostUSD || 0;
+  if (todayCost >= threshold && alertFiredForDate !== todayEntry.date) {
+    alertFiredForDate = todayEntry.date;
+    showToast(`Alerta de custo diário: ${fmtCost(todayCost)} (limite: US$ ${threshold})`);
+    tm.showNotification?.('Alerta do Rendra IDE',
+      `O custo de hoje no Claude, ${fmtCost(todayCost)}, passou do limite de US$ ${threshold}`);
+  }
+}
+
+// ── Render Claude Detail ───────────────────────────────────────────────────
+function renderClaude(data) {
+  const cl = data.claude;
+  if (!cl) return;
+
+  document.getElementById('cl-header-sub').textContent =
+    `${cl.totalSessions || 0} sessões · ${fmtCost(cl.estimatedCostUSD)} estimado · ${periodLabel(cl.filters?.days || 90)}`;
+  renderFilters(cl);
+
+  // Last active session card
+  const sessions = cl.recentSessions || [];
+  const lastActiveCard = document.getElementById('cl-last-active');
+  if (sessions.length > 0) {
+    const s = sessions[0];
+    document.getElementById('cl-last-project').textContent = s.project;
+    document.getElementById('cl-last-time').textContent    = fmtRelTime(s.mtime);
+    document.getElementById('cl-last-tokens').textContent  = fmtTokens(s.totalTokens) + ' tokens';
+    document.getElementById('cl-last-model').textContent   = s.model.length > 30 ? s.model.slice(0, 28) + '…' : s.model;
+    lastActiveCard.style.display = 'flex';
+  } else {
+    lastActiveCard.style.display = 'none';
+  }
+
+  // Insight cards
+  document.getElementById('cl-cache-savings-total').textContent = fmtCost(cl.cacheSavingsUSD || 0);
+  document.getElementById('cl-cost-projection').textContent     = fmtCost(cl.costProjection30d || 0);
+
+  // Usage summary
+  document.getElementById('cl-input').textContent       = fmtTokens(cl.totalInputTokens);
+  document.getElementById('cl-output').textContent      = fmtTokens(cl.totalOutputTokens);
+  document.getElementById('cl-cache-read').textContent  = fmtTokens(cl.totalCacheReadTokens);
+  document.getElementById('cl-cache-write').textContent = fmtTokens(cl.totalCacheWriteTokens);
+  document.getElementById('cl-cache-savings').textContent =
+    `economia de ${fmtCost(cl.cacheSavingsUSD || 0)} vs. sem cache`;
+
+  // Daily chart
+  const daily = cl.daily || [];
+  makeBarChart('chart-claude-daily', dailyLabels(daily), [
+    { label: 'Entrada',  data: daily.map(d => d.inputTokens),  backgroundColor: 'rgba(212,162,122,0.5)',  borderRadius: 3, borderSkipped: false },
+    { label: 'Saída', data: daily.map(d => d.outputTokens), backgroundColor: 'rgba(212,162,122,0.85)', borderRadius: 3, borderSkipped: false },
+  ]);
+
+  // Heatmap and peak hours
+  renderHeatmap(cl.heatmap);
+  renderPeakHours(cl.hourly);
+
+  // Model breakdown table
+  const modelBreakdown = cl.modelBreakdown || {};
+  const totalClTokens = cl.totalTokens || 1;
+  const tbody = document.getElementById('cl-model-tbody');
+  tbody.innerHTML = '';
+  const models = Object.entries(modelBreakdown).sort((a, b) =>
+    (b[1].inputTokens + b[1].outputTokens) - (a[1].inputTokens + a[1].outputTokens)
+  );
+  for (const [model, stats] of models) {
+    const tokens = stats.inputTokens + stats.outputTokens;
+    const share = pct(tokens, totalClTokens);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="mono" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${model}">
+        ${escapeHtml(model.length > 28 ? model.slice(0, 26) + '…' : model)}
+      </td>
+      <td class="mono dim">${fmtTokens(tokens)}</td>
+      <td class="mono dim">${fmtCost(stats.estimatedCostUSD)}</td>
+      <td>
+        <div class="table-bar-track">
+          <div class="table-bar-fill claude" style="width:${share}%"></div>
+        </div>
+        <span style="font-size:9px;color:var(--text-dim);font-family:var(--font-mono)">${share.toFixed(1)}%</span>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  // Project breakdown table with sparklines
+  const projects = cl.projectBreakdown || [];
+  const ptbody = document.getElementById('cl-project-tbody');
+  ptbody.innerHTML = '';
+  for (const proj of projects) {
+    const share = pct(proj.totalTokens, totalClTokens);
+    const tr = document.createElement('tr');
+    const canvasId = `spark-${proj.name.replace(/\W/g, '_')}`;
+    tr.innerHTML = `
+      <td class="mono">${proj.name}</td>
+      <td class="mono dim">${proj.sessionCount}</td>
+      <td class="mono dim">${fmtTokens(proj.totalTokens)}</td>
+      <td class="mono dim">${fmtCost(proj.estimatedCostUSD)}</td>
+      <td><canvas id="${canvasId}" class="sparkline-canvas" width="58" height="20"></canvas></td>
+      <td>
+        <div class="table-bar-track">
+          <div class="table-bar-fill claude" style="width:${share}%"></div>
+        </div>
+        <span style="font-size:9px;color:var(--text-dim);font-family:var(--font-mono)">${share.toFixed(1)}%</span>
+      </td>
+    `;
+    ptbody.appendChild(tr);
+    if (proj.sparkline) {
+      drawSparkline(document.getElementById(canvasId), proj.sparkline);
+    }
+  }
+
+  // Recent sessions
+  const sessionsList = document.getElementById('cl-sessions-list');
+  sessionsList.innerHTML = '';
+  for (const s of sessions) {
+    const div = document.createElement('div');
+    div.className = 'session-item';
+    div.innerHTML = `
+      <div class="session-project">${s.project}</div>
+      <div class="session-time">${fmtRelTime(s.mtime)}</div>
+      <div class="session-tokens">${fmtTokens(s.totalTokens)}</div>
+      <div class="session-model">${s.model}</div>
+    `;
+    sessionsList.appendChild(div);
+  }
+}
+
+
+// ── Render All ─────────────────────────────────────────────────────────────
+// ── App updates ────────────────────────────────────────────────────────────
+// git clones (how Rendra IDE is distributed): the status strip shows "Versão X disponível" with
+// "Atualizar agora", which closes the app, runs git pull + npm install and reopens it.
+// Packaged builds: download progress and "Reiniciar e atualizar". The first launch on a new
+// version opens the Novidades page with a notice.
+let updateInfo = null;
+function renderUpdate(s) {
+  updateInfo = s;
+  const el = document.getElementById('update-status');
+  if (!s || !['available', 'downloading', 'ready'].includes(s.state)) { el.hidden = true; return; }
+  el.hidden = false;
+  el.innerHTML = s.state === 'downloading'
+    ? `Baixando a versão ${escapeHtml(s.version)}${s.percent != null ? ` · ${s.percent}%` : ''}…`
+    : `Versão ${escapeHtml(s.version)} disponível · <button type="button" id="update-install">${s.state === 'ready' ? 'Reiniciar e atualizar' : 'Atualizar agora'}</button>`;
+  document.getElementById('update-install')?.addEventListener('click', installUpdate);
+}
+
+async function installUpdate() {
+  const s = updateInfo || {};
+  if (s.mode === 'git') {
+    const notes = s.notes ? '\n\nNovidades:\n' + s.notes.replace(/^#+\s*/gm, '').replace(/\*\*/g, '').slice(0, 700) : '';
+    const warn = s.localChanges ? '\n\nAtenção: há alterações locais nos arquivos do Rendra IDE. Se elas conflitarem com a versão nova, a atualização é cancelada e nada é perdido.' : '';
+    if (!confirm(`Atualizar o Rendra IDE para a versão ${s.version}?\n\nO app fecha (arquivos editados podem ser salvos antes), baixa a versão nova com git pull e npm install e abre de novo. Configurações, workspaces e preços não mudam.${warn}${notes}`)) return;
+  }
+  const res = await tm.update.install();
+  if (res && res.ok === false) showToast(res.error);
+}
+
+async function initUpdates() {
+  tm.update.onStatus(renderUpdate);
+  renderUpdate(await tm.update.status());
+  const last = await tm.update.lastResult?.();
+  if (last && !last.ok) setTimeout(() => showToast(`Não foi possível atualizar: ${last.error}`), 1500);
+  const version = await tm.appVersion();
+  let seen = null;
+  try { seen = localStorage.getItem('app.lastSeenVersion'); localStorage.setItem('app.lastSeenVersion', version); } catch { /* ignore */ }
+  if (seen && seen !== version) {
+    setTimeout(() => {
+      navigate('novidades');
+      showToast(`Rendra IDE atualizado para a versão ${version} · veja as novidades`);
+    }, 1500);
+  }
+}
+
+// ── Codex CLI (OpenAI) ─────────────────────────────────────────────────────
+function codexWindowName(w) {
+  if (w.windowMinutes === 300) return 'Limite de 5 horas';
+  if (w.windowMinutes === 10080) return 'Semanal';
+  if (!w.windowMinutes) return 'Limite';
+  return w.windowMinutes >= 1440 ? `Janela de ${Math.round(w.windowMinutes / 1440)} dias` : `Janela de ${Math.round(w.windowMinutes / 60)} h`;
+}
+
+// Codex costs are tokens x per-token price: credits, or US$ once a credit value is set in Preços
+function fmtCodexCost(v, unit) {
+  if (unit === 'USD') return fmtCost(v);
+  return '~' + (v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' créditos';
+}
+
+function renderCodex(data) {
+  const cx = data.codex || { available: false };
+  const on = !!cx.available;
+  const status = document.getElementById('cx-status');
+  status.textContent = on ? 'Conectado' : 'Não conectado';
+  status.classList.toggle('on', on);
+  document.getElementById('cx-missing').style.display = on ? 'none' : '';
+  document.getElementById('cx-body').style.display = on ? '' : 'none';
+  if (cx.home) document.getElementById('cx-home').textContent = `${cx.home}${window.rendra.platform === 'win32' ? '\\' : '/'}sessions`;
+  document.getElementById('cx-header-sub').textContent = on
+    ? `${cx.totalSessions} sessões · ${fmtCodexCost(cx.estimatedCostUSD, cx.costUnit)} estimado · 90 dias` : 'Codex CLI da OpenAI';
+  if (!on) return;
+
+  document.getElementById('cx-cost').textContent      = fmtCodexCost(cx.estimatedCostUSD, cx.costUnit);
+  document.getElementById('cx-sessions').textContent  = cx.totalSessions;
+  document.getElementById('cx-input').textContent     = fmtTokens(cx.totalInputTokens);
+  document.getElementById('cx-cached').textContent    = fmtTokens(cx.totalCachedInputTokens);
+  document.getElementById('cx-output').textContent    = fmtTokens(cx.totalOutputTokens);
+  document.getElementById('cx-reasoning').textContent = fmtTokens(cx.totalReasoningTokens);
+
+  // latest rate-limit snapshot Codex recorded (it arrives with each token_count event)
+  const lim = cx.limits;
+  const rows = lim ? [lim.primary, lim.secondary].filter(Boolean)
+    .map(w => ({ kind: 'codex', label: codexWindowName(w), percent: Math.round(w.percent), resetsAt: w.resetsAt })) : [];
+  document.getElementById('cx-limits-list').innerHTML = rows.length
+    ? limitRowsHtml(rows) : '<div class="limits-empty">O Codex ainda não informou limites de uso</div>';
+  document.getElementById('cx-limits-at').textContent = lim?.at
+    ? `lido às ${fmtTimestamp(lim.at)}` : '';
+
+  makeBarChart('chart-codex-daily', cx.daily.map(d => d.label), [
+    { label: 'Entrada', data: cx.daily.map(d => d.inputTokens), backgroundColor: 'rgba(212,162,122,0.5)', borderRadius: 3, borderSkipped: false },
+    { label: 'Saída', data: cx.daily.map(d => d.outputTokens), backgroundColor: 'rgba(212,162,122,0.85)', borderRadius: 3, borderSkipped: false },
+  ]);
+
+  document.getElementById('cx-model-tbody').innerHTML = Object.entries(cx.modelBreakdown)
+    .sort((a, b) => (b[1].inputTokens + b[1].outputTokens) - (a[1].inputTokens + a[1].outputTokens))
+    .map(([m, s]) => `<tr><td class="mono">${escapeHtml(m)}</td><td class="mono dim">${fmtTokens(s.inputTokens + s.outputTokens)}</td><td class="mono dim">${fmtCodexCost(s.estimatedCostUSD, cx.costUnit)}</td></tr>`).join('');
+  document.getElementById('cx-project-tbody').innerHTML = cx.projectBreakdown
+    .map(p => `<tr><td class="mono">${escapeHtml(p.name)}</td><td class="mono dim">${p.sessionCount}</td><td class="mono dim">${fmtTokens(p.totalTokens)}</td><td class="mono dim">${fmtCodexCost(p.estimatedCostUSD, cx.costUnit)}</td></tr>`).join('');
+  document.getElementById('cx-sessions-list').innerHTML = cx.recentSessions.map(s => `
+    <div class="session-item">
+      <div class="session-project">${escapeHtml(s.project)}</div>
+      <div class="session-time">${fmtRelTime(s.mtime)}</div>
+      <div class="session-tokens">${fmtTokens(s.totalTokens)}</div>
+      <div class="session-model">${escapeHtml(s.model)}</div>
+    </div>`).join('');
+}
+
+function render(data) {
+  usageData = data;
+  renderClaude(data);
+  renderCodex(data);
+  checkCostAlert(data);
+
+  const ts = new Date(data.timestamp);
+  document.getElementById('last-updated').textContent =
+    `Atualizado às ${fmtTimestamp(ts)}`;
+
+  const total = data.claude?.totalTokens || 0;
+  const cost  = data.claude?.estimatedCostUSD || 0;
+  updateStatus(`* ${fmtTokens(total)} tokens · ${fmtCost(cost)}`);
+}
+
+// ── Settings ───────────────────────────────────────────────────────────────
+async function openSettings() {
+  const settings = await tm.getSettings();
+  document.getElementById('s-refresh').value      = settings.refreshInterval || 60;
+  document.getElementById('s-claude-path').value  = settings.claudePath || '';
+  document.getElementById('s-cost-alert').value   = settings.dailyCostAlert || 0;
+  document.getElementById('s-limits-source').value = settings.limitsSource || 'statusline';
+  document.getElementById('settings-overlay').classList.add('visible');
+}
+
+function closeSettings() {
+  document.getElementById('settings-overlay').classList.remove('visible');
+}
+
+async function saveSettings() {
+  const settings = {
+    refreshInterval: parseInt(document.getElementById('s-refresh').value),
+    claudePath:      document.getElementById('s-claude-path').value.trim(),
+    dailyCostAlert:  parseFloat(document.getElementById('s-cost-alert').value) || 0,
+    limitsSource:    document.getElementById('s-limits-source').value,
+  };
+  await tm.saveSettings(settings);
+  currentSettings = settings;
+  closeSettings();
+  await refresh();
+}
+
+// ── Refresh ─────────────────────────────────────────────────────────────────
+async function refresh() {
+  const btn = document.getElementById('btn-refresh');
+  btn.classList.add('spinning');
+  updateStatus('* Lendo sessões…');
+  try {
+    const data = await tm.getUsageData();
+    if (data) render(data);
+    if (rtkLoaded) await loadRtk();
+    await loadAccount();
+  } finally {
+    btn.classList.remove('spinning');
+  }
+}
+
+// ── Init ────────────────────────────────────────────────────────────────────
+async function init() {
+  // Navigation (bottom nav + any data-page buttons)
+  document.querySelectorAll('[data-page]').forEach(el => {
+    el.addEventListener('click', () => navigate(el.dataset.page));
+  });
+
+  // Title bar controls
+  document.getElementById('btn-close').addEventListener('click', () => tm.windowClose());
+  document.getElementById('btn-minimize').addEventListener('click', () => tm.windowMinimize());
+  document.getElementById('btn-maximize').addEventListener('click', () => tm.windowMaximize());
+  document.getElementById('btn-refresh').addEventListener('click', refresh);
+
+  initFilters();
+  initUpdates();
+
+  // Account card + plan limits: now and every 5 minutes (the usage endpoint is rate limited)
+  loadAccount();
+  setInterval(loadAccount, 5 * 60000);
+  document.getElementById('limits-refresh').addEventListener('click', async e => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    btn.textContent = '↻ Buscando…';
+    try { await loadAccount(); } finally {
+      btn.disabled = false;
+      btn.textContent = '↻ Atualizar';
+    }
+  });
+
+  // RTK command buttons
+  document.querySelectorAll('.rtk-btn').forEach(btn => {
+    btn.addEventListener('click', () => runRtkCommand(btn));
+  });
+  document.getElementById('rtk-copy').addEventListener('click', () => {
+    navigator.clipboard.writeText(document.getElementById('rtk-term-out').textContent)
+      .then(() => showToast('Saída copiada'));
+  });
+  // Codex setup changes files (AGENTS.md / RTK.md in the Codex folder), so it asks first
+  document.getElementById('rtk-codex-enable').addEventListener('click', async e => {
+    if (!confirm('Ativar o RTK no Codex? Isso roda "rtk init -g --codex", que adiciona as instruções do RTK ao AGENTS.md e cria o RTK.md na pasta do Codex.')) return;
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    const res = await tm.rtkRun('codex-init');
+    btn.disabled = false;
+    document.getElementById('rtk-term-cmd').textContent = `$ ${res.command || 'rtk init -g --codex'}`;
+    document.getElementById('rtk-term-out').textContent = (res.output || '').trim() || '(sem saída)';
+    showToast(res.ok ? 'RTK ativado no Codex' : 'Não foi possível ativar o RTK no Codex');
+    await loadRtk();
+  });
+
+  // Settings
+  document.getElementById('btn-settings').addEventListener('click', openSettings);
+  document.getElementById('s-cancel').addEventListener('click', closeSettings);
+  document.getElementById('s-save').addEventListener('click', saveSettings);
+  document.getElementById('settings-overlay').addEventListener('click', e => {
+    if (e.target === document.getElementById('settings-overlay')) closeSettings();
+  });
+
+  document.addEventListener('keydown', e => {
+    // In DevCode, Ctrl+R belongs to the terminal (history search) and the editor
+    if ((e.ctrlKey || e.metaKey) && e.key === 'r' && !document.body.classList.contains('dev-mode')) { e.preventDefault(); refresh(); }
+  });
+
+  // Push updates from main process
+  tm.onUsageUpdated(data => { render(data); });
+
+  // Load settings
+  try {
+    const settings = await tm.getSettings();
+    currentSettings = settings;
+  } catch { /* use default */ }
+
+  // Initial data load. The app opens on DevCode, which doesn't need usage data, so the
+  // multi-second first scan runs in the background instead of behind the loading overlay
+  updateStatus('* Lendo sessões…');
+  const loadingOverlay = document.getElementById('loading-overlay');
+  loadingOverlay.classList.add('hidden');
+  setTimeout(() => { loadingOverlay.style.display = 'none'; }, 400);
+  const data = await tm.getUsageData();
+  if (data) render(data);
+}
+
+init();

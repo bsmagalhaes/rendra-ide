@@ -1,0 +1,37 @@
+# Rendra IDE
+
+> IDE gratuita e open source (MIT) para quem programa com agentes de IA. Junta terminais em grade, o editor Monaco (o do VS Code) e um explorador com as cores do Git a um painel que mostra o consumo de tokens e o custo por projeto do Claude Code e do Codex CLI, com os limites de uso do plano e a integração com o RTK para economizar tokens. Roda no Windows, macOS e Linux, lendo só arquivos locais, sem conta nem telemetria.
+
+## Para quem serve
+
+- Quem usa Claude Code ou Codex CLI no dia a dia e quer saber quanto cada projeto e cada modelo consome.
+- Quem quer terminais em grade, editor e Git numa janela só, inclusive com WSL no Windows.
+- Quem quer gastar menos tokens com o RTK (Rust Token Killer).
+
+## Como instalar
+
+Requer Node.js 20+ e Git.
+
+```bash
+git clone https://github.com/bsmagalhaes/rendra-ide
+cd rendra-ide
+npm install
+npm start
+```
+
+Na primeira abertura o app oferece instalar Git Bash, RTK e, no Windows, o WSL (ou `npm run setup`). Para atualizar: botão "Atualizar agora" no app, ou `git pull && npm install`.
+
+## O que tem
+
+- IDE: workspaces em abas, explorador com cores do Git, editor Monaco, terminais em grade (PowerShell, Git Bash, CMD, zsh, bash, fish, WSL).
+- Consumo: tokens de entrada, saída e cache, custo por token (cache de 5 min e 1 h separados, modo rápido, buscas web), por projeto, modelo e período.
+- Limites de uso do plano do Claude (5 horas e semanal) lidos da statusline do Claude Code, e limites do Codex.
+- Página Preços editável, atualizada a partir do repositório.
+- Integração com o RTK no Claude Code e no Codex.
+
+## Links
+
+- Repositório: https://github.com/bsmagalhaes/rendra-ide
+- Site: https://bsmagalhaes.github.io/rendra-ide/
+- Novidades: https://github.com/bsmagalhaes/rendra-ide/blob/main/CHANGELOG.md
+- Autor: Bruno Magalhaes, https://www.brunomagalhaes.me

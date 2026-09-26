@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self';
+                 script-src 'self' https://cdn.jsdelivr.net;
+                 style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+                 font-src 'self' data: https://fonts.gstatic.com;
+                 worker-src 'self' blob: data:;
+                 img-src 'self' data:;
+                 connect-src 'none';">
+  <title>Rendra IDE</title>
+  <link rel="stylesheet" href="../node_modules/@xterm/xterm/css/xterm.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="dev-mode">
+
+<!-- Title Bar -->
+<div id="title-bar">
+  <div class="traffic-lights">
+    <button class="tl-btn tl-close"    id="btn-close"    title="Fechar"></button>
+    <button class="tl-btn tl-minimize" id="btn-minimize" title="Minimizar"></button>
+    <button class="tl-btn tl-maximize" id="btn-maximize" title="Maximizar"></button>
+  </div>
+  <div class="app-name">RENDRA<span>IDE</span></div>
+  <div class="title-bar-right">
+    <button class="icon-btn" id="btn-refresh" title="Atualizar (Ctrl+R)">↻</button>
+    <button class="icon-btn" id="btn-settings" title="Configurações">⚙</button>
+  </div>
+</div>
+
+<!-- App body: activity bar (left, VS Code style) + pages -->
+<div id="app-body">
+<nav id="activity-bar">
+  <button class="nav-tab active" data-page="devcode" title="DevCode IDE">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 4l-3 16"/></svg>
+    <span>IDE</span>
+  </button>
+  <button class="nav-tab" data-page="terminal" title="Terminal: terminais independentes">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17l6-5-6-5M12 19h8"/></svg>
+    <span>Terminal</span>
+  </button>
+  <button class="nav-tab" data-page="claude" title="Claude Code: consumo e limites">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6L5.6 18.4"/></svg>
+    <span>Claude</span>
+  </button>
+  <button class="nav-tab" data-page="rtk" title="RTK: economia de tokens">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>
+    <span>RTK</span>
+  </button>
+  <button class="nav-tab" data-page="codex" title="Codex CLI (OpenAI): consumo e limites">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l8.2 4.75v9.5L12 21.5l-8.2-4.75v-9.5z"/><path d="M10 9.5L7.5 12l2.5 2.5M14 9.5l2.5 2.5-2.5 2.5"/></svg>
+    <span>Codex</span>
+  </button>
+  <button class="nav-tab" data-page="precos" title="Preços por token (Claude Code e Codex)">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.6 13.4l-7.2 7.2a2 2 0 01-2.8 0L3 13V3h10l7.6 7.6a2 2 0 010 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>
+    <span>Preços</span>
+  </button>
+  <button class="nav-tab nav-tab-bottom" data-page="novidades" title="Novidades de cada versão">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>
+    <span>Novidades</span>
+  </button>
+  <button class="nav-tab" data-page="sobre" title="Sobre o Rendra IDE, créditos e licenças">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>
+    <span>Sobre</span>
+  </button>
+</nav>
+
+
+<!-- Loading Overlay -->
+<div id="loading-overlay">
+  <div class="loading-ring"></div>
+  <div class="loading-text">* lendo sessões…</div>
+</div>
+
+<!-- Main Content -->
+<div id="main-content">
+
+  <!-- PAGE: Claude Detail -->
+  <div class="page" id="page-claude">
+    <div class="page-header">
+      <div class="page-title" style="color:var(--claude)">Claude Code</div>
+      <div class="page-subtitle" id="cl-header-sub">—</div>
+
+      <div class="filters">
+        <div class="project-filter" id="project-filter">
+          <button class="filter-btn" id="project-filter-btn" type="button">
+            <span class="filter-btn-label">Projetos</span>
+            <span id="project-filter-value">Todos</span>
+            <span class="filter-caret">▾</span>
+          </button>
+          <div class="project-panel" id="project-panel">
+            <input class="project-search" id="project-search" type="text" placeholder="Buscar projeto…">
+            <label class="project-option project-option-all">
+              <input type="checkbox" id="project-all" checked>
+              <span>Todos os projetos</span>
+            </label>
+            <div class="project-list" id="project-list"></div>
+            <div class="project-panel-actions">
+              <button class="btn btn-secondary" id="project-clear" type="button">Limpar</button>
+              <button class="btn btn-primary" id="project-apply" type="button">Aplicar</button>
+            </div>
+          </div>
+        </div>
+        <div class="period-filter" id="period-filter">
+          <button class="period-btn" data-days="1" type="button">Hoje</button>
+          <button class="period-btn" data-days="3" type="button">3 dias</button>
+          <button class="period-btn" data-days="7" type="button">7 dias</button>
+          <button class="period-btn" data-days="15" type="button">15 dias</button>
+          <button class="period-btn" data-days="30" type="button">30 dias</button>
+          <button class="period-btn" data-days="60" type="button">60 dias</button>
+          <button class="period-btn active" data-days="90" type="button">90 dias</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="top-cards">
+    <div id="cl-last-active" class="last-active-card" style="display:none">
+      <div class="last-active-label">Última sessão</div>
+      <div class="last-active-project" id="cl-last-project">—</div>
+      <div class="last-active-meta">
+        <span id="cl-last-time">—</span>
+        <span class="sep">·</span>
+        <span id="cl-last-tokens">—</span>
+        <span class="sep">·</span>
+        <span id="cl-last-model">—</span>
+      </div>
+    </div>
+
+    <div class="account-card" id="cl-account">
+      <div class="last-active-label">Conta conectada</div>
+      <div class="account-org" id="acc-org">—</div>
+      <div class="account-meta">
+        <span class="account-email" id="acc-email">—</span>
+        <span class="sep">·</span>
+        <span id="acc-plan">—</span>
+      </div>
+    </div>
+
+    <div class="limits-card" id="cl-limits">
+      <div class="limits-head">
+        <div class="last-active-label">Limites de uso</div>
+        <div class="limits-actions">
+          <span class="limits-updated" id="limits-updated"></span>
+          <button class="limits-refresh" id="limits-refresh" type="button" title="Atualizar limites">↻ Atualizar</button>
+        </div>
+      </div>
+      <div id="limits-list" class="limits-list">
+        <div class="limits-empty">Carregando…</div>
+      </div>
+    </div>
+    </div>
+
+    <div class="section-heading">Resumo de uso</div>
+    <div class="summary-row">
+      <div class="insight-card">
+        <div class="insight-label">Economia com cache</div>
+        <div class="insight-value" id="cl-cache-savings-total">~$0.00</div>
+        <div class="insight-sub">economia vs. entrada sem cache</div>
+      </div>
+      <div class="insight-card">
+        <div class="insight-label">Projeção de 30 dias</div>
+        <div class="insight-value" id="cl-cost-projection">~$0.00</div>
+        <div class="insight-sub">média móvel dos últimos 7 dias</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-label">Tokens de entrada</div>
+        <div class="stat-card-value accent-claude" id="cl-input">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-label">Tokens de saída</div>
+        <div class="stat-card-value accent-claude" id="cl-output">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-label">Leitura de cache</div>
+        <div class="stat-card-value" id="cl-cache-read">—</div>
+        <div class="stat-card-sub" id="cl-cache-savings">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-label">Escrita de cache</div>
+        <div class="stat-card-value" id="cl-cache-write">—</div>
+      </div>
+    </div>
+
+    <div class="chart-row chart-row-4">
+      <div class="chart-cell">
+        <div class="section-heading daily-heading">Atividade diária (90 dias)</div>
+        <div class="chart-container">
+          <canvas id="chart-claude-daily" class="chart-canvas"></canvas>
+        </div>
+      </div>
+      <div class="chart-cell">
+        <div class="section-heading">Horários de pico</div>
+        <div class="chart-container">
+          <canvas id="chart-peak-hours" class="chart-canvas"></canvas>
+        </div>
+      </div>
+      <div class="chart-cell">
+        <div class="section-heading">Mapa de atividade (90 dias)</div>
+        <div class="chart-container heatmap-container">
+          <div id="heatmap-grid" class="heatmap-grid"></div>
+          <div class="heatmap-legend">
+            <span>Menos</span>
+            <div class="heatmap-legend-cells">
+              <div class="heatmap-cell"></div>
+              <div class="heatmap-cell" data-level="1"></div>
+              <div class="heatmap-cell" data-level="2"></div>
+              <div class="heatmap-cell" data-level="3"></div>
+              <div class="heatmap-cell" data-level="4"></div>
+            </div>
+            <span>Mais</span>
+          </div>
+        </div>
+      </div>
+      <div class="chart-cell">
+        <div class="section-heading">Consumo por modelo</div>
+        <div class="chart-container" style="padding:0;overflow:hidden">
+          <table class="breakdown-table">
+            <thead><tr>
+              <th>Modelo</th><th>Tokens</th><th>Custo est.</th>
+              <th style="width:30%">Participação</th>
+            </tr></thead>
+            <tbody id="cl-model-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="chart-row projects-row">
+      <div class="chart-cell">
+        <div class="section-heading">Projetos</div>
+        <div class="chart-container" style="padding:0;overflow:hidden">
+          <table class="breakdown-table">
+            <thead><tr>
+              <th>Projeto</th><th>Sessões</th><th>Tokens</th>
+              <th>Custo est.</th><th style="width:60px">14 dias</th><th style="width:20%">Participação</th>
+            </tr></thead>
+            <tbody id="cl-project-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="chart-cell">
+        <div class="section-heading">Sessões recentes</div>
+        <div class="session-list" id="cl-sessions-list"></div>
+      </div>
+    </div>
+  </div><!-- /page-claude -->
+
+  <!-- PAGE: Terminal (standalone terminals, built by devcode.js) -->
+  <div class="page" id="page-terminal"><div class="term-page" id="term-page"></div></div>
+
+  <!-- PAGE: Preços (price per token, used by every cost; built by pricing.js) -->
+  <div class="page" id="page-precos">
+    <div class="page-header">
+      <div class="page-title">Preços</div>
+      <div class="page-subtitle">custo = tokens × preço por 1 milhão de tokens</div>
+    </div>
+    <div class="price-tabs" id="price-tabs">
+      <button class="price-tab active" data-which="claude" type="button">Claude Code</button>
+      <button class="price-tab" data-which="codex" type="button">Codex</button>
+    </div>
+    <div class="price-toolbar">
+      <div class="price-source" id="price-source"></div>
+      <div class="price-actions">
+        <button class="btn btn-secondary" id="price-add" type="button">+ Modelo</button>
+        <button class="btn btn-secondary" id="price-reset" type="button">Restaurar padrão</button>
+        <button class="btn btn-secondary" id="price-fetch" type="button">↻ Verificar atualização</button>
+        <button class="btn btn-primary" id="price-save" type="button">Salvar</button>
+      </div>
+    </div>
+    <div class="price-banner" id="price-banner" hidden>
+      <span id="price-banner-text">Novos preços disponíveis.</span>
+      <button class="btn btn-primary" id="price-apply" type="button">Aplicar</button>
+    </div>
+    <div class="price-extra" id="price-extra"></div>
+    <div class="chart-container price-table-wrap" style="padding:0">
+      <table class="breakdown-table price-table" id="price-table"></table>
+    </div>
+    <p class="price-help" id="price-help"></p>
+  </div><!-- /page-precos -->
+
+  <!-- PAGE: Novidades (CHANGELOG.md; built by about.js) -->
+  <div class="page" id="page-novidades">
+    <div class="page-header">
+      <div class="page-title">Novidades</div>
+      <div class="page-subtitle" id="changelog-version">—</div>
+    </div>
+    <div class="about-md" id="changelog-body"></div>
+  </div><!-- /page-novidades -->
+
+  <!-- PAGE: Sobre (product, then credits and licenses at the end; built by about.js) -->
+  <div class="page" id="page-sobre">
+    <div class="page-header">
+      <div class="page-title">Sobre o Rendra IDE</div>
+      <div class="page-subtitle" id="about-version">—</div>
+    </div>
+    <div class="about-body" id="about-body"></div>
+  </div><!-- /page-sobre -->
+
+  <!-- PAGE: Codex CLI (OpenAI) -->
+  <div class="page" id="page-codex">
+    <div class="page-header">
+      <div class="page-title">Codex</div>
+      <div class="page-subtitle" id="cx-header-sub">—</div>
+      <div class="cx-status" id="cx-status">Não conectado</div>
+    </div>
+
+    <div id="cx-missing" class="cx-missing">
+      <div class="cx-missing-title">Não conectado</div>
+      <p>Nenhum dado do <b>Codex CLI</b> foi encontrado em <code id="cx-home">~/.codex/sessions</code>.</p>
+      <p>Instale o Codex CLI (<code>npm i -g @openai/codex</code>), faça login e use-o pelo menos uma vez: o consumo aparece aqui automaticamente.</p>
+    </div>
+
+    <div id="cx-body" style="display:none">
+      <div class="top-cards cx-top">
+        <div class="limits-card" id="cx-limits">
+          <div class="limits-head">
+            <div class="last-active-label">Limites de uso</div>
+            <div class="limits-updated" id="cx-limits-at"></div>
+          </div>
+          <div class="limits-list" id="cx-limits-list"></div>
+        </div>
+      </div>
+
+      <div class="section-heading">Resumo (90 dias)</div>
+      <div class="summary-row">
+        <div class="insight-card"><div class="insight-label">Custo estimado</div><div class="insight-value" id="cx-cost">—</div><div class="insight-sub">tokens × preço por token (aba Preços)</div></div>
+        <div class="stat-card"><div class="stat-card-label">Sessões</div><div class="stat-card-value" id="cx-sessions">—</div></div>
+        <div class="stat-card"><div class="stat-card-label">Tokens de entrada</div><div class="stat-card-value accent-claude" id="cx-input">—</div></div>
+        <div class="stat-card"><div class="stat-card-label">Entrada em cache</div><div class="stat-card-value" id="cx-cached">—</div></div>
+        <div class="stat-card"><div class="stat-card-label">Tokens de saída</div><div class="stat-card-value accent-claude" id="cx-output">—</div></div>
+        <div class="stat-card"><div class="stat-card-label">Raciocínio</div><div class="stat-card-value" id="cx-reasoning">—</div></div>
+      </div>
+
+      <div class="chart-row">
+        <div class="chart-cell">
+          <div class="section-heading">Atividade diária (30 dias)</div>
+          <div class="chart-container"><canvas id="chart-codex-daily" class="chart-canvas"></canvas></div>
+        </div>
+        <div class="chart-cell">
+          <div class="section-heading">Consumo por modelo</div>
+          <div class="chart-container" style="padding:0;overflow:hidden">
+            <table class="breakdown-table">
+              <thead><tr><th>Modelo</th><th>Tokens</th><th>Custo est.</th></tr></thead>
+              <tbody id="cx-model-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="chart-row projects-row">
+        <div class="chart-cell">
+          <div class="section-heading">Projetos</div>
+          <div class="chart-container" style="padding:0;overflow:hidden">
+            <table class="breakdown-table">
+              <thead><tr><th>Projeto</th><th>Sessões</th><th>Tokens</th><th>Custo est.</th></tr></thead>
+              <tbody id="cx-project-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="chart-cell">
+          <div class="section-heading">Sessões recentes</div>
+          <div class="session-list" id="cx-sessions-list"></div>
+        </div>
+      </div>
+    </div>
+  </div><!-- /page-codex -->
+
+  <!-- PAGE: RTK -->
+  <div class="page" id="page-rtk">
+    <div class="page-header">
+      <div class="page-title" style="color:var(--green)">RTK · Rust Token Killer</div>
+      <div class="page-subtitle" id="rtk-header-sub">—</div>
+    </div>
+
+    <div id="rtk-missing" class="rtk-missing" style="display:none">
+      O RTK não foi encontrado nesta máquina.
+      <button class="btn btn-primary" id="rtk-install" type="button">Instalar RTK</button>
+    </div>
+
+    <div id="rtk-body">
+      <div class="section-heading">Status da instalação</div>
+      <div class="rtk-checks" id="rtk-checks"></div>
+
+      <div class="section-heading">Agentes</div>
+      <div class="rtk-agents">
+        <div class="rtk-agent" id="rtk-agent-claude">
+          <div class="rtk-agent-name">Claude Code</div>
+          <div class="rtk-agent-state" id="rtk-claude-state">—</div>
+        </div>
+        <div class="rtk-agent" id="rtk-agent-codex">
+          <div class="rtk-agent-name">Codex</div>
+          <div class="rtk-agent-state" id="rtk-codex-state">—</div>
+          <button class="btn btn-primary" id="rtk-codex-enable" type="button" style="display:none">Ativar RTK no Codex</button>
+        </div>
+      </div>
+      <p class="rtk-note">A economia abaixo é do RTK como um todo: soma os comandos filtrados de todos os agentes (Claude Code e Codex); o RTK não separa por agente.</p>
+
+      <div class="section-heading">Economia</div>
+      <div class="summary-row rtk-summary">
+        <div class="insight-card rtk">
+          <div class="insight-label">Tokens economizados</div>
+          <div class="insight-value" id="rtk-saved">—</div>
+          <div class="insight-sub" id="rtk-saved-sub">—</div>
+        </div>
+        <div class="insight-card rtk">
+          <div class="insight-label">Economia média</div>
+          <div class="insight-value" id="rtk-pct">—</div>
+          <div class="insight-sub">sobre a saída bruta dos comandos</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-label">Comandos filtrados</div>
+          <div class="stat-card-value" id="rtk-commands">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-label">Tokens de entrada</div>
+          <div class="stat-card-value" id="rtk-input">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-label">Tokens de saída</div>
+          <div class="stat-card-value" id="rtk-output">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-label">Tempo total</div>
+          <div class="stat-card-value" id="rtk-time">—</div>
+          <div class="stat-card-sub" id="rtk-time-sub">—</div>
+        </div>
+      </div>
+
+      <div class="chart-row">
+        <div class="chart-cell">
+          <div class="section-heading">Economia diária</div>
+          <div class="chart-container">
+            <canvas id="chart-rtk-daily" class="chart-canvas"></canvas>
+          </div>
+        </div>
+        <div class="chart-cell">
+          <div class="section-heading">Comandos que mais economizam</div>
+          <div class="chart-container" style="padding:0;overflow:hidden">
+            <table class="breakdown-table">
+              <thead><tr>
+                <th>Comando</th><th>Usos</th><th>Economia</th><th>Média</th><th>Tempo</th>
+              </tr></thead>
+              <tbody id="rtk-cmd-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-heading">Comandos do RTK</div>
+      <div class="rtk-actions">
+        <button class="rtk-btn" data-rtk="gain">Resumo de economia</button>
+        <button class="rtk-btn" data-rtk="graph">Gráfico diário</button>
+        <button class="rtk-btn" data-rtk="periods">Por dia, semana e mês</button>
+        <button class="rtk-btn" data-rtk="history">Histórico de comandos</button>
+        <button class="rtk-btn" data-rtk="quota">Estimativa de cota</button>
+        <button class="rtk-btn" data-rtk="session">Adoção por sessão</button>
+        <button class="rtk-btn" data-rtk="discover">Oportunidades perdidas</button>
+        <button class="rtk-btn" data-rtk="economics">Gasto vs. economia</button>
+        <button class="rtk-btn" data-rtk="failures">Falhas de filtro</button>
+        <button class="rtk-btn" data-rtk="init">Status do hook</button>
+        <button class="rtk-btn" data-rtk="config">Configuração</button>
+        <button class="rtk-btn" data-rtk="version">Versão</button>
+      </div>
+      <div class="rtk-terminal">
+        <div class="rtk-terminal-bar">
+          <span id="rtk-term-cmd">$ rtk</span>
+          <button class="rtk-copy" id="rtk-copy" title="Copiar saída">copiar</button>
+        </div>
+        <pre id="rtk-term-out">Clique num comando acima para ver a saída aqui.</pre>
+      </div>
+    </div>
+  </div><!-- /page-rtk -->
+
+  <!-- PAGE: DevCode — workspaces bar + one layout per workspace, built by devcode.js -->
+  <div class="page active" id="page-devcode">
+    <div class="ws-bar">
+      <div class="ws-tabs" id="ws-tabs"></div>
+      <button class="ws-add" id="ws-add" type="button" title="Novo workspace">＋</button>
+    </div>
+    <div class="ws-host" id="ws-host"></div>
+  </div><!-- /page-devcode -->
+
+</div><!-- /main-content -->
+</div><!-- /app-body -->
+
+<!-- Status Strip -->
+<div id="status-strip">
+  <span id="status-text">* Pronto.</span>
+  <span id="update-status" class="update-status" hidden></span>
+  <span id="last-updated">—</span>
+</div>
+
+<!-- Settings Modal -->
+<div id="settings-overlay">
+  <div class="settings-modal">
+    <div class="settings-title">Configurações</div>
+
+    <div class="setting-row">
+      <div class="setting-label">Intervalo de atualização</div>
+      <select class="setting-select" id="s-refresh">
+        <option value="30">30 segundos</option>
+        <option value="60" selected>60 segundos</option>
+        <option value="300">5 minutos</option>
+        <option value="0">Somente manual</option>
+      </select>
+    </div>
+    <div class="setting-row">
+      <div class="setting-label">Pasta de projetos do Claude (opcional)</div>
+      <input class="setting-input" id="s-claude-path" type="text"
+             placeholder="Padrão: ~/.claude/projects">
+    </div>
+    <div class="setting-row">
+      <div class="setting-label">Alerta de custo diário (US$, 0 = desligado)</div>
+      <input class="setting-input" id="s-cost-alert" type="number"
+             min="0" step="0.5" placeholder="ex.: 5">
+    </div>
+
+    <div class="setting-row">
+      <div class="setting-label">Limites de uso do Claude</div>
+      <select class="setting-select" id="s-limits-source">
+        <option value="statusline" selected>Pela statusline do Claude Code (recomendado)</option>
+        <option value="api">Completo: consultar a Anthropic com o login do Claude Code</option>
+      </select>
+      <div class="setting-hint">A statusline mostra os limites de 5 horas e semanal que o Claude Code informa. O modo completo também traz os limites semanais por modelo, mas usa um endereço interno da Anthropic com o seu login: é opcional e pode deixar de funcionar a qualquer momento.</div>
+    </div>
+
+    <div class="setting-row">
+      <div class="setting-label">Ferramentas (Git Bash, RTK, WSL)</div>
+      <button class="btn btn-secondary" id="s-setup" type="button">Configurar ambiente…</button>
+    </div>
+
+    <div class="settings-actions">
+      <button class="btn btn-secondary" id="s-cancel">Cancelar</button>
+      <button class="btn btn-primary"   id="s-save">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Save prompt (DevCode: closing a tab / workspace with unsaved files) -->
+<div id="save-overlay">
+  <div class="save-modal">
+    <div class="settings-title" id="save-title">Salvar alterações?</div>
+    <div class="save-body" id="save-body"></div>
+    <div class="settings-actions" id="save-actions"></div>
+  </div>
+</div>
+
+<!-- Environment setup (first launch + Settings): Git Bash, RTK, WSL -->
+<div id="setup-overlay">
+  <div class="setup-modal">
+    <div class="settings-title">Configurar ambiente</div>
+    <p class="setup-intro">O DevCode IDE usa estas ferramentas. Marque o que quer instalar agora; o que já estiver instalado aparece como pronto.</p>
+    <div class="setup-items" id="setup-items"><div class="limits-empty">Verificando…</div></div>
+    <pre class="setup-log" id="setup-log"></pre>
+    <div class="settings-actions">
+      <button class="btn btn-secondary" id="setup-later" type="button">Agora não</button>
+      <button class="btn btn-primary" id="setup-run" type="button">Instalar selecionados</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<!-- xterm must load before Monaco's AMD loader (devcode.js loads it lazily), or it registers as an AMD module -->
+<script src="../node_modules/@xterm/xterm/lib/xterm.js"></script>
+<script src="../node_modules/@xterm/addon-fit/lib/addon-fit.js"></script>
+<script src="../node_modules/@xterm/addon-unicode11/lib/addon-unicode11.js"></script>
+<script src="app.js"></script>
+<script src="devcode.js"></script>
+<script src="setup.js"></script>
+<script src="pricing.js"></script>
+<script src="about.js"></script>
+</body>
+</html>

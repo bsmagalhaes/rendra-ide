@@ -1,0 +1,335 @@
+{
+  "_note": "Preços por 1M de tokens. Claude em US$ (platform.claude.com/docs/pt-BR/about-claude/pricing); Codex em créditos (learn.chatgpt.com/docs/pricing). Edite pela aba Preços do app. cacheWrite = escrita de 5 min, cacheWrite1h = escrita de 1 h, cacheRead = leitura; fastInput/fastOutput = modo rápido.",
+  "updatedAt": {
+    "claude": "2026-09-26",
+    "codex": "2026-09-26"
+  },
+  "webSearchPer1k": 10,
+  "codexCreditUsd": null,
+  "claude": [
+    {
+      "label": "Claude Fable 5.1",
+      "pattern": "claude-fable-5-1",
+      "input": 10,
+      "output": 50,
+      "cacheWrite": 12.5,
+      "cacheWrite1h": 20,
+      "cacheRead": 0.25
+    },
+    {
+      "label": "Claude Opus 5.5",
+      "pattern": "claude-opus-5-5",
+      "input": 4,
+      "output": 20,
+      "cacheWrite": 5,
+      "cacheWrite1h": 8,
+      "cacheRead": 0.2,
+      "fastInput": 8,
+      "fastOutput": 40
+    },
+    {
+      "label": "Claude Sonnet 5",
+      "pattern": "claude-sonnet-5",
+      "input": 2,
+      "output": 10,
+      "cacheWrite": 2.5,
+      "cacheWrite1h": 4,
+      "cacheRead": 0.2
+    },
+    {
+      "label": "Claude Haiku 4.5",
+      "pattern": "claude-haiku-4-5",
+      "input": 1,
+      "output": 5,
+      "cacheWrite": 1.25,
+      "cacheWrite1h": 2,
+      "cacheRead": 0.1
+    },
+    {
+      "label": "Claude Mythos 5.1",
+      "pattern": "claude-mythos-5-1",
+      "input": 10,
+      "output": 50,
+      "cacheWrite": 12.5,
+      "cacheWrite1h": 20,
+      "cacheRead": 0.25
+    },
+    {
+      "label": "Claude Fable 5",
+      "pattern": "claude-fable-5",
+      "input": 10,
+      "output": 50,
+      "cacheWrite": 12.5,
+      "cacheWrite1h": 20,
+      "cacheRead": 1
+    },
+    {
+      "label": "Claude Mythos 5",
+      "pattern": "claude-mythos-5",
+      "input": 10,
+      "output": 50,
+      "cacheWrite": 12.5,
+      "cacheWrite1h": 20,
+      "cacheRead": 1
+    },
+    {
+      "label": "Claude Opus 5",
+      "pattern": "claude-opus-5",
+      "input": 5,
+      "output": 25,
+      "cacheWrite": 6.25,
+      "cacheWrite1h": 10,
+      "cacheRead": 0.5,
+      "fastInput": 10,
+      "fastOutput": 50
+    },
+    {
+      "label": "Claude Opus 4.8",
+      "pattern": "claude-opus-4-8",
+      "input": 5,
+      "output": 25,
+      "cacheWrite": 6.25,
+      "cacheWrite1h": 10,
+      "cacheRead": 0.5,
+      "fastInput": 10,
+      "fastOutput": 50
+    },
+    {
+      "label": "Claude Opus 4.7",
+      "pattern": "claude-opus-4-7",
+      "input": 5,
+      "output": 25,
+      "cacheWrite": 6.25,
+      "cacheWrite1h": 10,
+      "cacheRead": 0.5
+    },
+    {
+      "label": "Claude Opus 4.6",
+      "pattern": "claude-opus-4-6",
+      "input": 5,
+      "output": 25,
+      "cacheWrite": 6.25,
+      "cacheWrite1h": 10,
+      "cacheRead": 0.5
+    },
+    {
+      "label": "Claude Opus 4.5",
+      "pattern": "claude-opus-4-5",
+      "input": 5,
+      "output": 25,
+      "cacheWrite": 6.25,
+      "cacheWrite1h": 10,
+      "cacheRead": 0.5
+    },
+    {
+      "label": "Claude Opus 4.1",
+      "pattern": "claude-opus-4-1",
+      "input": 15,
+      "output": 75,
+      "cacheWrite": 18.75,
+      "cacheWrite1h": 30,
+      "cacheRead": 1.5
+    },
+    {
+      "label": "Claude Opus 4",
+      "pattern": "claude-opus-4",
+      "input": 15,
+      "output": 75,
+      "cacheWrite": 18.75,
+      "cacheWrite1h": 30,
+      "cacheRead": 1.5
+    },
+    {
+      "label": "Claude Sonnet 4.6",
+      "pattern": "claude-sonnet-4-6",
+      "input": 3,
+      "output": 15,
+      "cacheWrite": 3.75,
+      "cacheWrite1h": 6,
+      "cacheRead": 0.3
+    },
+    {
+      "label": "Claude Sonnet 4.5",
+      "pattern": "claude-sonnet-4-5",
+      "input": 3,
+      "output": 15,
+      "cacheWrite": 3.75,
+      "cacheWrite1h": 6,
+      "cacheRead": 0.3
+    },
+    {
+      "label": "Claude Sonnet 4",
+      "pattern": "claude-sonnet-4",
+      "input": 3,
+      "output": 15,
+      "cacheWrite": 3.75,
+      "cacheWrite1h": 6,
+      "cacheRead": 0.3
+    },
+    {
+      "label": "Claude Haiku 3.5",
+      "pattern": "claude-3-5-haiku",
+      "input": 0.8,
+      "output": 4,
+      "cacheWrite": 1,
+      "cacheWrite1h": 1.6,
+      "cacheRead": 0.08
+    },
+    {
+      "label": "Claude Sonnet 3.5",
+      "pattern": "claude-3-5-sonnet",
+      "input": 3,
+      "output": 15,
+      "cacheWrite": 3.75,
+      "cacheWrite1h": 6,
+      "cacheRead": 0.3
+    },
+    {
+      "label": "Claude Opus 3",
+      "pattern": "claude-3-opus",
+      "input": 15,
+      "output": 75,
+      "cacheWrite": 18.75,
+      "cacheWrite1h": 30,
+      "cacheRead": 1.5
+    },
+    {
+      "label": "Padrão (modelo desconhecido)",
+      "pattern": "default",
+      "input": 3,
+      "output": 15,
+      "cacheWrite": 3.75,
+      "cacheWrite1h": 6,
+      "cacheRead": 0.3
+    }
+  ],
+  "codex": [
+    {
+      "label": "GPT-6 Astra",
+      "pattern": "gpt-6-astra",
+      "input": 250,
+      "cachedInput": 25,
+      "output": 1250
+    },
+    {
+      "label": "GPT-6 Sol",
+      "pattern": "gpt-6-sol",
+      "input": 50,
+      "cachedInput": 5,
+      "output": 250
+    },
+    {
+      "label": "GPT-6 Luna",
+      "pattern": "gpt-6-luna",
+      "input": 2.5,
+      "cachedInput": 0.25,
+      "output": 12.5
+    },
+    {
+      "label": "GPT-5.6 Sol",
+      "pattern": "gpt-5.6-sol",
+      "input": 100,
+      "cachedInput": 10,
+      "output": 500
+    },
+    {
+      "label": "Daybreak Blue",
+      "pattern": "daybreak-blue",
+      "input": 100,
+      "cachedInput": 10,
+      "output": 500
+    },
+    {
+      "label": "Daybreak Red",
+      "pattern": "daybreak-red",
+      "input": 312.5,
+      "cachedInput": 31.25,
+      "output": 1875
+    },
+    {
+      "label": "GPT-5.6 Terra",
+      "pattern": "gpt-5.6-terra",
+      "input": 50,
+      "cachedInput": 5,
+      "output": 300
+    },
+    {
+      "label": "GPT-5.6 Luna",
+      "pattern": "gpt-5.6-luna",
+      "input": 5,
+      "cachedInput": 0.5,
+      "output": 30
+    },
+    {
+      "label": "GPT-Rosalind-Research",
+      "pattern": "gpt-rosalind-research",
+      "input": 125,
+      "cachedInput": 12.5,
+      "output": 625
+    },
+    {
+      "label": "GPT-5.5",
+      "pattern": "gpt-5.5",
+      "input": 125,
+      "cachedInput": 12.5,
+      "output": 750
+    },
+    {
+      "label": "GPT-5.4",
+      "pattern": "gpt-5.4",
+      "input": 62.5,
+      "cachedInput": 6.25,
+      "output": 375
+    },
+    {
+      "label": "GPT-5.4 mini",
+      "pattern": "gpt-5.4-mini",
+      "input": 18.75,
+      "cachedInput": 1.875,
+      "output": 113
+    },
+    {
+      "label": "GPT-Image-2 (image)",
+      "pattern": "gpt-image-2-image",
+      "input": 200,
+      "cachedInput": 50,
+      "output": 750
+    },
+    {
+      "label": "GPT-Image-2 (text)",
+      "pattern": "gpt-image-2-text",
+      "input": 125,
+      "cachedInput": 31.25,
+      "output": 250
+    },
+    {
+      "label": "Padrão (modelo desconhecido)",
+      "pattern": "default",
+      "input": 125,
+      "cachedInput": 12.5,
+      "output": 750
+    }
+  ],
+  "gemini": [
+    {
+      "pattern": "gemini-2.5-pro",
+      "input": 1.25,
+      "output": 10
+    },
+    {
+      "pattern": "gemini-2.5-flash",
+      "input": 0.075,
+      "output": 0.3
+    },
+    {
+      "pattern": "gemini-2.0-flash",
+      "input": 0.075,
+      "output": 0.3
+    },
+    {
+      "pattern": "default",
+      "input": 0.075,
+      "output": 0.3
+    }
+  ]
+}

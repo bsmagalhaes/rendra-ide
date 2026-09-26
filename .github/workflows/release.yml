@@ -1,0 +1,32 @@
+# Publishes the GitHub Release of a version when its tag is pushed (npm run release).
+# Rendra IDE is distributed as source (git clone + npm install), so no installers are built:
+# the release carries the notes of that version from CHANGELOG.md.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verificações
+        run: |
+          npm ci --ignore-scripts
+          npm run check
+          npm test
+      - name: Notas da versão
+        run: |
+          node -e "const {changelogSection}=require('./src/git-updater');const v=process.env.GITHUB_REF_NAME.replace(/^v/,'');const n=changelogSection(require('fs').readFileSync('CHANGELOG.md','utf8'),v);if(!n)process.exit(1);require('fs').writeFileSync('notes.md',n+'\n\n---\n\nComo instalar ou atualizar: veja o [README](https://github.com/'+process.env.GITHUB_REPOSITORY+'#instalação).\n')"
+      - name: Publicar release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "$GITHUB_REF_NAME" --title "Rendra IDE ${GITHUB_REF_NAME#v}" --notes-file notes.md

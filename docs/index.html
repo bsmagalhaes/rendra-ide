@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rendra IDE · terminais, editor e consumo de tokens do Claude Code e do Codex</title>
+<meta name="description" content="IDE gratuita e open source para quem programa com IA: terminais em grade, editor Monaco, cores do Git e o consumo de tokens e custo por projeto do Claude Code e do Codex, com limites do plano e RTK. Windows, macOS e Linux.">
+<meta name="robots" content="index, follow">
+<meta name="robots" content="noai, noimageai">
+<meta name="author" content="Bruno Magalhaes">
+<meta name="theme-color" content="#111111">
+<link rel="canonical" href="https://bsmagalhaes.github.io/rendra-ide/">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Rendra IDE">
+<meta property="og:locale" content="pt_BR">
+<meta property="og:title" content="Rendra IDE · terminais, editor e consumo de tokens">
+<meta property="og:description" content="Terminais, editor e o consumo de tokens do Claude Code e do Codex, com custo por token. Gratuito e open source.">
+<meta property="og:url" content="https://bsmagalhaes.github.io/rendra-ide/">
+<meta property="og:image" content="https://bsmagalhaes.github.io/rendra-ide/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "name": "Rendra IDE",
+      "applicationCategory": "DeveloperApplication",
+      "operatingSystem": "Windows, macOS, Linux",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "BRL" },
+      "license": "https://opensource.org/licenses/MIT",
+      "url": "https://bsmagalhaes.github.io/rendra-ide/",
+      "downloadUrl": "https://github.com/bsmagalhaes/rendra-ide",
+      "image": "https://bsmagalhaes.github.io/rendra-ide/og-image.png",
+      "author": { "@type": "Person", "name": "Bruno Magalhaes", "url": "https://www.brunomagalhaes.me" },
+      "description": "IDE com terminais em grade, editor Monaco, cores do Git e painel de consumo de tokens e custo do Claude Code e do Codex, com limites do plano e RTK."
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        { "@type": "Question", "name": "O Rendra IDE é gratuito?", "acceptedAnswer": { "@type": "Answer", "text": "Sim. Código aberto sob a licença MIT, sem conta, sem assinatura e sem telemetria." } },
+        { "@type": "Question", "name": "O custo mostrado é o que eu pago?", "acceptedAnswer": { "@type": "Answer", "text": "Não necessariamente. É o custo equivalente pelo preço de tabela da API, tokens vezes o preço por 1 milhão. Em planos por assinatura, serve para comparar projetos e modelos." } },
+        { "@type": "Question", "name": "Preciso ter o Claude Code ou o Codex instalados?", "acceptedAnswer": { "@type": "Answer", "text": "Não. A IDE e a página Terminal funcionam sozinhas; as páginas de consumo aparecem preenchidas quando houver sessões dessas CLIs na máquina." } },
+        { "@type": "Question", "name": "Como o app lê os limites do plano sem a minha senha?", "acceptedAnswer": { "@type": "Answer", "text": "O Claude Code envia os limites de uso ao comando da statusline. O Rendra IDE registra esses dados num arquivo local e repassa tudo para a statusline que você já usava." } }
+      ]
+    }
+  ]
+}
+</script>
+<style>
+  :root {
+    --bg: #111111; --bg-2: #171717; --card: #1c1c1c; --line: #2c2c2c;
+    --text: #f2f2f2; --text-2: #c4c4c4; --muted: #9a9a9a;
+    --orange: #e8650a; --orange-text: #ff8a3d; --green: #3ecf8e;
+    --mono: ui-monospace, "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+    --sans: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 var(--sans); overflow-x: hidden; }
+  a { color: var(--orange-text); }
+  img { max-width: 100%; height: auto; display: block; }
+  .wrap { width: 100%; max-width: 1240px; margin: 0 auto; padding: 0 24px; }
+  section { padding: 72px 0; border-top: 1px solid var(--line); }
+  h1, h2, h3 { line-height: 1.2; margin: 0; }
+  h2 { font-size: clamp(26px, 3.4vw, 36px); margin-bottom: 12px; }
+  .lead { color: var(--text-2); font-size: 18px; max-width: 760px; margin: 0 0 32px; }
+  .eyebrow { font: 600 12px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--orange-text); margin-bottom: 14px; }
+
+  header.hero { padding: 64px 0 48px; }
+  .brand { display: flex; align-items: center; gap: 14px; margin-bottom: 36px; }
+  .brand img { width: 44px; height: 44px; }
+  .brand b { font: 700 18px var(--mono); letter-spacing: .08em; }
+  .brand b span { color: var(--orange); }
+  .hero-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 48px; align-items: center; }
+  .hero h1 { font-size: clamp(38px, 5.2vw, 60px); letter-spacing: -1px; margin-bottom: 18px; }
+  .hero h1 span { color: var(--orange); }
+  .hero p { color: var(--text-2); font-size: 19px; margin: 0 0 28px; }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; min-height: 46px; padding: 0 22px; border-radius: 8px; font-weight: 600; text-decoration: none; border: 1px solid var(--line); color: var(--text); background: var(--card); }
+  .btn.primary { background: var(--orange); border-color: var(--orange); color: #111; }
+  .btn:hover { filter: brightness(1.1); }
+  .hero-shot { border-radius: 12px; border: 1px solid var(--line); box-shadow: 0 24px 70px rgba(0,0,0,.55); cursor: zoom-in; }
+  .tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
+  .tags span { font: 12px var(--mono); color: var(--text-2); border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; }
+
+  .features { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  .feature { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 24px; }
+  .feature h3 { font-size: 18px; margin-bottom: 8px; }
+  .feature p { margin: 0; color: var(--text-2); font-size: 15px; }
+  .feature .ico { font: 700 14px var(--mono); color: var(--orange-text); margin-bottom: 12px; }
+
+  .gallery { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+  .gallery figure { margin: 0; background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .gallery button { all: unset; display: block; cursor: zoom-in; width: 100%; }
+  .gallery button:focus-visible { outline: 2px solid var(--orange); outline-offset: -2px; }
+  .gallery figcaption { padding: 14px 18px; color: var(--text-2); font-size: 15px; }
+  .gallery figcaption b { color: var(--text); }
+
+  .steps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+  .code { position: relative; background: #0b0b0b; border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; font: 14px/1.7 var(--mono); color: #e6e6e6; overflow-x: auto; white-space: pre; }
+  .code .c { color: var(--muted); }
+  .copy { position: absolute; top: 10px; right: 10px; font: 12px var(--mono); background: var(--card); color: var(--text-2); border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+  .steps h3 { font-size: 18px; margin-bottom: 10px; }
+  .steps p { color: var(--text-2); margin: 0 0 14px; }
+
+  details { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px 20px; margin-bottom: 12px; }
+  summary { cursor: pointer; font-weight: 600; }
+  details p { color: var(--text-2); margin: 12px 0 0; }
+
+  footer { border-top: 1px solid var(--line); padding: 48px 0 64px; color: var(--muted); font-size: 14px; }
+  footer .cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; }
+  footer h3 { color: var(--text); font-size: 15px; margin-bottom: 10px; }
+  footer p { margin: 0 0 8px; }
+  footer a { color: var(--text-2); }
+
+  .lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.92); display: none; align-items: center; justify-content: center; z-index: 10; padding: 56px 64px; }
+  .lightbox.open { display: flex; }
+  .lightbox img { max-height: 100%; border-radius: 8px; }
+  .lightbox .cap { position: absolute; bottom: 16px; left: 0; right: 0; text-align: center; color: var(--text-2); font-size: 14px; }
+  .lb-btn { position: absolute; background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 999px; width: 44px; height: 44px; font-size: 20px; cursor: pointer; }
+  .lb-close { top: 12px; right: 12px; } .lb-prev { left: 12px; top: 50%; } .lb-next { right: 12px; top: 50%; }
+
+  @media (max-width: 900px) {
+    .hero-grid, .steps, footer .cols { grid-template-columns: minmax(0, 1fr); }
+    .features { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 600px) {
+    .wrap { padding: 0 16px; }
+    section { padding: 56px 0; }
+    .features, .gallery { grid-template-columns: minmax(0, 1fr); }
+    .lightbox { padding: 56px 8px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="brand"><img src="icon.svg" alt=""><b>RENDRA <span>IDE</span></b></div>
+    <div class="hero-grid">
+      <div>
+        <h1>Programe com IA e veja quanto cada projeto <span>consome</span>.</h1>
+        <p>Terminais em grade, o editor do VS Code e as cores do Git, junto com o consumo de tokens e o custo por projeto do Claude Code e do Codex, os limites do seu plano e o RTK para gastar menos. Gratuito, open source e 100% local.</p>
+        <div class="cta">
+          <a class="btn primary" href="#instalacao">Instalar grátis</a>
+          <a class="btn" href="https://github.com/bsmagalhaes/rendra-ide">Ver no GitHub</a>
+        </div>
+        <div class="tags"><span>Windows</span><span>macOS</span><span>Linux</span><span>WSL</span><span>MIT</span></div>
+      </div>
+      <img class="hero-shot" src="images/ide.png" alt="Rendra IDE: explorador com cores do Git, dois terminais e o editor" data-open="ide" width="1920" height="1080">
+    </div>
+  </div>
+</header>
+
+<section id="funcionalidades">
+  <div class="wrap">
+    <div class="eyebrow">Funcionalidades</div>
+    <h2>Tudo o que você usa com agentes de IA, numa janela só</h2>
+    <p class="lead">O Rendra IDE lê os arquivos que o Claude Code e o Codex já gravam na sua máquina. Não há conta, servidor nem telemetria.</p>
+    <div class="features">
+      <div class="feature"><div class="ico">&lt;/&gt;</div><h3>IDE leve</h3><p>Workspaces em abas, explorador com cores do Git em tempo real, editor Monaco com abas e divisão de quadros. Tudo volta como estava ao abrir.</p></div>
+      <div class="feature"><div class="ico">&gt;_</div><h3>Terminais em grade</h3><p>De 1 a 4 colunas, com abas, renomear e arrastar. PowerShell, Git Bash, CMD, zsh, bash, fish e WSL. Cole prints direto na CLI.</p></div>
+      <div class="feature"><div class="ico">US$</div><h3>Custo por token</h3><p>Tokens × preço por 1 milhão, com cache de 5 minutos e de 1 hora cobrados separadamente, modo rápido e buscas web. Cada resposta contada uma vez.</p></div>
+      <div class="feature"><div class="ico">5h</div><h3>Limites do plano</h3><p>Limite de 5 horas e semanal do Claude Code sempre à vista, lidos da statusline, sem usar a sua senha. Limites do Codex também.</p></div>
+      <div class="feature"><div class="ico">RTK</div><h3>Menos tokens</h3><p>Integração com o RTK, que filtra a saída dos comandos antes de ela chegar ao agente, no Claude Code e no Codex.</p></div>
+      <div class="feature"><div class="ico">↻</div><h3>Sempre atualizado</h3><p>Quando sai uma versão nova, um clique atualiza o app sem mexer em configurações, workspaces e preços. Preços novos chegam sozinhos.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="galeria">
+  <div class="wrap">
+    <div class="eyebrow">Galeria</div>
+    <h2>As telas</h2>
+    <p class="lead">Clique numa imagem para ver em tamanho real, com setas para passar e Esc para fechar. As telas usam dados de demonstração.</p>
+    <div class="gallery" id="gallery"></div>
+  </div>
+</section>
+
+<section id="instalacao">
+  <div class="wrap">
+    <div class="eyebrow">Instalação</div>
+    <h2>Instale em quatro comandos</h2>
+    <p class="lead">Pré-requisitos: <a href="https://nodejs.org">Node.js</a> 20 ou mais recente e <a href="https://git-scm.com">Git</a>. Na primeira abertura, o app oferece instalar o que faltar: Git Bash, RTK e, no Windows, o WSL.</p>
+    <div class="steps">
+      <div>
+        <h3>Instalar</h3>
+        <div class="code" data-copy="git clone https://github.com/bsmagalhaes/rendra-ide
+cd rendra-ide
+npm install
+npm start"><button class="copy" type="button">copiar</button>git clone https://github.com/bsmagalhaes/rendra-ide
+cd rendra-ide
+npm install
+npm start</div>
+      </div>
+      <div>
+        <h3>Atualizar</h3>
+        <p>O app avisa quando sai uma versão nova: clique em <b>Atualizar agora</b> na barra inferior. Pelo terminal, o equivalente é:</p>
+        <div class="code" data-copy="git pull
+npm install
+npm start"><button class="copy" type="button">copiar</button>git pull
+npm install
+npm start</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="perguntas">
+  <div class="wrap">
+    <div class="eyebrow">Perguntas frequentes</div>
+    <h2>Dúvidas comuns</h2>
+    <details><summary>O Rendra IDE é gratuito?</summary><p>Sim. Código aberto sob a licença MIT, sem conta, sem assinatura e sem telemetria.</p></details>
+    <details><summary>O custo mostrado é o que eu pago?</summary><p>Não necessariamente. É o custo equivalente pelo preço de tabela da API (tokens × preço por 1 milhão). Em planos por assinatura, serve para comparar projetos e modelos e ver onde o consumo está, não como fatura.</p></details>
+    <details><summary>Preciso ter o Claude Code ou o Codex instalados?</summary><p>Não. A IDE e a página Terminal funcionam sozinhas. As páginas de consumo aparecem preenchidas assim que houver sessões dessas CLIs na máquina.</p></details>
+    <details><summary>Funciona no macOS e no Linux?</summary><p>Sim. Os terminais se adaptam ao sistema: zsh, bash e fish no macOS e Linux; PowerShell, Git Bash, CMD e WSL no Windows.</p></details>
+    <details><summary>Como o app lê os limites do plano sem a minha senha?</summary><p>O Claude Code envia os limites de uso ao comando da statusline. O Rendra IDE registra esses dados num arquivo local e repassa tudo para a statusline que você já usava.</p></details>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap cols">
+    <div>
+      <h3>Autor</h3>
+      <p>Criado e mantido por <b>Bruno Magalhaes</b>.</p>
+      <p><a href="https://www.brunomagalhaes.me">www.brunomagalhaes.me</a></p>
+      <p><a href="mailto:contato@brunomagalhaes.me">contato@brunomagalhaes.me</a></p>
+      <p><a href="https://www.instagram.com/brunomagalhaes.me/">@brunomagalhaes.me</a></p>
+    </div>
+    <div>
+      <h3>Licença</h3>
+      <p><a href="https://github.com/bsmagalhaes/rendra-ide/blob/main/LICENSE">MIT</a> © 2026 Bruno Magalhaes. Pode usar, copiar, alterar e distribuir, inclusive em projetos comerciais, mantendo o aviso de copyright.</p>
+      <p><a href="https://github.com/bsmagalhaes/rendra-ide/blob/main/CHANGELOG.md">Novidades de cada versão</a></p>
+    </div>
+    <div>
+      <h3>Créditos</h3>
+      <p>Baseado no <a href="https://github.com/DewashishCodes/tokenmeter">Tokenmeter</a>, de Dewashish Lambore (MIT). Integração com o <a href="https://github.com/rtk-ai/rtk">RTK</a> (Apache 2.0).</p>
+      <p>Claude e Claude Code são marcas da Anthropic. Codex é marca da OpenAI. Projeto independente, sem afiliação.</p>
+    </div>
+  </div>
+</footer>
+
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Imagem ampliada">
+  <button class="lb-btn lb-close" type="button" aria-label="Fechar">×</button>
+  <button class="lb-btn lb-prev" type="button" aria-label="Anterior">‹</button>
+  <img alt="">
+  <button class="lb-btn lb-next" type="button" aria-label="Próxima">›</button>
+  <div class="cap"></div>
+</div>
+
+<script>
+  const IMAGES = [
+    ['ide', 'IDE', 'explorador com cores do Git, terminais em grade e editor'],
+    ['claude', 'Claude Code', 'tokens, custo por projeto e modelo, limites do plano'],
+    ['codex', 'Codex CLI', 'consumo em créditos e limites de uso'],
+    ['precos', 'Preços', 'tabelas por token editáveis, atualizadas pelo repositório'],
+    ['terminal', 'Terminal', 'terminais independentes, sem precisar de projeto'],
+    ['novidades', 'Novidades', 'o que mudou em cada versão, dentro do app'],
+    ['sobre', 'Sobre', 'autoria, créditos e licenças'],
+  ];
+  const gallery = document.getElementById('gallery');
+  gallery.innerHTML = IMAGES.filter(([id]) => id !== 'ide').map(([id, title, text]) =>
+    `<figure><button type="button" data-open="${id}" aria-label="Ampliar: ${title}"><img src="images/${id}.png" alt="${title}: ${text}" loading="lazy" width="1920" height="1080"></button><figcaption><b>${title}</b> · ${text}</figcaption></figure>`).join('');
+
+  const lb = document.getElementById('lightbox');
+  const lbImg = lb.querySelector('img');
+  let current = 0;
+  function show(i, push = true) {
+    current = (i + IMAGES.length) % IMAGES.length;
+    const [id, title, text] = IMAGES[current];
+    lbImg.src = `images/${id}.png`;
+    lbImg.alt = `${title}: ${text}`;
+    lb.querySelector('.cap').textContent = `${title} · ${text}`;
+    lb.classList.add('open');
+    if (push) history.replaceState(null, '', `?imagem=${id}`);
+  }
+  function close() { lb.classList.remove('open'); history.replaceState(null, '', location.pathname); }
+  document.addEventListener('click', e => {
+    const opener = e.target.closest('[data-open]');
+    if (opener) show(IMAGES.findIndex(([id]) => id === opener.dataset.open));
+  });
+  lb.querySelector('.lb-close').onclick = close;
+  lb.querySelector('.lb-prev').onclick = () => show(current - 1);
+  lb.querySelector('.lb-next').onclick = () => show(current + 1);
+  lb.addEventListener('click', e => { if (e.target === lb) close(); });
+  document.addEventListener('keydown', e => {
+    if (!lb.classList.contains('open')) return;
+    if (e.key === 'Escape') close();
+    if (e.key === 'ArrowLeft') show(current - 1);
+    if (e.key === 'ArrowRight') show(current + 1);
+  });
+  const start = new URLSearchParams(location.search).get('imagem');
+  if (start && IMAGES.some(([id]) => id === start)) show(IMAGES.findIndex(([id]) => id === start), false);
+
+  document.querySelectorAll('.copy').forEach(b => b.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(b.parentElement.dataset.copy); b.textContent = 'copiado'; } catch { b.textContent = 'selecione e copie'; }
+    setTimeout(() => { b.textContent = 'copiar'; }, 1800);
+  }));
+</script>
+</body>
+</html>

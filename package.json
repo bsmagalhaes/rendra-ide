@@ -1,0 +1,181 @@
+{
+  "name": "@rendra-ui/ide",
+  "version": "1.1.0",
+  "private": true,
+  "description": "Rendra IDE: terminais, editor e painel de consumo de tokens do Claude Code e do Codex, com RTK para economizar tokens",
+  "productName": "Rendra IDE",
+  "main": "main.js",
+  "author": {
+    "name": "Bruno Magalhaes",
+    "email": "contato@brunomagalhaes.me",
+    "url": "https://www.brunomagalhaes.me"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/bsmagalhaes/rendra-ide#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bsmagalhaes/rendra-ide.git"
+  },
+  "bugs": {
+    "url": "https://github.com/bsmagalhaes/rendra-ide/issues"
+  },
+  "keywords": [
+    "rendra",
+    "ide",
+    "electron",
+    "terminal",
+    "claude-code",
+    "codex",
+    "tokens",
+    "custo-de-tokens",
+    "rtk",
+    "monaco",
+    "xterm",
+    "wsl"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "setup": "node scripts/setup-env.js",
+    "check": "node scripts/check.js",
+    "test": "node --test \"test/**/*.test.js\"",
+    "stamp": "node scripts/stamp.js",
+    "release": "node scripts/release.js",
+    "prices:update": "node scripts/update-prices.js",
+    "docs:images": "node scripts/docs-images.js",
+    "gen-icon": "node scripts/gen-icon.js",
+    "prebuild": "node scripts/gen-icon.js",
+    "build": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux"
+  },
+  "dependencies": {
+    "@lydell/node-pty": "^1.2.0-beta.15",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-unicode11": "^0.9.0",
+    "@xterm/xterm": "^6.0.0",
+    "electron-store": "^8.1.0",
+    "electron-updater": "^6.8.9",
+    "monaco-editor": "^0.52.2"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "allowScripts": {
+    "electron@31.7.7": true
+  },
+  "rendra": {
+    "githubRepo": "bsmagalhaes/rendra-ide",
+    "branch": "main",
+    "site": "https://rendraskills.com",
+    "pricingFeed": "https://raw.githubusercontent.com/bsmagalhaes/rendra-ide/main/pricing.json"
+  },
+  "build": {
+    "appId": "com.rendraskills.rendraide",
+    "productName": "Rendra IDE",
+    "copyright": "© 2026 Bruno Magalhaes. Baseado no Tokenmeter © 2026 Dewashish Lambore (MIT).",
+    "directories": {
+      "output": "dist"
+    },
+    "asarUnpack": [
+      "node_modules/@lydell/**",
+      "src/**",
+      "pricing.json",
+      "project-aliases.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Rendra IDE",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "runAfterFinish": true
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon-1024.png",
+      "category": "public.app-category.developer-tools"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon-1024.png",
+      "category": "Development",
+      "maintainer": "Bruno Magalhaes <contato@brunomagalhaes.me>"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "pricing.json",
+      "project-aliases.json",
+      "LICENSE",
+      "CHANGELOG.md",
+      "licenses/**/*",
+      "renderer/**/*",
+      "src/**/*",
+      "assets/**/*",
+      "!**/*.map",
+      "!**/node_modules/.cache/**"
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "bsmagalhaes",
+        "repo": "rendra-ide"
+      }
+    ]
+  }
+}

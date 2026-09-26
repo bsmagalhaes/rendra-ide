@@ -1,0 +1,4 @@
+{
+  "_note": "Exemplo. Os apelidos reais ficam na pasta de dados do Rendra IDE (project-aliases.json): nome da pasta onde a sessão foi aberta → nome exibido. Útil para projetos renomeados ou para somar pastas num projeto só.",
+  "nome-antigo-da-pasta": "Nome Novo do Projeto"
+}

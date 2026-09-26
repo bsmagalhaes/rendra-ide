@@ -1,0 +1,88 @@
+// End-to-end update for git clones: a local "GitHub" (bare repo), a user's clone, a new version
+// published on the remote. Checks that the app sees it, and that scripts/apply-update.js pulls it,
+// runs npm install (package.json changed) and records the outcome, without touching local data.
+const test = require('node:test');
+const assert = require('node:assert');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { execFileSync, spawnSync } = require('child_process');
+const { createGitUpdater } = require('../src/git-updater');
+
+const git = (cwd, ...a) => execFileSync('git', ['-c', 'user.name=Teste', '-c', 'user.email=teste@exemplo.com', ...a], { cwd, encoding: 'utf8', stdio: 'pipe' }).trim();
+const pkg = version => JSON.stringify({ name: 'app-teste', version, private: true }, null, 2) + '\n';
+
+test('atualiza um clone quando sai uma versão nova', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rendra-update-'));
+  try {
+    const remote = path.join(dir, 'remote.git'), maint = path.join(dir, 'maint'), user = path.join(dir, 'user');
+    git(dir, 'init', '-q', '--bare', '-b', 'main', remote);
+    git(dir, 'clone', '-q', remote, maint);
+    fs.mkdirSync(path.join(maint, 'scripts'));
+    fs.copyFileSync(path.join(__dirname, '..', 'scripts', 'apply-update.js'), path.join(maint, 'scripts', 'apply-update.js'));
+    fs.writeFileSync(path.join(maint, 'package.json'), pkg('1.0.0'));
+    fs.writeFileSync(path.join(maint, 'CHANGELOG.md'), '# Novidades\n\n## 1.0.0 · 01/09/2026\n\n- Primeira\n');
+    git(maint, 'add', '-A'); git(maint, 'commit', '-q', '-m', 'feat: 1.0.0'); git(maint, 'push', '-q', 'origin', 'main');
+    git(dir, 'clone', '-q', remote, user);
+
+    const states = [];
+    const data = path.join(dir, 'data');
+    fs.mkdirSync(data);
+    const updater = createGitUpdater({ root: user, dataDir: data, currentVersion: '1.0.0', send: s => states.push(s) });
+    assert.strictEqual((await updater.check()).state, 'idle', 'sem versão nova, nada aparece');
+
+    // the maintainer publishes 1.1.0; a commit without a version bump does not count
+    fs.writeFileSync(path.join(maint, 'package.json'), pkg('1.1.0'));
+    fs.writeFileSync(path.join(maint, 'CHANGELOG.md'), '# Novidades\n\n## 1.1.0 · 26/09/2026\n\n- Nova tela\n\n## 1.0.0 · 01/09/2026\n\n- Primeira\n');
+    git(maint, 'add', '-A'); git(maint, 'commit', '-q', '-m', 'chore: versão 1.1.0'); git(maint, 'push', '-q', 'origin', 'main');
+
+    const st = await updater.check();
+    assert.strictEqual(st.state, 'available');
+    assert.strictEqual(st.version, '1.1.0');
+    assert.strictEqual(st.notes, '- Nova tela');
+    assert.strictEqual(st.localChanges, false);
+
+    // the helper, as started when the app quits (no running app: pid 0)
+    const result = path.join(data, 'update-result.json');
+    const r = spawnSync(process.execPath, [path.join(user, 'scripts', 'apply-update.js'), '--root', user, '--pid', '0', '--result', result], { encoding: 'utf8', timeout: 120000 });
+    assert.strictEqual(r.status, 0, r.stderr);
+    const out = JSON.parse(fs.readFileSync(result, 'utf8'));
+    assert.deepStrictEqual([out.ok, out.from, out.to], [true, '1.0.0', '1.1.0'], out.error);
+    assert.strictEqual(JSON.parse(fs.readFileSync(path.join(user, 'package.json'), 'utf8')).version, '1.1.0');
+    assert.ok(fs.existsSync(path.join(user, 'package-lock.json')), 'npm install rodou porque o package.json mudou');
+    assert.match(fs.readFileSync(path.join(data, 'update-log.txt'), 'utf8'), /git pull --ff-only/);
+
+    // shown once on the next start, then gone
+    assert.strictEqual(updater.lastResult().to, '1.1.0');
+    assert.strictEqual(updater.lastResult(), null);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('alteração local em conflito: não perde nada e avisa', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rendra-update-'));
+  try {
+    const remote = path.join(dir, 'remote.git'), maint = path.join(dir, 'maint'), user = path.join(dir, 'user');
+    git(dir, 'init', '-q', '--bare', '-b', 'main', remote);
+    git(dir, 'clone', '-q', remote, maint);
+    fs.mkdirSync(path.join(maint, 'scripts'));
+    fs.copyFileSync(path.join(__dirname, '..', 'scripts', 'apply-update.js'), path.join(maint, 'scripts', 'apply-update.js'));
+    fs.writeFileSync(path.join(maint, 'package.json'), pkg('1.0.0'));
+    fs.writeFileSync(path.join(maint, 'app.js'), 'original\n');
+    git(maint, 'add', '-A'); git(maint, 'commit', '-q', '-m', 'feat: 1.0.0'); git(maint, 'push', '-q', 'origin', 'main');
+    git(dir, 'clone', '-q', remote, user);
+    fs.writeFileSync(path.join(user, 'app.js'), 'mudança do usuário\n');
+    fs.writeFileSync(path.join(maint, 'app.js'), 'versão nova\n');
+    git(maint, 'add', '-A'); git(maint, 'commit', '-q', '-m', 'fix: app'); git(maint, 'push', '-q', 'origin', 'main');
+
+    const result = path.join(dir, 'result.json');
+    spawnSync(process.execPath, [path.join(user, 'scripts', 'apply-update.js'), '--root', user, '--pid', '0', '--result', result], { timeout: 60000 });
+    const out = JSON.parse(fs.readFileSync(result, 'utf8'));
+    assert.strictEqual(out.ok, false);
+    assert.match(out.error, /alterações locais/);
+    assert.strictEqual(fs.readFileSync(path.join(user, 'app.js'), 'utf8'), 'mudança do usuário\n');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
