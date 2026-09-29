@@ -1,6 +1,8 @@
 // Finishes a Rendra IDE update for git clones (started by src/git-updater.js as the app quits):
 // waits for the app to exit, runs `git pull --ff-only`, runs `npm install` when the dependencies
-// changed, writes the outcome for the app to show, and reopens the app.
+// changed, writes the outcome for the app to show, and reopens the app. If origin/main had its
+// history rewritten and the working tree is clean, it resets to origin/main instead of the pull
+// (old commits stay in the branch rendra-backup-antes-da-atualizacao).
 // Manual equivalent: git pull && npm install && npm start
 
 const fs = require('fs');
@@ -38,9 +40,21 @@ function relaunch() {
   const before = sh('git', ['rev-parse', 'HEAD']).out;
   const result = { ok: false, from, to: from, at: new Date().toISOString() };
 
-  const pull = sh('git', ['pull', '--ff-only']);
+  let pull = sh('git', ['pull', '--ff-only']);
+  let rewritten = false;
   if (!pull.ok) {
-    result.error = /local changes|would be overwritten|diverg|not possible to fast-forward/i.test(pull.err)
+    // History rewritten upstream: the old HEAD is not an ancestor of origin/main (no common ancestor
+    // or diverged). With no local changes to the app files, it is safe to follow the new history.
+    const fetched = sh('git', ['fetch', 'origin']);
+    rewritten = fetched.ok && sh('git', ['rev-parse', '--verify', 'origin/main']).ok
+      && !sh('git', ['merge-base', '--is-ancestor', 'HEAD', 'origin/main']).ok;
+    if (rewritten && sh('git', ['status', '--porcelain', '--untracked-files=no']).out === '') {
+      sh('git', ['branch', '-f', 'rendra-backup-antes-da-atualizacao', 'HEAD']); // old commits stay recoverable
+      pull = sh('git', ['reset', '--hard', 'origin/main']);
+    }
+  }
+  if (!pull.ok) {
+    result.error = rewritten || /local changes|would be overwritten|diverg|not possible to fast-forward/i.test(pull.err)
       ? 'Há alterações locais nos arquivos do Rendra IDE. Guarde-as (git stash) e atualize de novo.'
       : `git pull falhou: ${pull.err.split('\n')[0]}`;
   } else {

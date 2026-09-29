@@ -1,5 +1,11 @@
 # Novidades
 
+## 1.1.3 · 29/09/2026
+### Atualização mais segura
+- O histórico do repositório do Rendra IDE no GitHub vai ser reorganizado. Para que a atualização automática continue funcionando depois disso, o app agora sabe se recuperar: se você não mexeu nos arquivos do app, ele acompanha a nova história sozinho e segue com a atualização normalmente.
+- Se você alterou arquivos do app, nada é apagado nem trocado: o app abre na versão atual e avisa para guardar suas alterações (`git stash`) e atualizar de novo.
+- Suas configurações, workspaces e preços ficam em `%APPDATA%\Rendra IDE` e nunca são tocados. Os commits antigos ficam guardados na branch local `rendra-backup-antes-da-atualizacao`.
+
 ## 1.1.2 · 29/09/2026
 ### Novo endereço
 - O repositório passou de `bsmagalhaes/rendra-ide` para `bsmagalhaes/rendra-ui-ide`, e o site para `https://bsmagalhaes.github.io/rendra-ui-ide/`, para combinar com o nome da família Rendra. O endereço antigo do GitHub continua redirecionando, então a atualização automática e as cópias já instaladas seguem funcionando sem nenhuma ação. O link antigo do site deixou de abrir.

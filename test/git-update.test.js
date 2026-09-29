@@ -86,3 +86,61 @@ test('alteração local em conflito: não perde nada e avisa', async () => {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// Histórico do origin/main reescrito (git push --force com raízes novas), como na migração de autor.
+function rewrittenFixture() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rendra-update-'));
+  const remote = path.join(dir, 'remote.git'), maint = path.join(dir, 'maint'), user = path.join(dir, 'user'), data = path.join(dir, 'data');
+  git(dir, 'init', '-q', '--bare', '-b', 'main', remote);
+  git(dir, 'clone', '-q', remote, maint);
+  fs.mkdirSync(path.join(maint, 'scripts'));
+  fs.copyFileSync(path.join(__dirname, '..', 'scripts', 'apply-update.js'), path.join(maint, 'scripts', 'apply-update.js'));
+  fs.writeFileSync(path.join(maint, 'package.json'), pkg('1.0.0'));
+  fs.writeFileSync(path.join(maint, 'app.js'), 'original\n');
+  git(maint, 'add', '-A'); git(maint, 'commit', '-q', '-m', 'feat: 1.0.0'); git(maint, 'push', '-q', 'origin', 'main');
+  git(dir, 'clone', '-q', remote, user);
+  fs.mkdirSync(data);
+  fs.writeFileSync(path.join(data, 'settings.json'), '{"tema":"escuro"}\n');
+  // reescrita: nenhum commit antigo sobrevive, a árvore ganha a versão 1.1.0
+  git(maint, 'checkout', '-q', '--orphan', 'reescrito');
+  fs.writeFileSync(path.join(maint, 'package.json'), pkg('1.1.0'));
+  fs.writeFileSync(path.join(maint, 'app.js'), 'versão nova\n');
+  git(maint, 'add', '-A'); git(maint, 'commit', '-q', '-m', 'chore: versão 1.1.0'); git(maint, 'push', '-q', '--force', 'origin', 'reescrito:main');
+  return { dir, user, data, result: path.join(data, 'update-result.json'), oldHead: git(user, 'rev-parse', 'HEAD'), newHead: git(maint, 'rev-parse', 'HEAD') };
+}
+const runHelper = f => spawnSync(process.execPath, [path.join(f.user, 'scripts', 'apply-update.js'), '--root', f.user, '--pid', '0', '--result', f.result], { encoding: 'utf8', timeout: 120000 });
+
+test('histórico reescrito com árvore limpa: o app se recupera sozinho', () => {
+  const f = rewrittenFixture();
+  try {
+    assert.notStrictEqual(runHelper(f).status, null);
+    const out = JSON.parse(fs.readFileSync(f.result, 'utf8'));
+    assert.deepStrictEqual([out.ok, out.from, out.to], [true, '1.0.0', '1.1.0'], out.error);
+    assert.strictEqual(git(f.user, 'rev-parse', 'HEAD'), f.newHead, 'clone igual ao origin/main');
+    assert.strictEqual(git(f.user, 'status', '--porcelain', '--untracked-files=no'), '');
+    assert.strictEqual(fs.readFileSync(path.join(f.user, 'app.js'), 'utf8').replace(/\r\n/g, '\n'), 'versão nova\n');
+    assert.strictEqual(JSON.parse(fs.readFileSync(path.join(f.user, 'package.json'), 'utf8')).version, '1.1.0');
+    assert.ok(fs.existsSync(path.join(f.user, 'package-lock.json')), 'npm install rodou porque o package.json mudou');
+    assert.strictEqual(fs.readFileSync(path.join(f.data, 'settings.json'), 'utf8'), '{"tema":"escuro"}\n', 'dados do usuário intactos');
+    assert.strictEqual(git(f.user, 'rev-parse', 'rendra-backup-antes-da-atualizacao'), f.oldHead, 'commits antigos ficam guardados numa branch');
+  } finally {
+    fs.rmSync(f.dir, { recursive: true, force: true });
+  }
+});
+
+test('histórico reescrito com mudança local: não mexe em nada e avisa', () => {
+  const f = rewrittenFixture();
+  try {
+    fs.writeFileSync(path.join(f.user, 'app.js'), 'mudança do usuário\n');
+    runHelper(f);
+    const out = JSON.parse(fs.readFileSync(f.result, 'utf8'));
+    assert.strictEqual(out.ok, false);
+    assert.match(out.error, /alterações locais/);
+    assert.strictEqual(git(f.user, 'rev-parse', 'HEAD'), f.oldHead, 'HEAD não saiu do lugar');
+    assert.strictEqual(fs.readFileSync(path.join(f.user, 'app.js'), 'utf8'), 'mudança do usuário\n');
+    assert.strictEqual(JSON.parse(fs.readFileSync(path.join(f.user, 'package.json'), 'utf8')).version, '1.0.0');
+    assert.strictEqual(fs.readFileSync(path.join(f.data, 'settings.json'), 'utf8'), '{"tema":"escuro"}\n');
+  } finally {
+    fs.rmSync(f.dir, { recursive: true, force: true });
+  }
+});

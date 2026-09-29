@@ -38,7 +38,7 @@ and in the About page credits.
 | `src/devcode.js` | IDE backend: folders (incl. WSL), file I/O confined to open folders, git status, watchers, PTYs |
 | `src/setup.js` | Checks/installs Git (Git Bash), RTK, WSL — used by the modal and `npm run setup` |
 | `src/git-updater.js` | Update check for git clones (remote `package.json` version) and hand-off to the helper |
-| `scripts/apply-update.js` | Runs after the app quits: `git pull --ff-only`, `npm install` if deps changed, reopens the app |
+| `scripts/apply-update.js` | Runs after the app quits: `git pull --ff-only` (resets to `origin/main` if upstream history was rewritten and the tree is clean), `npm install` if deps changed, reopens the app |
 | `scripts/release.js` | `npm run release`: changelog, version bump, headers, checks, commit, tag, push |
 | `scripts/stamp.js` | Signature header with the package version at the top of every shipped JS/CSS file |
 | `scripts/check.js` | `npm run check`: syntax, JSON, index.html structure, required files |

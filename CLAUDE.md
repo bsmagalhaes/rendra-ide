@@ -32,7 +32,11 @@ destes arquivos: o setup de Git Bash, RTK e WSL roda pelo app (primeira abertura
   dependências mudaram, `npm install`, e reabre o app, que abre a página Novidades.
   Dados do usuário (configurações, workspaces, preços, cache) ficam em `%APPDATA%\Rendra IDE` e
   nunca são tocados. Se o usuário alterou arquivos do app e o pull não é fast-forward, nada é
-  perdido: o app abre na versão antiga e avisa. Log em `%APPDATA%\Rendra IDE\update-log.txt`.
+  perdido: o app abre na versão antiga e avisa. Se o histórico do `origin/main` foi
+  reescrito (o HEAD local deixou de ser ancestral) e a árvore está limpa, o helper faz
+  `git fetch origin` e `git reset --hard origin/main` (commits antigos ficam na branch local
+  `rendra-backup-antes-da-atualizacao`); com mudança local, não mexe e avisa. Log em
+  `%APPDATA%\Rendra IDE\update-log.txt`.
 - Consequência: **tudo que for para a `main` chega aos usuários na próxima versão**. Trabalho em
   andamento vai em outra branch, ou na `main` sem mudar a versão.
 
