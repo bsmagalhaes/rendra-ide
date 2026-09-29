@@ -103,7 +103,7 @@ Leia o AGENTS.md e adicione ao painel do Claude um gráfico de custo por modelo 
 
 ## Instalação
 
-Pré-requisitos: [Node.js](https://nodejs.org) 20 ou mais recente e [Git](https://git-scm.com).
+Pré-requisitos: [Node.js](https://nodejs.org) 22.12 ou mais recente e [Git](https://git-scm.com).
 
 ```bash
 git clone https://github.com/bsmagalhaes/rendra-ide
