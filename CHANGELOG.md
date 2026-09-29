@@ -1,5 +1,14 @@
 # Novidades
 
+## 1.1.1 · 29/09/2026
+### DevCode IDE
+- Terminal do WSL com a distro desligada: o app liga a distro antes de abrir o terminal e tenta de novo se o WSL demorar a responder, em vez de mostrar o erro `Wsl/Service/0x8007274c`.
+
+### Segurança e compatibilidade
+- Electron atualizado da versão 31 (sem suporte) para a 44, a estável atual. Isso corrige o bloqueio no macOS ("Electron.app não foi aberto porque contém malware"), que apagava o Electron ao rodar `npm start`.
+- Dependências de desenvolvimento atualizadas (electron-builder 26): as 16 vulnerabilidades conhecidas foram corrigidas e a instalação não mostra mais alertas do `npm audit`.
+- Terminal, editor e painéis continuam iguais; nada muda no uso. Para atualizar à mão: `git pull` e `npm install` (Node 22.12 ou mais novo).
+
 ## 1.1.0 · 26/09/2026
 
 ### Rendra IDE

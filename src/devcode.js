@@ -1,4 +1,4 @@
-/*! Rendra IDE v1.1.0 | MIT | © 2026 Bruno Magalhaes | brunomagalhaes.me */
+/*! Rendra IDE v1.1.1 | MIT | © 2026 Bruno Magalhaes | brunomagalhaes.me */
 // DevCode tab backend: workspaces (one folder each), file read/write and PTY terminals.
 // File access is confined to the folders of the open workspaces; the renderer never touches fs.
 
@@ -65,6 +65,16 @@ function runWsl(args, timeout = 20000) {
   });
 }
 const utf16 = buf => (buf ? buf.toString('utf16le').replace(/\0/g, '') : '');
+
+// A stopped distro can make wsl.exe fail with Wsl/Service/0x8007274c (service timeout) while
+// the VM boots, especially with Docker Desktop running. Boot it first, retrying a few times.
+async function wakeWslDistro(distro, attempts = 3) {
+  for (let i = 0; i < attempts; i++) {
+    if (await runWsl(['-d', distro, '-e', 'true'], 60000)) return true;
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  return false;
+}
 
 async function listWslDistros() {
   if (!IS_WIN) return [];
@@ -354,11 +364,12 @@ function registerDevCode({ ipcMain, dialog, store, getWindow }) {
     return clipboard.availableFormats().some(f => f.startsWith('image/'));
   });
 
-  ipcMain.handle('pty:create', (_e, { cols, rows, cwd, shell: shellKey } = {}) => {
+  ipcMain.handle('pty:create', async (_e, { cols, rows, cwd, shell: shellKey } = {}) => {
     try {
       pty = pty || require('@lydell/node-pty');
       const home = HOME;
       const wsl = cwd && inside(cwd) ? wslFor(cwd) : null;
+      if (wsl) await wakeWslDistro(wsl.distro); // on failure the terminal still opens and shows WSL's own error
       const dir = wsl ? path.resolve(cwd) : (cwd && isDir(cwd) && inside(cwd) ? path.resolve(cwd) : home);
       // WSL workspace → always a Linux login shell in the distro, started in the project folder
       const shells = availableShells();

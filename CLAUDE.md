@@ -4,6 +4,18 @@ Autor: Bruno Magalhaes, brunomagalhaes.me, instagram.com/brunomagalhaes.me.
 
 # Publicar versões, preços e o site (manual do mantenedor)
 
+## Estado atual (26/09/2026)
+- Publicado: versão **1.1.0** em https://github.com/bsmagalhaes/rendra-ide (release `v1.1.0`),
+  site em https://bsmagalhaes.github.io/rendra-ide/ (Pages por GitHub Actions, já ativado).
+- Remotes desta pasta: `origin` = bsmagalhaes/rendra-ide (publicar aqui); `upstream` =
+  DewashishCodes/tokenmeter (projeto original, só leitura; nunca dar push).
+- Identidade git deste repositório: `Bruno Magalhaes <contato@brunomagalhaes.me>` (config local).
+- Sem `gh` CLI na máquina: o push usa o login salvo no Git Credential Manager.
+- Pendente do Padrão dos produtos Rendra: tokens `--rendra-*`/`data-rendra`/catálogo de códigos
+  (a interface usa paleta própria, cinza e laranja; exige redesenho), `typecheck`/`lint`/cobertura
+  (JavaScript sem build), arquivo de verificação do Google Search Console. Não se aplicam: pacote
+  npm, CLI, prints de celular e de modo claro.
+
 Este arquivo e o AGENTS.md vão para o git (Padrão dos produtos Rendra: arquivos para agentes são
 produto). O que fica só na máquina: planos, specs, levantamentos e saídas de IA (`docs/specs/`,
 `docs/plans/`, `docs/superpowers/`, `.superpowers/`, `.claude/`). Nada da instalação depende
@@ -45,6 +57,13 @@ destes arquivos: o setup de Git Bash, RTK e WSL roda pelo app (primeira abertura
 4. Se atualizou o Electron: rode `npm approve-scripts electron` antes (o npm 11 bloqueia o
    download do Electron sem isso; o release avisa).
 
+Se algo der errado:
+- Release não apareceu no GitHub depois do push: confira a aba Actions. Se o workflow "Release"
+  não disparou, reenvie a mesma tag: `git push origin :refs/tags/vX.Y.Z` e `git push origin vX.Y.Z`.
+- O script parou antes do commit (check ou teste falhou): corrija e rode o mesmo comando de novo;
+  a versão e o CHANGELOG já atualizados são aceitos.
+- Nunca apague nem mova uma tag já publicada para outro commit: os apps usam a versão da `main`.
+
 Não gere instaladores por enquanto: a distribuição é pelo código. A configuração do
 electron-builder e o electron-updater continuam no projeto para quando houver instaladores.
 
@@ -59,10 +78,12 @@ Preços. Confira o diff antes do commit: se as páginas mudaram de formato, o sc
 ## Site (GitHub Pages) e imagens
 - O site é `docs/index.html`, publicado por `.github/workflows/pages.yml` a cada push na `main`
   que mexa em `docs/`. Endereço: https://bsmagalhaes.github.io/rendra-ide/
-- Uma vez só, no GitHub: Settings → Pages → Source: **GitHub Actions**.
 - Prints: `npm run docs:images` abre o app com dados de demonstração (pasta temporária, nunca os
-  seus dados) e grava `docs/images/*.png`, usadas pelo README e pelo site. Rode depois de mudar a
-  interface e faça commit das imagens.
+  seus dados) e grava `docs/images/*.png` (1920x1080) e `docs/og-image.png` (1200x630), usadas
+  pelo README e pelo site. Rode depois de mudar a interface, **abra cada imagem e confira** que
+  nenhum caminho, nome de usuário ou dado real apareceu, e faça commit. A tela do RTK fica de fora
+  de propósito: o `rtk` lê a pasta real do usuário, não a de demonstração.
+- Descrição, site e tópicos do repositório já estão configurados no GitHub.
 
 ## Padronização (família Rendra)
 - Pacote `@rendra-ui/ide`, `"private": true` e `publishConfig.access: public`. Nada é publicado

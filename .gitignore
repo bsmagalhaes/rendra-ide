@@ -24,3 +24,6 @@ screenshots
 Thumbs.db
 .env
 .env.*
+
+# Gravação de terminal acidental (comando script)
+/typescript
