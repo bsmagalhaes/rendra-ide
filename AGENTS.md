@@ -4,7 +4,7 @@ Autor: Bruno Magalhaes, brunomagalhaes.me, instagram.com/brunomagalhaes.me.
 
 Instructions for coding agents working on this repository (Codex reads `AGENTS.md`; Claude Code
 reads `CLAUDE.md`, which imports this file and adds the maintainer's release manual). The project
-follows the "Padrão dos produtos Rendra"; the Rendra Design System (`bsmagalhaes/rendra-design-system`)
+follows the "Padrão dos produtos Rendra"; the Rendra Design System (`bsmagalhaes/rendra-ui-web`)
 is the living reference.
 
 ## Project Overview

@@ -2,17 +2,17 @@
 
 **Ambiente de desenvolvimento gratuito e open source para quem programa com IA: terminais em grade, editor do VS Code, explorador com cores do Git e um painel que mostra quanto cada projeto consome de tokens no Claude Code e no Codex, com o custo calculado por token e os limites de uso do plano.** Tudo roda na sua máquina, lendo os arquivos locais das CLIs, e vem integrado ao [RTK](https://github.com/rtk-ai/rtk) para gastar menos tokens.
 
-![Electron 31](https://img.shields.io/badge/Electron-31-47848f) ![Monaco Editor](https://img.shields.io/badge/editor-Monaco-0e639c) ![xterm.js](https://img.shields.io/badge/terminal-xterm.js-2b2b2b) ![Windows · macOS · Linux](https://img.shields.io/badge/Windows_·_macOS_·_Linux-e8650a) ![Licença MIT](https://img.shields.io/badge/licença-MIT-2ead33) [![CI](https://github.com/bsmagalhaes/rendra-ide/actions/workflows/ci.yml/badge.svg)](https://github.com/bsmagalhaes/rendra-ide/actions/workflows/ci.yml)
+![Electron 31](https://img.shields.io/badge/Electron-31-47848f) ![Monaco Editor](https://img.shields.io/badge/editor-Monaco-0e639c) ![xterm.js](https://img.shields.io/badge/terminal-xterm.js-2b2b2b) ![Windows · macOS · Linux](https://img.shields.io/badge/Windows_·_macOS_·_Linux-e8650a) ![Licença MIT](https://img.shields.io/badge/licença-MIT-2ead33) [![CI](https://github.com/bsmagalhaes/rendra-ui-ide/actions/workflows/ci.yml/badge.svg)](https://github.com/bsmagalhaes/rendra-ui-ide/actions/workflows/ci.yml)
 
-**Veja funcionando, sem instalar nada:** [bsmagalhaes.github.io/rendra-ide](https://bsmagalhaes.github.io/rendra-ide/) · [galeria](https://bsmagalhaes.github.io/rendra-ide/#galeria) · [como instalar](#instalação) · [novidades](CHANGELOG.md)
+**Veja funcionando, sem instalar nada:** [bsmagalhaes.github.io/rendra-ui-ide](https://bsmagalhaes.github.io/rendra-ui-ide/) · [galeria](https://bsmagalhaes.github.io/rendra-ui-ide/#galeria) · [como instalar](#instalação) · [novidades](CHANGELOG.md)
 
 | IDE: explorador, terminais e editor                                                       | Consumo do Claude Code                                                                          |
 | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| [![IDE](docs/images/ide.png)](https://bsmagalhaes.github.io/rendra-ide/?imagem=ide) | [![Claude Code](docs/images/claude.png)](https://bsmagalhaes.github.io/rendra-ide/?imagem=claude) |
+| [![IDE](docs/images/ide.png)](https://bsmagalhaes.github.io/rendra-ui-ide/?imagem=ide) | [![Claude Code](docs/images/claude.png)](https://bsmagalhaes.github.io/rendra-ui-ide/?imagem=claude) |
 
 | Codex CLI                                                                                     | Preços por token                                                                               |
 | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| [![Codex](docs/images/codex.png)](https://bsmagalhaes.github.io/rendra-ide/?imagem=codex) | [![Preços](docs/images/precos.png)](https://bsmagalhaes.github.io/rendra-ide/?imagem=precos) |
+| [![Codex](docs/images/codex.png)](https://bsmagalhaes.github.io/rendra-ui-ide/?imagem=codex) | [![Preços](docs/images/precos.png)](https://bsmagalhaes.github.io/rendra-ui-ide/?imagem=precos) |
 
 > As telas usam dados de demonstração, gerados a partir do app real com `npm run docs:images`.
 
@@ -37,16 +37,16 @@ Três regras guiam o app:
 
 ## Galeria
 
-> **Clique em qualquer imagem** para abri-la em tamanho real no [site](https://bsmagalhaes.github.io/rendra-ide/#galeria), com setas para passar e Esc para fechar.
+> **Clique em qualquer imagem** para abri-la em tamanho real no [site](https://bsmagalhaes.github.io/rendra-ui-ide/#galeria), com setas para passar e Esc para fechar.
 
 | Terminal                                                                                          | Novidades de cada versão                                                                              |
 | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| [![Terminal](docs/images/terminal.png)](https://bsmagalhaes.github.io/rendra-ide/?imagem=terminal) | [![Novidades](docs/images/novidades.png)](https://bsmagalhaes.github.io/rendra-ide/?imagem=novidades) |
+| [![Terminal](docs/images/terminal.png)](https://bsmagalhaes.github.io/rendra-ui-ide/?imagem=terminal) | [![Novidades](docs/images/novidades.png)](https://bsmagalhaes.github.io/rendra-ui-ide/?imagem=novidades) |
 
 <details>
 <summary><strong>Sobre, créditos e licenças</strong> (clique para abrir aqui mesmo)</summary>
 
-[![Sobre](docs/images/sobre.png)](https://bsmagalhaes.github.io/rendra-ide/?imagem=sobre)
+[![Sobre](docs/images/sobre.png)](https://bsmagalhaes.github.io/rendra-ui-ide/?imagem=sobre)
 
 </details>
 
@@ -106,8 +106,8 @@ Leia o AGENTS.md e adicione ao painel do Claude um gráfico de custo por modelo 
 Pré-requisitos: [Node.js](https://nodejs.org) 22.12 ou mais recente e [Git](https://git-scm.com).
 
 ```bash
-git clone https://github.com/bsmagalhaes/rendra-ide
-cd rendra-ide
+git clone https://github.com/bsmagalhaes/rendra-ui-ide
+cd rendra-ui-ide
 npm install
 npm start
 ```
@@ -205,7 +205,7 @@ Criado e mantido por **Bruno Magalhaes**.
 - E-mail: [contato@brunomagalhaes.me](mailto:contato@brunomagalhaes.me)
 - Instagram: [@brunomagalhaes.me](https://www.instagram.com/brunomagalhaes.me/)
 
-Sugestões e problemas: abra uma [issue](https://github.com/bsmagalhaes/rendra-ide/issues).
+Sugestões e problemas: abra uma [issue](https://github.com/bsmagalhaes/rendra-ui-ide/issues).
 
 ## Licença
 

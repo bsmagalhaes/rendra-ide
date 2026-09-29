@@ -258,7 +258,7 @@ async function main() {
     </style></head><body>
       <div class="txt"><div class="logo">${icon}</div><h1>Rendra <span>IDE</span></h1>
       <p>Terminais, editor e o consumo de tokens do Claude Code e do Codex, com custo por token.</p></div>
-      <div class="by">Gratuito e open source · github.com/bsmagalhaes/rendra-ide</div>
+      <div class="by">Gratuito e open source · github.com/bsmagalhaes/rendra-ui-ide</div>
       <img class="shot" src="data:image/png;base64,${img}">
     </body></html>`;
     await send('Emulation.setDeviceMetricsOverride', { width: 1200, height: 630, deviceScaleFactor: 1, mobile: false });

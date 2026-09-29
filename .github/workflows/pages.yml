@@ -1,4 +1,4 @@
-# Publishes the site in docs/ on GitHub Pages (https://bsmagalhaes.github.io/rendra-ide/).
+# Publishes the site in docs/ on GitHub Pages (https://bsmagalhaes.github.io/rendra-ui-ide/).
 # One-time setup in the repository: Settings → Pages → Source: GitHub Actions.
 name: Pages
 

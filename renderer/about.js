@@ -1,4 +1,4 @@
-/*! Rendra IDE v1.1.1 | MIT | © 2026 Bruno Magalhaes | brunomagalhaes.me */
+/*! Rendra IDE v1.1.2 | MIT | © 2026 Bruno Magalhaes | brunomagalhaes.me */
 // "Novidades" page: CHANGELOG.md.
 // "Sobre" page: the product first, then — at the end — the credits and license notices the
 // app must carry:
@@ -41,10 +41,10 @@
         <div class="about-meta">
           <span>Versão <b>${esc(info.version)}</b></span>
           <span>Por <b>${esc(info.author?.name || 'Bruno Magalhaes')}</b> · ${link(info.author?.url || 'https://www.brunomagalhaes.me')} · ${link('https://www.instagram.com/brunomagalhaes.me/', 'Instagram')}</span>
-          <span>Código ${link(info.repo || 'https://github.com/bsmagalhaes/rendra-ide', 'GitHub')}</span>
+          <span>Código ${link(info.repo || 'https://github.com/bsmagalhaes/rendra-ui-ide', 'GitHub')}</span>
           <span>Electron ${esc(info.electron)}</span>
         </div>
-        <p class="about-made">Feito com ${link(info.repo || 'https://github.com/bsmagalhaes/rendra-ide', 'Rendra')}</p>
+        <p class="about-made">Feito com ${link(info.repo || 'https://github.com/bsmagalhaes/rendra-ui-ide', 'Rendra')}</p>
       </div>
       <div class="about-grid">
         <div class="about-card"><h3>DevCode IDE</h3><p>Workspaces em abas, explorador com cores do Git, editor Monaco e terminais em grade, no Windows, macOS, Linux e WSL.</p></div>

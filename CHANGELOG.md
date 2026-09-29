@@ -1,5 +1,10 @@
 # Novidades
 
+## 1.1.2 · 29/09/2026
+### Novo endereço
+- O repositório passou de `bsmagalhaes/rendra-ide` para `bsmagalhaes/rendra-ui-ide`, e o site para `https://bsmagalhaes.github.io/rendra-ui-ide/`, para combinar com o nome da família Rendra. O endereço antigo do GitHub continua redirecionando, então a atualização automática e as cópias já instaladas seguem funcionando sem nenhuma ação. O link antigo do site deixou de abrir.
+- O uso e as configurações não mudam. Quem clonou a pasta com o nome antigo pode manter tudo como está.
+
 ## 1.1.1 · 29/09/2026
 ### DevCode IDE
 - Terminal do WSL com a distro desligada: o app liga a distro antes de abrir o terminal e tenta de novo se o WSL demorar a responder, em vez de mostrar o erro `Wsl/Service/0x8007274c`.

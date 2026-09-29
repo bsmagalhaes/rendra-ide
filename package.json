@@ -1,6 +1,6 @@
 {
   "name": "@rendra-ui/ide",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "private": true,
   "description": "Rendra IDE: terminais, editor e painel de consumo de tokens do Claude Code e do Codex, com RTK para economizar tokens",
   "productName": "Rendra IDE",
@@ -11,16 +11,17 @@
     "url": "https://www.brunomagalhaes.me"
   },
   "license": "MIT",
-  "homepage": "https://github.com/bsmagalhaes/rendra-ide#readme",
+  "homepage": "https://github.com/bsmagalhaes/rendra-ui-ide#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/bsmagalhaes/rendra-ide.git"
+    "url": "git+https://github.com/bsmagalhaes/rendra-ui-ide.git"
   },
   "bugs": {
-    "url": "https://github.com/bsmagalhaes/rendra-ide/issues"
+    "url": "https://github.com/bsmagalhaes/rendra-ui-ide/issues"
   },
   "keywords": [
     "rendra",
+    "rendra-ui",
     "ide",
     "electron",
     "terminal",
@@ -72,10 +73,10 @@
     "electron@44.5.0": true
   },
   "rendra": {
-    "githubRepo": "bsmagalhaes/rendra-ide",
+    "githubRepo": "bsmagalhaes/rendra-ui-ide",
     "branch": "main",
     "site": "https://rendraskills.com",
-    "pricingFeed": "https://raw.githubusercontent.com/bsmagalhaes/rendra-ide/main/pricing.json"
+    "pricingFeed": "https://raw.githubusercontent.com/bsmagalhaes/rendra-ui-ide/main/pricing.json"
   },
   "build": {
     "appId": "com.rendraskills.rendraide",
@@ -174,7 +175,7 @@
       {
         "provider": "github",
         "owner": "bsmagalhaes",
-        "repo": "rendra-ide"
+        "repo": "rendra-ui-ide"
       }
     ]
   }

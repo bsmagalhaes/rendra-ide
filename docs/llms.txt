@@ -13,8 +13,8 @@
 Requer Node.js 20+ e Git.
 
 ```bash
-git clone https://github.com/bsmagalhaes/rendra-ide
-cd rendra-ide
+git clone https://github.com/bsmagalhaes/rendra-ui-ide
+cd rendra-ui-ide
 npm install
 npm start
 ```
@@ -31,7 +31,7 @@ Na primeira abertura o app oferece instalar Git Bash, RTK e, no Windows, o WSL (
 
 ## Links
 
-- Repositório: https://github.com/bsmagalhaes/rendra-ide
-- Site: https://bsmagalhaes.github.io/rendra-ide/
-- Novidades: https://github.com/bsmagalhaes/rendra-ide/blob/main/CHANGELOG.md
+- Repositório: https://github.com/bsmagalhaes/rendra-ui-ide
+- Site: https://bsmagalhaes.github.io/rendra-ui-ide/
+- Novidades: https://github.com/bsmagalhaes/rendra-ui-ide/blob/main/CHANGELOG.md
 - Autor: Bruno Magalhaes, https://www.brunomagalhaes.me

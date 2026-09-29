@@ -42,4 +42,4 @@ Disallow: /
 User-agent: Applebot-Extended
 Disallow: /
 
-Sitemap: https://bsmagalhaes.github.io/rendra-ide/sitemap.xml
+Sitemap: https://bsmagalhaes.github.io/rendra-ui-ide/sitemap.xml

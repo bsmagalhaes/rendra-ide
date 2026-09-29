@@ -5,9 +5,9 @@ Autor: Bruno Magalhaes, brunomagalhaes.me, instagram.com/brunomagalhaes.me.
 # Publicar versões, preços e o site (manual do mantenedor)
 
 ## Estado atual (26/09/2026)
-- Publicado: versão **1.1.0** em https://github.com/bsmagalhaes/rendra-ide (release `v1.1.0`),
-  site em https://bsmagalhaes.github.io/rendra-ide/ (Pages por GitHub Actions, já ativado).
-- Remotes desta pasta: `origin` = bsmagalhaes/rendra-ide (publicar aqui); `upstream` =
+- Publicado: versão **1.1.0** em https://github.com/bsmagalhaes/rendra-ui-ide (release `v1.1.0`),
+  site em https://bsmagalhaes.github.io/rendra-ui-ide/ (Pages por GitHub Actions, já ativado).
+- Remotes desta pasta: `origin` = bsmagalhaes/rendra-ui-ide (publicar aqui); `upstream` =
   DewashishCodes/tokenmeter (projeto original, só leitura; nunca dar push).
 - Identidade git deste repositório: `Bruno Magalhaes <contato@brunomagalhaes.me>` (config local).
 - Sem `gh` CLI na máquina: o push usa o login salvo no Git Credential Manager.
@@ -23,7 +23,7 @@ destes arquivos: o setup de Git Bash, RTK e WSL roda pelo app (primeira abertura
 `npm run setup` (`src/setup.js`, `scripts/setup-env.js`).
 
 ## Como os usuários instalam e atualizam
-- Instalação: `git clone https://github.com/bsmagalhaes/rendra-ide`, `npm install`, `npm start`.
+- Instalação: `git clone https://github.com/bsmagalhaes/rendra-ui-ide`, `npm install`, `npm start`.
   Na primeira abertura o app oferece instalar Git Bash, RTK e WSL (ou `npm run setup`).
 - Atualização: o app compara a própria versão com a do `package.json` na `main` do GitHub
   (10 s depois de abrir e a cada 6 h). Só aparece aviso quando a **versão** muda, não a cada commit.
@@ -77,7 +77,7 @@ Preços. Confira o diff antes do commit: se as páginas mudaram de formato, o sc
 
 ## Site (GitHub Pages) e imagens
 - O site é `docs/index.html`, publicado por `.github/workflows/pages.yml` a cada push na `main`
-  que mexa em `docs/`. Endereço: https://bsmagalhaes.github.io/rendra-ide/
+  que mexa em `docs/`. Endereço: https://bsmagalhaes.github.io/rendra-ui-ide/
 - Prints: `npm run docs:images` abre o app com dados de demonstração (pasta temporária, nunca os
   seus dados) e grava `docs/images/*.png` (1920x1080) e `docs/og-image.png` (1200x630), usadas
   pelo README e pelo site. Rode depois de mudar a interface, **abra cada imagem e confira** que

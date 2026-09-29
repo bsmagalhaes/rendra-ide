@@ -1,4 +1,4 @@
-/*! Rendra IDE v1.1.1 | MIT | © 2026 Bruno Magalhaes | brunomagalhaes.me */
+/*! Rendra IDE v1.1.2 | MIT | © 2026 Bruno Magalhaes | brunomagalhaes.me */
 const path = require('path');
 const { aggregateClaude } = require('./claude-parser');
 const { aggregateGemini } = require('./gemini-parser');
