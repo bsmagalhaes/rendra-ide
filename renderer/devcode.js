@@ -162,6 +162,7 @@
     persistTimer = setTimeout(() => dev.saveWorkspaces({
       list: workspaces.map(ws => ({
         name: ws.name, custom: ws.custom, cols: ws.cols, root: ws.root?.root || null,
+        editorHidden: !!ws.editorHidden,
         wsl: ws.root?.wsl?.viaWindows ? { distro: ws.root.wsl.distro, linuxPath: ws.root.wsl.linuxPath } : null,
         // workspaces never activated this run keep the tabs they were restored with
         groups: ws.restore || ws.groups.map(g => ({ tabs: g.tabs, active: g.active })),
@@ -178,17 +179,17 @@
       let group = null;
       for (const p of g.tabs) {
         if (!group) {
-          await openFile(ws, p, { newGroup: ws.groups.length > 0 });
+          await openFile(ws, p, { newGroup: ws.groups.length > 0, restaurando: true });
           group = ws.groups.find(x => x.tabs.includes(p)) || null;
         } else {
-          await openFile(ws, p, { group });
+          await openFile(ws, p, { group, restaurando: true });
         }
       }
       if (group && g.active && group.tabs.includes(g.active)) showInGroup(ws, group, g.active);
     }
   }
 
-  function createWorkspace({ name, custom, cols, root, groups } = {}) {
+  function createWorkspace({ name, custom, cols, root, groups, editorHidden } = {}) {
     const ws = {
       id: nextWsId++,
       name: name || root?.name || `Workspace ${nextWsId - 1}`,
@@ -203,6 +204,7 @@
       termCount: 0,
       started: false,
       restore: groups && groups.length ? groups : null,
+      editorHidden: editorHidden === true, // kept from creation so persist() never drops it for a workspace not activated yet
       git: null,
       el: null,
       refs: {},
@@ -234,9 +236,9 @@
         <div class="dev-tree"></div>
       </aside>
       <div class="dev-splitter" data-split="explorer" title="Arraste para redimensionar"></div>
-      ${terminalSectionHtml()}
+      ${terminalSectionHtml(true)}
       <div class="dev-splitter" data-split="editor" title="Arraste para redimensionar"></div>
-      <section class="dev-editors"><div class="dev-editor-empty">Clique num arquivo do explorador para editar aqui</div></section>`;
+      <section class="dev-editors"><div class="dev-editor-empty">Clique num arquivo do explorador para editar aqui</div><button class="dev-icon-btn dev-editor-hide" type="button" data-acao="esconder-editor" title="Esconder painel do editor" aria-label="Esconder painel do editor">✕</button></section>`;
     $('ws-host').appendChild(el);
     ws.el = el;
     ws.refs = {
@@ -255,15 +257,47 @@
       renderTree(ws);
     });
     wireTerminalSection(ws, el, persist);
+    el.querySelector('[data-acao=alternar-editor]').addEventListener('click', () => setEditorHidden(ws, 'alternar'));
+    el.querySelector('[data-acao=esconder-editor]').addEventListener('click', () => setEditorHidden(ws, 'esconder'));
+    applyEditorHidden(ws);
     ws.refs.tree.addEventListener('click', e => onTreeClick(ws, e));
     el.querySelectorAll('.dev-splitter').forEach(sp => initSplitter(ws, sp));
     renderTree(ws);
     layoutTerminals(ws);
   }
 
+  // Editor column of the IDE (right): hide/show. Hiding closes nothing (tabs, models and unsaved
+  // text stay); the terminals take the space; opening a file shows it again.
+  function applyEditorHidden(ws) {
+    ws.el.classList.toggle('editor-hidden', ws.editorHidden);
+    const r = RendraEditorPanel.rotuloBotao(ws.editorHidden);
+    const btn = ws.el.querySelector('[data-acao=alternar-editor]');
+    btn.setAttribute('aria-pressed', String(r.pressionado));
+    btn.title = r.texto;
+    btn.setAttribute('aria-label', r.texto);
+  }
+
+  function setEditorHidden(ws, evento) {
+    const next = RendraEditorPanel.proximo(ws.editorHidden, evento);
+    if (next === ws.editorHidden) return;
+    ws.editorHidden = next;
+    applyEditorHidden(ws);
+    // focus must never stay in the editor that just disappeared
+    if (next && ws.refs.editors.contains(document.activeElement)) {
+      const t = ws.terms.find(x => x.alive);
+      if (t) t.term.focus(); else ws.el.querySelector('[data-acao=alternar-editor]').focus();
+    }
+    // the terminals get (or give back) width; the editors, created while hidden, need a layout pass
+    requestAnimationFrame(() => {
+      ws.terms.forEach(fitTerm);
+      if (!next) ws.groups.forEach(g => g.editor.layout());
+    });
+    persist();
+  }
+
   // Terminal panel (tabs, 1–4 columns, shell picker, ＋): shared by DevCode workspaces and the
   // standalone Terminal page
-  function terminalSectionHtml() {
+  function terminalSectionHtml(withEditorToggle) {
     return `
       <section class="dev-terms">
         <div class="dev-panel-head">
@@ -275,6 +309,7 @@
             </div>
             <select class="dev-shell-select" title="Shell dos novos terminais"></select>
             <button class="dev-icon-btn" data-act="new-term" title="Novo terminal">＋</button>
+            ${withEditorToggle ? '<button class="dev-icon-btn" type="button" data-acao="alternar-editor">◨</button>' : ''}
           </div>
         </div>
         <div class="dev-term-grid"></div>
@@ -739,6 +774,7 @@
       files.set(filePath, { model, savedVersion: model.getAlternativeVersionId(), name: baseName(filePath) });
       model.onDidChangeContent(() => renderAllTabs());
     }
+    if (!opts.restaurando) setEditorHidden(ws, 'arquivo-aberto'); // file opened by the user: the panel comes back
     const group = opts.group || (opts.newGroup ? createGroup(ws) : (ws.activeGroup || ws.groups[0] || createGroup(ws)));
     if (!group.tabs.includes(filePath)) group.tabs.push(filePath);
     showInGroup(ws, group, filePath);

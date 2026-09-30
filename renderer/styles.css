@@ -596,6 +596,9 @@ body.dev-resizing, body.dev-resizing * { cursor: col-resize !important; user-sel
   grid-template-columns: var(--ex-w) 4px minmax(200px, 1fr) 4px var(--ed-w);
 }
 .ws.active { display: grid; }
+/* Editor column hidden: the terminals take its space (the saved width in --ed-w is untouched) */
+.ws.editor-hidden { grid-template-columns: var(--ex-w) 4px minmax(200px, 1fr); }
+.ws.editor-hidden > .dev-splitter[data-split="editor"], .ws.editor-hidden > .dev-editors { display: none; }
 .dev-editor-empty {
   flex: 1; display: flex; align-items: center; justify-content: center; text-align: center;
   padding: 20px; color: var(--text-dim); font-size: 11px; font-family: var(--ui-font);
@@ -725,7 +728,9 @@ body.dev-resizing, body.dev-resizing * { cursor: col-resize !important; user-sel
 .term-pane-body .xterm-viewport::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 3px; }
 
 /* Editor groups (right panel) */
-.dev-editors { display: flex; min-width: 0; min-height: 0; background: var(--bg); }
+.dev-editors { display: flex; position: relative; min-width: 0; min-height: 0; background: var(--bg); }
+.dev-editor-hide { position: absolute; top: 4px; right: 4px; z-index: 5; }
+.dev-group:last-child .dev-group-actions { margin-right: 26px; }
 .dev-group { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 .dev-group + .dev-group { border-left: 1px solid var(--border); }
 .dev-tabs-bar { height: 32px; flex-shrink: 0; display: flex; background: var(--surface); border-bottom: 1px solid var(--border); }

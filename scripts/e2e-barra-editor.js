@@ -82,7 +82,9 @@ function criarSandbox(opts = {}) {
   else if (opts.status) escreverStatus(sb, opts.status, opts.idadeMs || 0);
 
   const workspaces = (opts.workspaces || [{ name: 'demo', cols: 2 }]).map(w => ({
-    name: w.name, custom: false, cols: w.cols || 1, root: projeto, groups: w.groups || [],
+    name: w.name, custom: false, cols: w.cols || 1, root: projeto,
+    // '@a.txt' vira o caminho do arquivo dentro do projeto de demonstração
+    groups: (w.groups || []).map(g => ({ tabs: g.tabs.map(t => (t[0] === '@' ? path.join(projeto, t.slice(1)) : t)), active: g.active && g.active[0] === '@' ? path.join(projeto, g.active.slice(1)) : g.active })),
     ...(w.editorHidden === undefined ? {} : { editorHidden: w.editorHidden }),
   }));
   const config = {
@@ -174,11 +176,17 @@ async function abrir(sb, { w = 1920, h = 1080 } = {}) {
   app.texto = seletor => ev(`document.querySelector(${JSON.stringify(seletor)})?.textContent ?? null`);
   app.pagina = async nome => { await app.clica(`[data-page=${nome}]`); await sleep(700); };
   // Captura com o texto dos terminais escondido (o perfil do shell imprime caminhos com o nome do usuário)
-  app.foto = async nome => {
+  app.digita = text => send('Input.insertText', { text });
+  app.tecla = async (key, { ctrl } = {}) => {
+    const base = { key, code: 'Key' + key.toUpperCase(), windowsVirtualKeyCode: key.toUpperCase().charCodeAt(0), modifiers: ctrl ? 2 : 0 };
+    await send('Input.dispatchKeyEvent', { type: 'keyDown', ...base });
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', ...base });
+  };
+  app.foto = async (nome, clip) => {
     fs.mkdirSync(SAIDA, { recursive: true });
     await ev(`(() => { let s = document.getElementById('e2e-oculta'); if (!s) { s = document.createElement('style'); s.id = 'e2e-oculta'; document.head.appendChild(s); } s.textContent = '.xterm-screen{visibility:hidden !important}'; })()`);
     await sleep(350);
-    const { data } = await send('Page.captureScreenshot', { format: 'png' });
+    const { data } = await send('Page.captureScreenshot', { format: 'png', ...(clip ? { clip: { scale: 1, ...clip } } : {}) });
     await ev(`document.getElementById('e2e-oculta')?.remove()`);
     const arquivo = path.join(SAIDA, `${nome}.png`);
     fs.writeFileSync(arquivo, Buffer.from(data, 'base64'));
@@ -461,6 +469,285 @@ CENARIOS['modo-api'] = async () => {
     await app.pagina('claude');
     await app.espera(`document.getElementById('limits-list').textContent.includes('Sem login ativo no Claude Code')`, 15000, 'card da página Claude sem login');
     afirma(true, 'a página Claude, pelo canal claude-account, diz "Sem login ativo no Claude Code" (sem rede)');
+  });
+};
+
+// ── Painel do editor: leitura e ajudantes ───────────────────────────────────
+const LER_PAINEL = `(() => {
+  const ws = document.querySelector('.ws.active');
+  const r = e => { if (!e) return null; const x = e.getBoundingClientRect(); return { x: x.x, y: x.y, w: x.width, h: x.height, r: x.right, b: x.bottom }; };
+  const ed = ws.querySelector('.dev-editors');
+  const sp = ws.querySelector('.dev-splitter[data-split=editor]');
+  const btn = ws.querySelector('[data-acao=alternar-editor]');
+  const ativo = document.activeElement;
+  const paineis = [...ws.querySelectorAll('.term-pane')];
+  return {
+    escondido: ws.classList.contains('editor-hidden'),
+    ed: r(ed), edDisplay: getComputedStyle(ed).display, spDisplay: getComputedStyle(sp).display,
+    terms: r(ws.querySelector('.dev-terms')),
+    corpo: r(ws.querySelector('.term-pane-body')), tela: r(ws.querySelector('.term-pane-body .xterm-screen')),
+    host: r(ws.querySelector('.dev-editor-host')), monaco: r(ws.querySelector('.monaco-editor')),
+    abas: [...ws.querySelectorAll('.dev-tab')].map(t => ({ nome: t.querySelector('.dev-tab-name').textContent, sujo: t.classList.contains('dirty'), marca: t.querySelector('.dev-tab-close').textContent, ativa: t.classList.contains('active') })),
+    botao: btn && { pressed: btn.getAttribute('aria-pressed'), title: btn.title, label: btn.getAttribute('aria-label') },
+    temX: !!ws.querySelector('[data-acao=esconder-editor]'),
+    modal: document.getElementById('save-overlay').classList.contains('visible'),
+    noEditor: !!ativo.closest('.dev-editors'), ativoTag: ativo.tagName,
+    ativoPainel: paineis.findIndex(p => p.contains(ativo)),
+    focadoPainel: paineis.findIndex(p => p.classList.contains('focused')),
+    primeiroPainel: 0,
+    wsW: r(ws).w,
+  };
+})()`;
+const lerPainel = app => app.ev(LER_PAINEL);
+const esperaFrames = () => sleep(500);
+const abrirArquivo = async (app, nome) => {
+  await app.ev(`[...document.querySelectorAll('.ws.active .dev-node')].find(n => n.querySelector('.dev-node-name')?.textContent === ${JSON.stringify(nome)})?.click()`);
+  await app.espera(`[...document.querySelectorAll('.ws.active .dev-tab.active .dev-tab-name')].some(e => e.textContent === ${JSON.stringify(nome)})`, 15000, `aba ${nome} ativa`);
+  await app.espera(`!!document.querySelector('.ws.active .monaco-editor')`, 15000, 'Monaco criado');
+  await sleep(300);
+};
+const alternarEditor = async app => { await app.clica('.ws.active [data-acao="alternar-editor"]'); await esperaFrames(); };
+const textoDoModelo = (app, nome) => app.ev(`window.monaco?.editor.getModels().find(m => m.uri.path.endsWith('/${nome}'))?.getValue() ?? null`);
+const esperaConfig = async (sb, cond, ms = 6000) => {
+  const fim = Date.now() + ms;
+  while (Date.now() < fim) { try { if (cond(lerConfig(sb).devcode.workspaces)) return true; } catch { /* arquivo sendo gravado */ } await sleep(200); }
+  return false;
+};
+const sobra = p => p.corpo.w - p.tela.w; // folga à direita do xterm dentro do painel
+
+CENARIOS['painel-esconde'] = async () => {
+  await comApp({ status: { five: 42, seven: 27 }, idadeMs: 30000 }, async app => {
+    await abrirArquivo(app, 'a.txt');
+    await app.digita('x');
+    await sleep(300);
+    const antes = await lerPainel(app);
+    afirma(!antes.escondido && antes.ed.w > 400, `painel visível com ${antes.ed.w.toFixed(0)} px`);
+    afirma(antes.abas.length === 1 && antes.abas[0].nome === 'a.txt' && antes.abas[0].sujo && antes.abas[0].marca === '●', `aba a.txt com ● (${JSON.stringify(antes.abas)})`);
+    afirma(antes.botao.pressed === 'true' && antes.botao.title === 'Esconder editor' && antes.botao.label === 'Esconder editor', `botão: ${JSON.stringify(antes.botao)}`);
+    await app.foto('painel-visivel-1920x1080');
+
+    // 1) botão do cabeçalho dos terminais esconde
+    await alternarEditor(app);
+    const depois = await lerPainel(app);
+    afirma(depois.escondido && depois.edDisplay === 'none' && depois.ed.w === 0, `coluna do editor sumiu (display ${depois.edDisplay}, ${depois.ed.w} px)`);
+    afirma(depois.spDisplay === 'none', 'o splitter do editor também sumiu (não dá para arrastar)');
+    afirma(depois.abas.length === 1 && depois.abas[0].nome === 'a.txt' && depois.abas[0].sujo && depois.abas[0].marca === '●', 'a aba a.txt e o ● continuam no DOM: nada foi fechado');
+    afirma(!depois.modal, 'nenhuma pergunta de salvar apareceu');
+    afirma(await textoDoModelo(app, 'a.txt') === 'xprimeiro arquivo\nlinha dois\n', 'o texto digitado continua no modelo do Monaco');
+    afirma(depois.terms.w > 1350 && antes.terms.w < 950, `terminais foram de ${antes.terms.w.toFixed(0)} para ${depois.terms.w.toFixed(0)} px`);
+    afirma(depois.tela.w > antes.tela.w + 350 && sobra(depois) < 24, `xterm reajustado: tela ${antes.tela.w.toFixed(0)} -> ${depois.tela.w.toFixed(0)} px, folga ${sobra(depois).toFixed(0)} px`);
+    afirma(depois.botao.pressed === 'false' && depois.botao.title === 'Mostrar editor' && depois.botao.label === 'Mostrar editor', `botão: ${JSON.stringify(depois.botao)}`);
+    await app.foto('painel-escondido-1920x1080');
+
+    // 2) o mesmo botão mostra de volta, na largura salva
+    await alternarEditor(app);
+    const volta = await lerPainel(app);
+    afirma(!volta.escondido && perto(volta.ed.w, antes.ed.w, 2), `coluna voltou com ${volta.ed.w.toFixed(0)} px (antes ${antes.ed.w.toFixed(0)})`);
+    afirma(volta.abas[0]?.sujo && volta.abas[0].marca === '●', 'a aba a.txt continua com ●');
+    afirma(await textoDoModelo(app, 'a.txt') === 'xprimeiro arquivo\nlinha dois\n', 'o texto digitado continua intacto');
+    afirma(volta.monaco && volta.monaco.w > 100 && volta.monaco.h > 100 && perto(volta.monaco.w, volta.host.w, 2) && perto(volta.monaco.h, volta.host.h, 2),
+      `Monaco ${volta.monaco?.w.toFixed(0)}x${volta.monaco?.h.toFixed(0)} px, igual ao host ${volta.host.w.toFixed(0)}x${volta.host.h.toFixed(0)}`);
+    afirma(perto(volta.terms.w, antes.terms.w, 2) && sobra(volta) < 24, `terminais voltaram a ${volta.terms.w.toFixed(0)} px, folga ${sobra(volta).toFixed(0)} px`);
+
+    // 3) o ✕ da coluna esconde, e o foco vai para um terminal (nunca para o editor escondido)
+    await app.ev(`document.querySelector('.ws.active [data-acao="esconder-editor"]').focus()`);
+    afirma((await lerPainel(app)).noEditor, 'antes: o foco está no ✕, dentro da coluna do editor');
+    await app.clica('.ws.active [data-acao="esconder-editor"]');
+    await esperaFrames();
+    const viaX = await lerPainel(app);
+    afirma(viaX.escondido && viaX.ed.w === 0, 'o ✕ escondeu a coluna');
+    afirma(!viaX.noEditor && viaX.ativoTag !== 'BODY' && viaX.ativoPainel === 0 && viaX.focadoPainel === 0,
+      `foco em vez disso no primeiro terminal vivo (activeElement ${viaX.ativoTag}, painel ${viaX.ativoPainel}, .focused ${viaX.focadoPainel})`);
+    await app.foto('painel-escondido-via-x');
+
+    // 4) se o foco já estava no botão do cabeçalho, ele fica lá (uso por teclado)
+    await app.ev(`document.querySelector('.ws.active [data-acao="alternar-editor"]').focus()`);
+    await app.clica('.ws.active [data-acao="alternar-editor"]');
+    await esperaFrames();
+    const mostrou = await lerPainel(app);
+    afirma(!mostrou.escondido, 'o botão mostrou de novo');
+    afirma(await app.ev(`document.activeElement === document.querySelector('.ws.active [data-acao="alternar-editor"]')`), 'o foco ficou no botão');
+  });
+};
+
+CENARIOS['painel-reabre'] = async () => {
+  await comApp({ status: { five: 42, seven: 27 }, idadeMs: 30000 }, async app => {
+    await abrirArquivo(app, 'a.txt');
+    const inicial = await lerPainel(app);
+    await alternarEditor(app);
+    afirma((await lerPainel(app)).escondido, 'painel escondido');
+    // abrir outro arquivo pelo explorador reabre o painel, na largura salva
+    await abrirArquivo(app, 'b.txt');
+    await sleep(500);
+    const p = await lerPainel(app);
+    afirma(!p.escondido && perto(p.ed.w, inicial.ed.w, 2), `o painel reapareceu com ${p.ed.w.toFixed(0)} px (salva: ${inicial.ed.w.toFixed(0)})`);
+    afirma(p.abas.some(a => a.nome === 'b.txt' && a.ativa), `aba b.txt ativa (${JSON.stringify(p.abas.map(a => a.nome))})`);
+    afirma(p.noEditor, 'o foco está no editor (o arquivo foi aberto para editar)');
+    afirma(p.monaco && p.monaco.w > 100 && p.monaco.h > 100 && perto(p.monaco.w, p.host.w, 2), `Monaco ${p.monaco?.w.toFixed(0)}x${p.monaco?.h.toFixed(0)} px`);
+    afirma(p.botao.pressed === 'true', 'o botão voltou ao estado "esconder"');
+    await app.foto('painel-reabre-1920x1080');
+  });
+  // desde "nunca abriu arquivo": Monaco ainda nem foi carregado
+  await comApp({ workspaces: [{ name: 'demo', cols: 2, editorHidden: true }] }, async app => {
+    const zero = await lerPainel(app);
+    afirma(zero.escondido && zero.ed.w === 0 && zero.abas.length === 0, 'começa escondido, sem abas');
+    await app.clica('.ws.active .dev-node.file .dev-node-name');
+    await app.espera(`!!document.querySelector('.ws.active .dev-tab')`, 15000, 'aba aberta');
+    await app.espera(`!!document.querySelector('.ws.active .monaco-editor')`, 15000, 'Monaco criado');
+    await sleep(600);
+    const p = await lerPainel(app);
+    afirma(!p.escondido && p.ed.w > 400, `abrir um arquivo reabriu o painel (${p.ed.w.toFixed(0)} px)`);
+    afirma(p.monaco && p.monaco.w > 100 && p.monaco.h > 100 && perto(p.monaco.w, p.host.w, 2) && perto(p.monaco.h, p.host.h, 2), `editor renderizado com ${p.monaco?.w.toFixed(0)}x${p.monaco?.h.toFixed(0)} px`);
+  });
+};
+
+CENARIOS['painel-arranque'] = async () => {
+  await comApp({}, async (app, sb) => {
+    await abrirArquivo(app, 'a.txt');
+    await alternarEditor(app);
+    afirma(await esperaConfig(sb, w => w.list[0].editorHidden === true && w.list[0].groups[0]?.tabs.length === 1), 'o store gravou o painel escondido com a aba aberta');
+    await sleep(500);
+    const novo = await app.reiniciar();
+    await novo.espera(`!!document.querySelector('.ws.active .dev-tab')`, 20000, 'aba restaurada');
+    await sleep(800);
+    const p = await lerPainel(novo);
+    afirma(p.escondido && p.ed.w === 0, 'reabriu com o painel ESCONDIDO');
+    afirma(p.abas.length === 1 && p.abas[0].nome === 'a.txt', 'a aba a.txt foi restaurada por baixo');
+    afirma(p.terms.w > 1350 && sobra(p) < 24, `terminais ocupando o espaço (${p.terms.w.toFixed(0)} px, folga ${sobra(p).toFixed(0)})`);
+    await alternarEditor(novo);
+    const m = await lerPainel(novo);
+    afirma(!m.escondido && m.ed.w > 400, `mostrar: coluna com ${m.ed.w.toFixed(0)} px`);
+    afirma(m.monaco && m.monaco.w > 100 && m.monaco.h > 100 && perto(m.monaco.w, m.host.w, 2) && perto(m.monaco.h, m.host.h, 2),
+      `Monaco criado escondido agora com ${m.monaco?.w.toFixed(0)}x${m.monaco?.h.toFixed(0)} px (host ${m.host.w.toFixed(0)}x${m.host.h.toFixed(0)})`);
+    await novo.foto('painel-arranque-mostrado');
+  });
+};
+
+CENARIOS['persistencia'] = async () => {
+  // 1) store da versão antiga (sem o campo): abre com os dois visíveis e as abas restauradas
+  await comApp({ workspaces: [
+    { name: 'A', cols: 2, groups: [{ tabs: ['@a.txt'], active: '@a.txt' }], editorHidden: undefined },
+    { name: 'B', cols: 1, groups: [{ tabs: ['@b.txt'], active: '@b.txt' }] },
+  ] }, async (app, sb) => {
+    await app.espera(`!!document.querySelector('.ws.active .dev-tab')`, 20000, 'aba do primeiro workspace');
+    const p1 = await lerPainel(app);
+    afirma(!p1.escondido && p1.ed.w > 400 && p1.abas[0]?.nome === 'a.txt', 'store antigo: o primeiro abre com o painel visível e a aba restaurada');
+    await alternarEditor(app);
+    afirma(await esperaConfig(sb, w => w.list[0].editorHidden === true && w.list[1].editorHidden === false), 'gravou editorHidden: true no primeiro e false no segundo');
+    await app.clica('.ws-tab:nth-child(2)');
+    await app.espera(`!!document.querySelector('.ws.active .dev-tab')`, 15000, 'aba do segundo workspace');
+    await sleep(600);
+    const p2 = await lerPainel(app);
+    afirma(!p2.escondido && p2.ed.w > 400 && p2.abas[0]?.nome === 'b.txt', 'o estado é por workspace: o segundo continua visível');
+    await sleep(500);
+    const novo = await app.reiniciar();
+    await novo.espera(`!!document.querySelector('.ws.active .dev-tab')`, 20000, 'aba restaurada depois de reiniciar');
+    await sleep(600);
+    // o app reabre no workspace que estava ativo (o segundo); confere os dois
+    const seg = await lerPainel(novo);
+    afirma(!seg.escondido, 'depois de reiniciar, o segundo (ativo) abre visível');
+    await novo.clica('.ws-tab:nth-child(1)');
+    await sleep(800);
+    const pri = await lerPainel(novo);
+    afirma(pri.escondido && pri.abas[0]?.nome === 'a.txt', 'depois de reiniciar, o primeiro abre escondido, com a aba restaurada');
+  });
+  // 2) B3: um workspace escondido e nunca ativado na sessão não perde o estado na primeira gravação
+  await comApp({ workspaces: [
+    { name: 'A', cols: 1, groups: [{ tabs: ['@a.txt'], active: '@a.txt' }], editorHidden: false },
+    { name: 'B', cols: 1, groups: [{ tabs: ['@b.txt'], active: '@b.txt' }], editorHidden: true },
+  ], ativo: 0 }, async (app, sb) => {
+    await app.espera(`!!document.querySelector('.ws.active .dev-tab')`, 20000, 'aba do workspace ativo');
+    await sleep(1500); // bem mais que os 300 ms do debounce do persist
+    const w = lerConfig(sb).devcode.workspaces;
+    afirma(w.list[0].editorHidden === false && w.list[1].editorHidden === true, `sem clicar em B, o store segue com B escondido (${JSON.stringify(w.list.map(x => x.editorHidden))})`);
+    await app.clica('.ws-tab:nth-child(2)');
+    await app.espera(`document.querySelector('.ws.active .dev-tab')?.textContent.includes('b.txt')`, 15000, 'workspace B ativo');
+    await sleep(600);
+    const p = await lerPainel(app);
+    afirma(p.escondido && p.ed.w === 0, 'ao abrir B, o painel dele está escondido');
+    await sleep(1000);
+    const w2 = lerConfig(sb).devcode.workspaces;
+    afirma(w2.list[1].editorHidden === true, 'e continua gravado como escondido');
+  });
+};
+
+CENARIOS['painel-por-workspace'] = async () => {
+  await comApp({ workspaces: [{ name: 'A', cols: 2 }, { name: 'B', cols: 2 }] }, async app => {
+    await alternarEditor(app); // esconde o painel do A
+    const a1 = await lerPainel(app);
+    afirma(a1.escondido, 'A: escondido');
+    await app.clica('.ws-tab:nth-child(2)');
+    await sleep(800);
+    const b = await lerPainel(app);
+    afirma(!b.escondido && b.ed.w > 400 && b.botao.pressed === 'true', `B: continua visível (${b.ed.w.toFixed(0)} px)`);
+    await app.clica('.ws-tab:nth-child(1)');
+    await sleep(800);
+    const a2 = await lerPainel(app);
+    afirma(a2.escondido && a2.ed.w === 0 && a2.botao.pressed === 'false', 'A: voltou escondido');
+    afirma(a2.terms.w > 1350 && sobra(a2) < 24, `A: terminais com o layout certo ao voltar (${a2.terms.w.toFixed(0)} px, folga ${sobra(a2).toFixed(0)})`);
+  });
+};
+
+CENARIOS['painel-terminal'] = async () => {
+  await comApp({}, async app => {
+    const ide = await app.ev(`document.querySelectorAll('.ws.active [data-acao="alternar-editor"]').length`);
+    afirma(ide === 1, 'na IDE o botão existe');
+    await app.pagina('terminal');
+    await app.espera(`!!document.querySelector('#page-terminal .term-pane')`, 20000, 'terminal da página Terminal');
+    const n = await app.ev(`document.querySelectorAll('#page-terminal [data-acao="alternar-editor"], #term-page [data-acao="alternar-editor"]').length`);
+    afirma(n === 0, 'na página Terminal o botão não existe');
+    const acoes = await app.ev(`[...document.querySelectorAll('#term-page .dev-panel-actions > *')].map(e => e.tagName + (e.dataset.act ? ':' + e.dataset.act : ''))`);
+    afirma(acoes.join(',') === 'DIV,SELECT,BUTTON:new-term', `cabeçalho dos terminais da página Terminal igual ao de antes: ${acoes.join(',')}`);
+  });
+};
+
+CENARIOS['painel-janela-minima'] = async () => {
+  await comApp({ status: { five: 42, seven: 27 }, idadeMs: 30000, janela: { w: 580, h: 480 } }, async app => {
+    await abrirArquivo(app, 'a.txt');
+    await alternarEditor(app);
+    const p = await lerPainel(app);
+    const rolagem = await app.ev(`document.documentElement.scrollWidth > document.documentElement.clientWidth`);
+    afirma(p.escondido && p.ed.w === 0, 'a 580x480 o painel escondeu');
+    afirma(!rolagem, 'sem rolagem horizontal');
+    afirma(perto(p.terms.r, 580, 2), `os terminais chegam até a borda direita (${p.terms.r.toFixed(0)} de 580)`);
+    afirma(sobra(p) < 24, `xterm reajustado (folga ${sobra(p).toFixed(0)} px)`);
+    await app.foto('painel-escondido-580x480');
+    await alternarEditor(app);
+    await app.foto('painel-visivel-580x480');
+  });
+};
+
+CENARIOS['painel-sem-atalho'] = async () => {
+  await comApp({}, async app => {
+    await abrirArquivo(app, 'a.txt');
+    const antes = await lerPainel(app);
+    for (const tecla of ['b', 'j']) {
+      await app.tecla(tecla, { ctrl: true });
+      await sleep(300);
+    }
+    const depois = await lerPainel(app);
+    afirma(antes.escondido === depois.escondido && !depois.escondido, 'Ctrl+B e Ctrl+J não mexem no painel');
+  });
+};
+
+CENARIOS['painel-x-no-canto'] = async () => {
+  await comApp({ status: { five: 42, seven: 27 }, idadeMs: 30000, janela: { w: 1366, h: 768 } }, async app => {
+    await abrirArquivo(app, 'a.txt');
+    await app.clica('.ws.active [data-act="split"]'); // dois quadros: o ✕ novo fica no canto do último
+    await app.espera(`document.querySelectorAll('.ws.active .dev-group').length === 2`, 10000, 'segundo quadro');
+    await sleep(500);
+    const c = await app.ev(`(() => {
+      const r = e => { const x = e.getBoundingClientRect(); return { x: x.x, y: x.y, r: x.right, b: x.bottom }; };
+      const x = document.querySelector('.ws.active [data-acao="esconder-editor"]');
+      const grupos = [...document.querySelectorAll('.ws.active .dev-group')];
+      const botoes = grupos.flatMap(g => [...g.querySelectorAll('.dev-group-actions .dev-icon-btn')].map(b => ({ acao: b.dataset.act, ...r(b) })));
+      const ed = document.querySelector('.ws.active .dev-editors').getBoundingClientRect();
+      return { x: r(x), botoes, ed: { x: ed.x, y: ed.y, r: ed.right } };
+    })()`);
+    const inter = (a, b) => !(a.r <= b.x || b.r <= a.x || a.b <= b.y || b.b <= a.y);
+    afirma(c.botoes.length === 4 && c.botoes.every(b => !inter(c.x, b)), `o ✕ novo não cobre Dividir nem Fechar quadro (${c.botoes.length} botões conferidos)`);
+    afirma(c.x.r <= c.ed.r + 0.5 && c.x.y >= c.ed.y - 0.5 && c.ed.r - c.x.r < 12, `o ✕ está no canto superior direito da coluna (${c.x.r.toFixed(0)} de ${c.ed.r.toFixed(0)})`);
+    await app.foto('painel-canto-x-1366x768', { x: Math.round(c.ed.x), y: Math.round(c.ed.y) - 34, width: Math.round(c.ed.r - c.ed.x), height: 90, scale: 2 });
   });
 };
 
