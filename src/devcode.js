@@ -213,7 +213,8 @@ function registerDevCode({ ipcMain, dialog, store, getWindow }) {
     const list = (saved.list || []).map(w => {
       // WSL folders aren't probed: touching the share would boot a stopped distro at startup
       const root = w.root && (wslInfoOf(w.root) || isDir(w.root)) ? addRoot(w.root, w.wsl) : null;
-      return { name: w.name || null, custom: !!w.custom, cols: w.cols || 1, root, groups: root ? (w.groups || []) : [] };
+      // editorHidden: editor column hidden; older stores lack it (= visible) and it does not depend on the folder
+      return { name: w.name || null, custom: !!w.custom, cols: w.cols || 1, root, groups: root ? (w.groups || []) : [], editorHidden: w.editorHidden === true };
     });
     return { list, active: saved.active || 0 };
   });
@@ -226,6 +227,8 @@ function registerDevCode({ ipcMain, dialog, store, getWindow }) {
         wsl: w.wsl?.distro && w.wsl?.linuxPath ? { distro: String(w.wsl.distro), linuxPath: String(w.wsl.linuxPath) } : null,
         // open editor tabs, restored on the next launch
         groups: (w.groups || []).map(g => ({ tabs: (g.tabs || []).map(String), active: g.active ? String(g.active) : null })),
+        // editor column hidden (only the boolean true counts)
+        editorHidden: w.editorHidden === true,
       })),
       active: data?.active | 0,
     });
