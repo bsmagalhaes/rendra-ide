@@ -190,6 +190,10 @@ async function loadAccount() {
   document.getElementById('acc-email').textContent = acc?.email || '—';
   document.getElementById('acc-email').title = acc?.name || '';
   document.getElementById('acc-plan').textContent = acc ? fmtPlan(acc.plan, acc.tier) : '—';
+  // the title-bar consumption bar shows the same account and plan in its tooltip (never the e-mail)
+  contaBarra = acc ? (acc.organization || acc.name || '') : '';
+  planoBarra = acc ? fmtPlan(acc.plan, acc.tier).replace(/^—$/, '') : '';
+  desenharBarraConsumo();
 
   const list = document.getElementById('limits-list');
   const updated = document.getElementById('limits-updated');
@@ -222,9 +226,49 @@ async function enableLimitsBridge() {
   loadAccount();
 }
 
+// ── Title-bar consumption bar (5 hours + weekly of the Claude Code plan) ───
+// Reads only the statusline file through limits:statusline (no credentials, no network), every
+// 60 s and on ↻. Rules live in renderer/consumo.js; this only paints the result.
+let consumoRes = null;
+let contaBarra = '';
+let planoBarra = '';
+
+function desenharBarraConsumo() {
+  const barra = document.getElementById('consumo-bar');
+  const estado = RendraConsumo.estadoConsumo(consumoRes, Date.now(), {
+    conta: contaBarra, plano: planoBarra, fmtResetIn, fmtHora: fmtTimestamp,
+  });
+  if (!estado.visivel) {
+    barra.hidden = true;
+    barra.removeAttribute('title');
+    return;
+  }
+  barra.hidden = false;
+  barra.title = estado.tooltip;
+  barra.querySelectorAll('.consumo-item').forEach(el => {
+    const item = estado.itens.find(i => i.chave === el.dataset.kind);
+    el.hidden = !item;
+    if (!item) return;
+    el.className = `consumo-item ${item.classe}`;
+    el.querySelector('.consumo-rotulo').textContent = item.rotulo;
+    el.querySelector('.consumo-pct').textContent = item.texto;
+    el.querySelector('.consumo-fill').style.width = `${item.percent}%`;
+    const pb = el.querySelector('[role=progressbar]');
+    pb.setAttribute('aria-label', item.ariaRotulo);
+    pb.setAttribute('aria-valuenow', String(item.percent));
+    pb.setAttribute('aria-valuetext', item.ariaTexto);
+  });
+}
+
+async function atualizarBarraConsumo() {
+  try { consumoRes = await tm.limitsBridge.read(); } catch { consumoRes = null; }
+  desenharBarraConsumo();
+}
+
 function limitRowsHtml(limits) {
   return (limits || []).map(l => {
-    const level = l.percent >= 90 ? 'danger' : l.percent >= 70 ? 'warn' : '';
+    const nivel = RendraConsumo.nivelDe(l.percent);
+    const level = nivel === 'ok' ? '' : nivel;
     return `
       <div class="limit-row">
         <span class="limit-name">${escapeHtml(limitName(l))}</span>
@@ -775,6 +819,7 @@ async function refresh() {
   const btn = document.getElementById('btn-refresh');
   btn.classList.add('spinning');
   updateStatus('* Lendo sessões…');
+  atualizarBarraConsumo(); // the scan below takes seconds; the bar does not wait for it
   try {
     const data = await tm.getUsageData();
     if (data) render(data);
@@ -804,6 +849,8 @@ async function init() {
   // Account card + plan limits: now and every 5 minutes (the usage endpoint is rate limited)
   loadAccount();
   setInterval(loadAccount, 5 * 60000);
+  atualizarBarraConsumo();
+  setInterval(atualizarBarraConsumo, 60000);
   document.getElementById('limits-refresh').addEventListener('click', async e => {
     const btn = e.currentTarget;
     btn.disabled = true;

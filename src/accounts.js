@@ -183,4 +183,4 @@ async function currentAccount(mode = 'statusline') {
   return { account, ...(await fetchLimits(cred, accountKey)), source: 'api' };
 }
 
-module.exports = { currentAccount, statuslineStatus, installStatusline, uninstallStatusline };
+module.exports = { currentAccount, statuslineLimits, statuslineStatus, installStatusline, uninstallStatusline };

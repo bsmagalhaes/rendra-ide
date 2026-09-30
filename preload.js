@@ -43,6 +43,7 @@ contextBridge.exposeInMainWorld('rendra', {
   setFilters: (filters) => ipcRenderer.invoke('set-filters', filters),
   claudeAccount: () => ipcRenderer.invoke('claude-account'),
   limitsBridge: {
+    read: () => ipcRenderer.invoke('limits:statusline'),
     status: () => ipcRenderer.invoke('limits:bridge-status'),
     install: () => ipcRenderer.invoke('limits:bridge-install'),
     uninstall: () => ipcRenderer.invoke('limits:bridge-uninstall'),

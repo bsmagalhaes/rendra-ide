@@ -219,6 +219,8 @@ ipcMain.handle('set-filters', async (_e, filters) => {
 // Limits source: 'statusline' (default; Claude Code hands the limits to its statusline command)
 // or 'api' (opt-in in Settings; reads every limit with the local Claude Code login)
 ipcMain.handle('claude-account', () => currentAccount(getSettings().limitsSource));
+// Only the statusline file (no credentials, no network): the title bar reads it every 60 s
+ipcMain.handle('limits:statusline', () => accountsMod.statuslineLimits());
 ipcMain.handle('limits:bridge-status', () => accountsMod.statuslineStatus());
 ipcMain.handle('limits:bridge-install', () => accountsMod.installStatusline(path.join(__dirname, 'src', 'statusline.sh')));
 ipcMain.handle('limits:bridge-uninstall', () => accountsMod.uninstallStatusline());

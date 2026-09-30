@@ -77,7 +77,7 @@ body { display: flex; flex-direction: column; }
 .consumo-rotulo { color: var(--text-muted); }
 .consumo-trilho { display: block; width: 64px; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
 .consumo-fill { display: block; height: 100%; width: 0; border-radius: 2px; background: var(--green); transition: width 0.4s; }
-.consumo-pct { color: var(--text); font-weight: 700; min-width: 34px; text-align: right; }
+.consumo-pct { color: var(--text); font-weight: 700; min-width: 28px; }
 .consumo-item.warn .consumo-fill { background: var(--orange); }
 .consumo-item.danger .consumo-fill { background: #e5484d; }
 .consumo-item.stale .consumo-fill { background: var(--text-muted); }

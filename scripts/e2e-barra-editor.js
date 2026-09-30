@@ -69,9 +69,11 @@ function criarSandbox(opts = {}) {
     escreve(path.join(home, '.claude.json'), JSON.stringify({
       oauthAccount: { emailAddress: 'voce@exemplo.com', displayName: 'Você', organizationName: 'Empresa Demo' },
     }));
-    escreve(path.join(home, '.claude', '.credentials.json'), JSON.stringify({
-      claudeAiOauth: { subscriptionType: 'max', rateLimitTier: 'default_claude_max_5x' },
-    }));
+    if (!opts.semCredenciais) {
+      escreve(path.join(home, '.claude', '.credentials.json'), JSON.stringify({
+        claudeAiOauth: { subscriptionType: 'max', rateLimitTier: 'default_claude_max_5x' },
+      }));
+    }
     escreve(path.join(home, '.claude', 'settings.json'), JSON.stringify({
       statusLine: { type: 'command', command: 'sh "$HOME/.rendra-ide/statusline.sh"' },
     }, null, 2));
@@ -254,6 +256,211 @@ CENARIOS['sem-dado'] = async () => {
   await comApp({ semRateLimits: true }, async app => {
     await sleep(1500);
     await estruturaEscondida(app);
+  });
+};
+
+// ── Barra de consumo: leitura e ajudantes ───────────────────────────────────
+const COR = { verde: 'rgb(76, 175, 117)', laranja: 'rgb(232, 101, 10)', vermelho: 'rgb(229, 72, 77)', muted: 'rgb(176, 176, 176)', dim: 'rgb(112, 112, 112)' };
+const LER_BARRA = `(() => {
+  const b = document.getElementById('consumo-bar');
+  if (!b) return null;
+  const cs = e => getComputedStyle(e);
+  const r = b.getBoundingClientRect();
+  return {
+    visivel: !b.hidden && cs(b).display !== 'none' && r.width > 0,
+    title: b.title, texto: b.textContent,
+    rect: { x: r.x, y: r.y, w: r.width, h: r.height, r: r.right },
+    fundo: cs(document.getElementById('title-bar')).backgroundColor,
+    itens: [...b.querySelectorAll('.consumo-item')].filter(i => !i.hidden).map(i => {
+      const pb = i.querySelector('[role=progressbar]'), fill = i.querySelector('.consumo-fill');
+      const rot = i.querySelector('.consumo-rotulo'), pct = i.querySelector('.consumo-pct');
+      return {
+        rotulo: rot.textContent, pct: pct.textContent, classe: i.className,
+        now: pb.getAttribute('aria-valuenow'), min: pb.getAttribute('aria-valuemin'), max: pb.getAttribute('aria-valuemax'),
+        label: pb.getAttribute('aria-label'), valuetext: pb.getAttribute('aria-valuetext'),
+        fillW: fill.getBoundingClientRect().width, trilhoW: pb.getBoundingClientRect().width,
+        fillBg: cs(fill).backgroundColor, trilhoBg: cs(pb).backgroundColor, pctCor: cs(pct).color, rotCor: cs(rot).color,
+      };
+    }),
+  };
+})()`;
+const lerBarra = app => app.ev(LER_BARRA);
+const barraVisivel = app => app.espera(`(() => { const b = document.getElementById('consumo-bar'); return !!b && !b.hidden && b.getBoundingClientRect().width > 0; })()`, 20000, 'barra de consumo visível');
+const barraEscondida = (app, ms = 20000) => app.espera(`(() => { const b = document.getElementById('consumo-bar'); return !!b && (b.hidden || b.getBoundingClientRect().width === 0); })()`, ms, 'barra de consumo escondida');
+const barraTem = (app, pcts, ms = 20000) => app.espera(`[...document.querySelectorAll('#consumo-bar .consumo-item:not([hidden]) .consumo-pct')].map(e => e.textContent).join(',') === ${JSON.stringify(pcts.join(','))}`, ms, `barra mostrando ${pcts.join(', ')}`);
+const atualiza = app => app.clica('#btn-refresh');
+const horaLocal = ms => new Date(ms).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+CENARIOS['normal'] = async () => {
+  await comApp({ status: { five: 42, seven: 27 }, idadeMs: 60000, janela: { w: 1366, h: 768 } }, async app => {
+    await barraVisivel(app);
+    await app.espera(`document.getElementById('consumo-bar').title.includes('Empresa Demo')`, 20000, 'tooltip com a conta');
+    await sleep(800); // transição da largura (0,4 s)
+    const b = await lerBarra(app);
+    afirma(b.itens.map(i => i.rotulo).join('|') === '5 Horas|Semanal', `rótulos: ${b.itens.map(i => i.rotulo).join(' | ')}`);
+    afirma(b.itens.map(i => i.pct).join('|') === '42%|27%', `percentuais: ${b.itens.map(i => i.pct).join(' | ')}`);
+    afirma(b.itens.map(i => i.now).join('|') === '42|27', 'aria-valuenow 42 e 27');
+    afirma(b.itens.every(i => i.min === '0' && i.max === '100'), 'aria-valuemin 0 e aria-valuemax 100');
+    afirma(b.itens.map(i => i.label).join('|') === 'Limite de 5 horas|Limite semanal', `aria-label: ${b.itens.map(i => i.label).join(' | ')}`);
+    afirma(perto(b.itens[0].fillW, b.itens[0].trilhoW * 0.42, 1) && perto(b.itens[1].fillW, b.itens[1].trilhoW * 0.27, 1),
+      `preenchimento ${b.itens[0].fillW.toFixed(1)} de ${b.itens[0].trilhoW} px (42%) e ${b.itens[1].fillW.toFixed(1)} (27%)`);
+    afirma(b.itens.every(i => i.fillBg === COR.verde), `cor do preenchimento é o verde (${b.itens[0].fillBg})`);
+    afirma(b.title.includes('Empresa Demo') && b.title.includes('Max 5x') && b.title.includes('Reinicia em'), `tooltip: ${JSON.stringify(b.title)}`);
+    afirma(!b.title.includes('@') && !b.texto.includes('@') && !/voce/i.test(b.title), 'nem o tooltip nem a barra trazem o e-mail');
+    await app.foto('normal-1366x768');
+    // regressão da página Claude: um limite normal continua sem classe de nível
+    await app.pagina('claude');
+    const fills = await app.ev(`[...document.querySelectorAll('#limits-list .limit-fill')].map(e => e.className.trim())`);
+    afirma(fills.join('|') === 'limit-fill|limit-fill', `página Claude sem classe de nível em 42% e 27%: ${JSON.stringify(fills)}`);
+  });
+};
+
+CENARIOS['niveis'] = async () => {
+  await comApp({ status: { five: 75, seven: 95 }, idadeMs: 30000 }, async app => {
+    await barraVisivel(app);
+    await sleep(800);
+    const b = await lerBarra(app);
+    afirma(b.itens[0].fillBg === COR.laranja, `75% é laranja (${b.itens[0].fillBg})`);
+    afirma(b.itens[1].fillBg === COR.vermelho, `95% é vermelho (${b.itens[1].fillBg})`);
+    afirma(b.itens.map(i => i.classe.includes('warn') + '/' + i.classe.includes('danger')).join('|') === 'true/false|false/true', `classes: ${b.itens.map(i => i.classe).join(' | ')}`);
+    await app.pagina('claude');
+    const pag = await app.ev(`[...document.querySelectorAll('#limits-list .limit-row')].map(r => ({ fill: r.querySelector('.limit-fill').className.trim(), pct: r.querySelector('.limit-pct').className.trim(), texto: r.querySelector('.limit-pct').textContent }))`);
+    afirma(pag.length === 2 && pag[0].fill === 'limit-fill warn' && pag[1].fill === 'limit-fill danger', `página Claude: ${JSON.stringify(pag.map(p => p.fill))}`);
+    afirma(pag[0].pct === 'limit-pct warn' && pag[1].pct === 'limit-pct danger', `página Claude, percentuais: ${JSON.stringify(pag.map(p => p.pct))}`);
+    await app.foto('niveis-pagina-claude-75-95');
+    await app.pagina('devcode');
+    await app.foto('niveis-ide-75-95');
+  });
+};
+
+CENARIOS['velho'] = async () => {
+  await comApp({ status: { five: 42, seven: 27 }, idadeMs: 20 * 60000, janela: { w: 1366, h: 768 } }, async (app, sb) => {
+    await barraVisivel(app);
+    await app.espera(`document.getElementById('consumo-bar').title.includes('Empresa Demo')`, 20000, 'tooltip com a conta');
+    await sleep(800);
+    const mtime = fs.statSync(sb.statusFile).mtimeMs;
+    const hora = horaLocal(mtime);
+    const b = await lerBarra(app);
+    afirma(b.itens.map(i => i.pct).join('|') === '42%|27%', 'os percentuais continuam à vista');
+    afirma(b.itens.every(i => i.pctCor === COR.muted), `percentual em cinza (${b.itens[0].pctCor})`);
+    afirma(b.itens.every(i => i.fillBg === COR.muted), `preenchimento sem a cor de nível (${b.itens[0].fillBg})`);
+    afirma(b.itens.every(i => i.classe.includes('stale')), 'classe stale nos dois itens');
+    afirma(b.title.includes(`lido às ${hora}`), `tooltip com a hora da leitura (${hora}): ${JSON.stringify(b.title)}`);
+    afirma(b.itens.every(i => i.valuetext.endsWith(`, lido às ${hora}`)), `aria-valuetext: ${JSON.stringify(b.itens[0].valuetext)}`);
+    await app.foto('velho-1366x768');
+  });
+};
+
+CENARIOS['contraste'] = async () => {
+  await comApp({ status: { five: 50, seven: 50 }, idadeMs: 30000 }, async (app, sb) => {
+    await barraVisivel(app);
+    await sleep(800);
+    const verifica = async nome => {
+      const b = await lerBarra(app);
+      afirma(b.itens.length === 2, `${nome}: dois itens`);
+      for (const i of b.itens) {
+        const cr = contraste(i.rotCor, b.fundo), cp = contraste(i.pctCor, b.fundo), cf = contraste(i.fillBg, i.trilhoBg);
+        afirma(cr >= 4.5, `${nome}, ${i.rotulo}: rótulo ${cr.toFixed(1)}:1 (mínimo 4,5)`);
+        afirma(cp >= 4.5, `${nome}, ${i.rotulo}: percentual ${cp.toFixed(1)}:1 (mínimo 4,5)`);
+        afirma(cf >= 3, `${nome}, ${i.rotulo}: preenchimento sobre o trilho ${cf.toFixed(1)}:1 (mínimo 3)`);
+      }
+    };
+    await verifica('ok');
+    escreverStatus(sb, { five: 75, seven: 75 }, 30000);
+    await atualiza(app); await barraTem(app, ['75%', '75%'], 15000); await sleep(600);
+    await verifica('warn');
+    escreverStatus(sb, { five: 95, seven: 95 }, 30000);
+    await atualiza(app); await barraTem(app, ['95%', '95%'], 15000); await sleep(600);
+    await verifica('danger');
+    escreverStatus(sb, { five: 95, seven: 95 }, 20 * 60000);
+    await atualiza(app);
+    await app.espera(`document.querySelector('#consumo-bar .consumo-item').classList.contains('stale')`, 15000, 'estado antigo');
+    await sleep(600);
+    await verifica('stale');
+  });
+};
+
+CENARIOS['refresh'] = async () => {
+  await comApp({ status: { five: 42, seven: 27 }, idadeMs: 30000 }, async (app, sb) => {
+    await barraVisivel(app);
+    await barraTem(app, ['42%', '27%']);
+    // longe do tick de 60 s: assim só o clique em ↻ pode explicar a mudança
+    await app.espera(`(() => { const m = performance.now() % 60000; return m > 12000 && m < 40000; })()`, 60000, 'meio do intervalo do timer');
+    escreverStatus(sb, { five: 63, seven: 27 }, 30000);
+    const t0 = Date.now();
+    await atualiza(app);
+    await barraTem(app, ['63%', '27%'], 6000);
+    afirma(Date.now() - t0 < 6000, `a barra mudou ${Date.now() - t0} ms depois do clique em ↻, sem esperar o timer`);
+  });
+};
+
+CENARIOS['ritmo'] = async () => {
+  await comApp({ status: { five: 42, seven: 27 }, idadeMs: 30000 }, async (app, sb) => {
+    await barraVisivel(app);
+    await barraTem(app, ['42%', '27%']);
+    // 1) o dado muda sem ninguém clicar em nada: o timer de 60 s traz o novo valor
+    escreverStatus(sb, { five: 88, seven: 27 }, 30000);
+    let t = Date.now();
+    await barraTem(app, ['88%', '27%'], 70000);
+    afirma(true, `a barra passou a 88% sozinha, em ${Math.round((Date.now() - t) / 1000)} s`);
+    await sleep(700);
+    afirma((await lerBarra(app)).itens[0].fillBg === COR.laranja, '88% ficou laranja');
+    // 2) o dado some: a barra some
+    apagarStatus(sb);
+    t = Date.now();
+    await barraEscondida(app, 70000);
+    afirma(true, `a barra sumiu sozinha sem o arquivo, em ${Math.round((Date.now() - t) / 1000)} s`);
+    // 3) o dado volta: a barra volta
+    escreverStatus(sb, { five: 10, seven: 20 }, 30000);
+    t = Date.now();
+    await barraTem(app, ['10%', '20%'], 70000);
+    afirma(true, `a barra voltou sozinha com o arquivo, em ${Math.round((Date.now() - t) / 1000)} s`);
+  });
+};
+
+CENARIOS['larguras'] = async () => {
+  await comApp({ status: { five: 100, seven: 100 }, idadeMs: 30000 }, async app => {
+    await barraVisivel(app);
+    for (const [w, h] of [[1920, 1080], [1366, 768], [960, 720], [580, 480]]) {
+      await app.tamanho(w, h);
+      await sleep(600);
+      const m = await app.ev(`(() => {
+        const r = s => { const e = document.querySelector(s); if (!e) return null; const x = e.getBoundingClientRect(); return { x: x.x, r: x.right, y: x.y, b: x.bottom, w: x.width, h: x.height }; };
+        return { nome: r('.app-name'), barra: r('#consumo-bar'), dir: r('.title-bar-right'), titulo: r('#title-bar'), grade: r('.ws.active .dev-term-grid'),
+                 itens: [...document.querySelectorAll('#consumo-bar .consumo-item')].map(i => { const x = i.getBoundingClientRect(); return { y: x.y, h: x.height }; }),
+                 rolagem: document.documentElement.scrollWidth > document.documentElement.clientWidth };
+      })()`);
+      const tag = `${w}x${h}`;
+      afirma(m.barra.x >= m.nome.r && m.barra.r <= m.dir.x, `${tag}: a barra (${m.barra.x.toFixed(0)}..${m.barra.r.toFixed(0)}) cabe entre o nome (fim ${m.nome.r.toFixed(0)}) e os botões (início ${m.dir.x.toFixed(0)}); ${m.barra.w.toFixed(0)} px, sobram ${(m.dir.x - m.nome.r - m.barra.w).toFixed(0)} px`);
+      afirma(m.itens.every(i => i.h <= 20 && perto(i.y, m.itens[0].y, 1)), `${tag}: cada item numa linha só (altura ${m.itens.map(i => i.h.toFixed(0)).join('/')})`);
+      afirma(m.titulo.h <= 41, `${tag}: a barra de título continua com ${m.titulo.h.toFixed(0)} px`);
+      afirma(perto(m.grade.h, h - 128, 2), `${tag}: a grade de terminais mantém ${m.grade.h.toFixed(0)} px (altura ${h} - 128)`);
+      afirma(!m.rolagem, `${tag}: sem rolagem horizontal`);
+      await app.foto(`larguras-${tag}`);
+    }
+  });
+};
+
+CENARIOS['outras-paginas'] = async () => {
+  await comApp({ status: { five: 42, seven: 27 }, idadeMs: 30000 }, async app => {
+    await barraVisivel(app);
+    for (const pagina of ['devcode', 'terminal', 'claude', 'rtk', 'codex', 'precos', 'novidades', 'sobre']) {
+      await app.pagina(pagina);
+      const b = await lerBarra(app);
+      afirma(b.visivel && b.itens.length === 2, `página ${pagina}: a barra continua visível`);
+    }
+  });
+};
+
+// D-A: a barra lê só o arquivo da statusline, mesmo no modo `api` das Configurações e sem login
+CENARIOS['modo-api'] = async () => {
+  await comApp({ status: { five: 42, seven: 27 }, idadeMs: 30000, semCredenciais: true, settings: { limitsSource: 'api' } }, async app => {
+    await barraVisivel(app);
+    await barraTem(app, ['42%', '27%']);
+    afirma(true, 'no modo api, sem login, a barra mostra 42% e 27% (lê só a statusline)');
+    await app.pagina('claude');
+    await app.espera(`document.getElementById('limits-list').textContent.includes('Sem login ativo no Claude Code')`, 15000, 'card da página Claude sem login');
+    afirma(true, 'a página Claude, pelo canal claude-account, diz "Sem login ativo no Claude Code" (sem rede)');
   });
 };
 
