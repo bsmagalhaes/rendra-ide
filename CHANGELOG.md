@@ -1,5 +1,9 @@
 # Novidades
 
+## Próxima versão
+### Terminal
+- Shift+Enter quebra a linha no terminal em Windows, macOS e Linux, como nas CLIs de IA.
+
 ## 1.1.3 · 29/09/2026
 ### Atualização mais segura
 - O histórico do repositório do Rendra IDE no GitHub vai ser reorganizado. Para que a atualização automática continue funcionando depois disso, o app agora sabe se recuperar: se você não mexeu nos arquivos do app, ele acompanha a nova história sozinho e segue com a atualização normalmente.

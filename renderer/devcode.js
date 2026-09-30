@@ -911,6 +911,12 @@
     // Ctrl+V into a text paste, so an image-only clipboard never reached the program.
     const pasteText = () => navigator.clipboard.readText().then(x => { if (x) term.paste(x); });
     term.attachCustomKeyEventHandler(ev => {
+      const nova = RendraTermKeys.sequenciaDeTecla(ev);
+      if (nova !== null) {
+        ev.preventDefault();
+        if (t.alive) dev.ptyWrite(t.id, nova); // Shift+Enter: nova linha, sem enviar
+        return false;
+      }
       if (ev.type !== 'keydown' || ev.code !== 'KeyV' && ev.code !== 'KeyC') return true;
       if (ev.ctrlKey && ev.shiftKey) {
         if (ev.code === 'KeyC') { const sel = term.getSelection(); if (sel) navigator.clipboard.writeText(sel); }
