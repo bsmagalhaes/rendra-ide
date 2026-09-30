@@ -287,11 +287,7 @@
       const t = ws.terms.find(x => x.alive);
       if (t) t.term.focus(); else ws.el.querySelector('[data-acao=alternar-editor]').focus();
     }
-    // the terminals get (or give back) width; the editors, created while hidden, need a layout pass
-    requestAnimationFrame(() => {
-      ws.terms.forEach(fitTerm);
-      if (!next) ws.groups.forEach(g => g.editor.layout());
-    });
+    // no explicit fit/layout: each terminal's ResizeObserver refits the xterm, and Monaco has automaticLayout
     persist();
   }
 
