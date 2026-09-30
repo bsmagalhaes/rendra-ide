@@ -1,6 +1,10 @@
 # Novidades
 
 ## Próxima versão
+### Consumo do plano do Claude Code
+- A barra de título mostra o percentual do limite de 5 horas e do semanal, com cor por nível (laranja a partir de 70%, vermelho a partir de 90%), sempre visível e atualizada a cada minuto. Passe o mouse para ver conta, plano e quando reinicia. A barra usa a leitura pela statusline do Claude Code: fica em cinza quando a última leitura tem mais de 15 minutos e não aparece quando não há dados do plano.
+### Editor
+- Botão no cabeçalho dos terminais (e o ✕ no canto do editor) para esconder e mostrar o painel do editor; os terminais ocupam o espaço. Esconder não fecha nem descarta arquivos abertos. O painel reaparece ao abrir um arquivo, e o estado é lembrado por workspace.
 ### Terminal
 - Shift+Enter quebra a linha no terminal em Windows, macOS e Linux, como nas CLIs de IA.
 
