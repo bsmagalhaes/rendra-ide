@@ -25,6 +25,19 @@
     <button class="tl-btn tl-maximize" id="btn-maximize" title="Maximizar"></button>
   </div>
   <div class="app-name">RENDRA<span>IDE</span></div>
+  <!-- Consumo do plano do Claude Code: escondida até haver leitura (renderer/consumo.js, app.js) -->
+  <div id="consumo-bar" role="group" aria-label="Consumo do plano do Claude Code" hidden>
+    <div class="consumo-item" data-kind="session">
+      <span class="consumo-rotulo">5 Horas</span>
+      <span class="consumo-trilho" role="progressbar" aria-label="Limite de 5 horas" aria-valuemin="0" aria-valuemax="100"><span class="consumo-fill"></span></span>
+      <span class="consumo-pct"></span>
+    </div>
+    <div class="consumo-item" data-kind="weekly_all">
+      <span class="consumo-rotulo">Semanal</span>
+      <span class="consumo-trilho" role="progressbar" aria-label="Limite semanal" aria-valuemin="0" aria-valuemax="100"><span class="consumo-fill"></span></span>
+      <span class="consumo-pct"></span>
+    </div>
+  </div>
   <div class="title-bar-right">
     <button class="icon-btn" id="btn-refresh" title="Atualizar (Ctrl+R)">↻</button>
     <button class="icon-btn" id="btn-settings" title="Configurações">⚙</button>
@@ -570,6 +583,7 @@
 <script src="../node_modules/@xterm/addon-fit/lib/addon-fit.js"></script>
 <script src="../node_modules/@xterm/addon-unicode11/lib/addon-unicode11.js"></script>
 <script src="terminal-keys.js"></script>
+<script src="consumo.js"></script>
 <script src="app.js"></script>
 <script src="devcode.js"></script>
 <script src="setup.js"></script>

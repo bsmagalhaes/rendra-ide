@@ -63,6 +63,26 @@ body { display: flex; flex-direction: column; }
 }
 .app-name span { color: var(--orange); }
 
+/* Consumo do plano do Claude Code (5 Horas e Semanal): só aparece quando há leitura */
+#consumo-bar {
+  display: flex; align-items: center; gap: 16px;
+  margin-left: auto;
+  font-family: var(--font); font-size: 10px; white-space: nowrap;
+  -webkit-app-region: no-drag;
+}
+#consumo-bar[hidden] { display: none !important; }
+#consumo-bar:not([hidden]) + .title-bar-right { margin-left: 12px; }
+.consumo-item { display: flex; align-items: center; gap: 6px; }
+.consumo-item[hidden] { display: none; }
+.consumo-rotulo { color: var(--text-muted); }
+.consumo-trilho { display: block; width: 64px; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.consumo-fill { display: block; height: 100%; width: 0; border-radius: 2px; background: var(--green); transition: width 0.4s; }
+.consumo-pct { color: var(--text); font-weight: 700; min-width: 34px; text-align: right; }
+.consumo-item.warn .consumo-fill { background: var(--orange); }
+.consumo-item.danger .consumo-fill { background: #e5484d; }
+.consumo-item.stale .consumo-fill { background: var(--text-muted); }
+.consumo-item.stale .consumo-pct { color: var(--text-muted); }
+
 .title-bar-right {
   margin-left: auto;
   display: flex; align-items: center; gap: 6px;
