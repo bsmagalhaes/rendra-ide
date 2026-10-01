@@ -7,6 +7,9 @@
 - Botão no cabeçalho dos terminais (e o ✕ no canto do editor) para esconder e mostrar o painel do editor; os terminais ocupam o espaço. Esconder não fecha nem descarta arquivos abertos. O painel reaparece ao abrir um arquivo, e o estado é lembrado por workspace.
 ### Terminal
 - Shift+Enter quebra a linha no terminal em Windows, macOS e Linux, como nas CLIs de IA.
+- Nenhum terminal abre sozinho: ao abrir a IDE ou trocar de projeto, a área dos terminais mostra "Nenhum terminal aberto" e o botão "Novo terminal".
+- Com o WSL instalado, o botão de novo terminal pergunta onde abrir: "Windows (PowerShell)" ou "WSL (distribuição)". Sem WSL, abre direto.
+- O ícone de "Esconder painel" do editor agora é uma seta, para não se confundir com o ✕ de "Fechar quadro".
 
 ## 1.1.3 · 29/09/2026
 ### Atualização mais segura

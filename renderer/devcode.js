@@ -308,12 +308,13 @@
             ${withEditorToggle ? '<button class="dev-icon-btn" type="button" data-acao="alternar-editor">◨</button>' : ''}
           </div>
         </div>
-        <div class="dev-term-grid"></div>
+        <div class="dev-term-grid"><div class="dev-term-empty"><span>Nenhum terminal aberto</span><button class="dev-term-empty-btn" type="button" data-act="new-term-empty">Novo terminal</button></div></div>
       </section>`;
   }
 
   function wireTerminalSection(ws, el, onColsChange) {
-    el.querySelector('[data-act=new-term]').addEventListener('click', () => newTerminal(ws));
+    el.querySelector('[data-act=new-term]').addEventListener('click', e => pedirNovoTerminal(ws, e.currentTarget));
+    el.querySelector('[data-act=new-term-empty]').addEventListener('click', e => pedirNovoTerminal(ws, e.currentTarget));
     // Shell picker: shared default, remembered across restarts
     const shellSel = el.querySelector('.dev-shell-select');
     shellsReady.then(list => {
@@ -346,11 +347,9 @@
       };
       wireTerminalSection(terminalPage, host, () => lsSet('term.cols', String(terminalPage.cols)));
       layoutTerminals(terminalPage);
-      newTerminal(terminalPage);
       return;
     }
     requestAnimationFrame(() => terminalPage.terms.forEach(fitTerm));
-    if (!terminalPage.terms.length) newTerminal(terminalPage);
   }
 
   function activateWorkspace(ws) {
@@ -359,7 +358,6 @@
     renderWsTabs();
     if (!ws.started) {
       ws.started = true;
-      newTerminal(ws); // starts in the workspace folder
       if (ws.restore) restoreTabs(ws);
     }
     requestAnimationFrame(() => {
@@ -516,8 +514,6 @@
     await renderTree(ws);
     // Existing terminals follow the workspace into the new folder…
     ws.terms.filter(t => t.alive).forEach(t => dev.ptyWrite(t.id, cdCommand(t, result)));
-    // …and a WSL project gets a Linux terminal if it has none yet
-    if (result.wsl && !ws.terms.some(t => t.alive && t.shellKey === 'wsl')) newTerminal(ws);
     persist();
   }
 
@@ -865,6 +861,7 @@
 
   function layoutTerminals(ws) {
     const n = Math.max(ws.terms.length, 1);
+    ws.refs.grid.querySelector('.dev-term-empty').hidden = ws.terms.length > 0;
     const cols = Math.min(ws.cols, n);
     ws.refs.grid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
     ws.refs.grid.style.gridTemplateRows = `repeat(${Math.ceil(n / cols)}, minmax(0, 1fr))`;
@@ -872,7 +869,41 @@
     requestAnimationFrame(() => ws.terms.forEach(fitTerm));
   }
 
-  async function newTerminal(ws) {
+  // Botão "novo terminal": com Windows e WSL instalados, pergunta qual; com uma opção só, abre direto
+  async function pedirNovoTerminal(ws, ancora) {
+    if (ws.root?.wsl) { newTerminal(ws); return; } // projeto no WSL: o terminal já é o da distro
+    let info = null;
+    try { info = await dev.wslInfo(); } catch { info = null; }
+    const lista = await shellsReady;
+    const sel = ws.el.querySelector('.dev-shell-select');
+    const padrao = lista.find(s => s.key === sel.value) || lista[0];
+    const opcoes = RendraTermEscolha.opcoesDeTerminal(padrao, info);
+    if (opcoes.length === 1) { newTerminal(ws); return; }
+    document.querySelector('.dev-term-menu')?.remove();
+    const menu = document.createElement('div');
+    menu.className = 'dev-term-menu';
+    menu.setAttribute('role', 'menu');
+    menu.innerHTML = opcoes.map((o, i) => `<button type="button" role="menuitem" data-i="${i}">${esc(o.label)}</button>`).join('');
+    document.body.appendChild(menu);
+    const r = ancora.getBoundingClientRect();
+    menu.style.top = `${r.bottom + 4}px`;
+    menu.style.left = `${Math.max(4, Math.min(r.right - menu.offsetWidth, window.innerWidth - menu.offsetWidth - 4))}px`;
+    const fechar = () => { menu.remove(); document.removeEventListener('mousedown', fora, true); document.removeEventListener('keydown', tecla, true); };
+    const fora = e => { if (!menu.contains(e.target)) fechar(); };
+    const tecla = e => { if (e.key === 'Escape') { e.stopPropagation(); fechar(); } };
+    document.addEventListener('mousedown', fora, true);
+    document.addEventListener('keydown', tecla, true);
+    menu.addEventListener('click', e => {
+      const b = e.target.closest('button[data-i]');
+      if (!b) return;
+      const o = opcoes[+b.dataset.i];
+      fechar();
+      newTerminal(ws, o.shell);
+    });
+    menu.querySelector('button').focus();
+  }
+
+  async function newTerminal(ws, shellEscolhido) {
     if (typeof Terminal === 'undefined') { toast('Terminal indisponível'); return; }
     // The terminal's name and controls live as a tab in the "Terminais" header row (one line
     // saved per terminal); the pane itself is only the terminal surface
@@ -920,7 +951,7 @@
     layoutTerminals(ws);
     fitTerm(t);
 
-    const shell = ws.el.querySelector('.dev-shell-select').value || lsGet('dev.shell', '');
+    const shell = shellEscolhido || ws.el.querySelector('.dev-shell-select').value || lsGet('dev.shell', '');
     const res = await dev.ptyCreate({ cols: term.cols, rows: term.rows, cwd: ws.root?.root, shell });
     if (res.error) {
       term.write(`\r\n\x1b[31mNão foi possível abrir o terminal: ${res.error}\x1b[0m\r\n`);

@@ -10,6 +10,7 @@ const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const HIDDEN = new Set(['.git']);
 
 const os = require('os');
+const { caminhoNoWsl } = require('../renderer/terminal-escolha');
 
 const IS_WIN = process.platform === 'win32';
 const IS_MAC = process.platform === 'darwin';
@@ -376,9 +377,13 @@ function registerDevCode({ ipcMain, dialog, store, getWindow }) {
       const dir = wsl ? path.resolve(cwd) : (cwd && isDir(cwd) && inside(cwd) ? path.resolve(cwd) : home);
       // WSL workspace → always a Linux login shell in the distro, started in the project folder
       const shells = availableShells();
+      // Terminal pedido no WSL num projeto do Windows: wsl.exe na pasta do projeto vista de dentro da distro
+      const pedidoWsl = !wsl && IS_WIN && typeof shellKey === 'string' && shellKey.startsWith('wsl:') ? shellKey.slice(4) : null;
       const sh = wsl
         ? { key: 'wsl', label: `WSL ${wsl.distro}`, file: 'wsl.exe', args: ['-d', wsl.distro, '--cd', wsl.linuxPath] }
-        : (shells.find(s => s.key === shellKey) || shells[0]);
+        : pedidoWsl
+          ? { key: 'wsl', label: `WSL ${pedidoWsl}`, file: 'wsl.exe', args: ['-d', pedidoWsl, '--cd', cwd && dir !== home ? (caminhoNoWsl(dir) || '~') : '~'] }
+          : (shells.find(s => s.key === shellKey) || shells[0]);
       const proc = pty.spawn(sh.file, sh.args, {
         name: 'xterm-256color',
         cols: Math.max(20, cols | 0 || 80),
