@@ -10,6 +10,8 @@
     if (!n) return 'Digite um nome';
     if (/[\\/]/.test(n)) return 'O nome não pode ter / nem \\';
     if (n === '.' || n === '..') return 'Nome inválido';
+    // espaços inseparáveis entre os caracteres: o toast estreito não deixa um "|" sozinho na linha
+    if (/[:*?"<>|]/.test(n)) return `O nome não pode ter caracteres reservados do Windows: ${[':', '*', '?', '"', '<', '>', '|'].join(' ')}`;
     const chave = s => (insensivel ? s.toLowerCase() : s);
     if (existentes.some(e => chave(e) === chave(n))) return `"${n}" já existe nesta pasta`;
     return null;

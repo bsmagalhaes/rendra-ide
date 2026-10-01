@@ -39,6 +39,27 @@ test('validarNome recusa vazio, separadores, ponto-ponto e item existente', () =
   assert.strictEqual(validarNome('.gitignore', []), null);
 });
 
+test('validarNome recusa os caracteres reservados do Windows com mensagem própria', () => {
+  for (const c of [':', '*', '?', '"', '<', '>', '|']) {
+    const msg = validarNome(`a${c}b.txt`, []);
+    assert.match(msg, /caracteres reservados/, `caractere ${c}`);
+    assert.ok(msg.includes(c), `a mensagem cita ${c}`);
+  }
+  assert.strictEqual(validarNome('a-b_c (1).txt', []), null);
+});
+
+test('o IPC recusa nome com caractere reservado do Windows e não grava nada', () => {
+  const raiz = pasta();
+  const t = montar(raiz);
+  for (const nome of ['a:b', 'a*b', 'a?b', 'a"b', 'a<b', 'a>b', 'a|b']) {
+    const a = t.arquivo(raiz, nome), d = t.pasta(raiz, nome);
+    assert.strictEqual(a.ok, false, `arquivo ${nome}`);
+    assert.strictEqual(d.ok, false, `pasta ${nome}`);
+    assert.match(a.error, /caracteres reservados/);
+  }
+  assert.deepStrictEqual(fs.readdirSync(raiz), []);
+});
+
 test('cria o arquivo vazio dentro da pasta aberta e devolve o caminho', () => {
   const raiz = pasta();
   const t = montar(raiz);
