@@ -68,7 +68,7 @@ and in the About page credits.
   on screen is optional, and the preference is to keep it or move it to Sobre. Never say MIT
   requires a visible credit in the UI: it does not
 - Only the product goes to git: never commit plans, specs, surveys, session notes or AI tool
-  output (`docs/specs/`, `docs/plans/`, `docs/superpowers/`, `.superpowers/`, `.claude/`).
+  output (`docs/specs/`, `docs/plans/`, `.superpowers/`, `.claude/`).
   Check `git status` and `git diff --cached --stat` before every commit
 - Commit messages in pt-BR: `tipo: descrição` (feat, fix, docs, style, chore, test, refactor)
 - Texts in pt-BR, no em dash, dates DD/MM/AAAA

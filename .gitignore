@@ -1,7 +1,6 @@
 # Artefatos de desenvolvimento (planos, levantamentos, saídas de ferramentas de IA)
 docs/specs/
 docs/plans/
-docs/superpowers/
 .superpowers/
 .claude/worktrees/
 .claude/

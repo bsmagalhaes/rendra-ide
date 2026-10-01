@@ -18,7 +18,7 @@ Autor: Bruno Magalhaes, brunomagalhaes.me, instagram.com/brunomagalhaes.me.
 
 Este arquivo e o AGENTS.md vão para o git (Padrão dos produtos Rendra: arquivos para agentes são
 produto). O que fica só na máquina: planos, specs, levantamentos e saídas de IA (`docs/specs/`,
-`docs/plans/`, `docs/superpowers/`, `.superpowers/`, `.claude/`). Nada da instalação depende
+`docs/plans/`, `.superpowers/`, `.claude/`). Nada da instalação depende
 destes arquivos: o setup de Git Bash, RTK e WSL roda pelo app (primeira abertura) ou por
 `npm run setup` (`src/setup.js`, `scripts/setup-env.js`).
 
@@ -95,7 +95,7 @@ Preços. Confira o diff antes do commit: se as páginas mudaram de formato, o sc
 - Autor no `package.json`, seção Autor no README, `LICENSE` com `Copyright (c) 2026 Bruno Magalhaes`
   (e o aviso do Tokenmeter, obrigatório pela MIT).
 - Não vão para o git: planos, specs, levantamentos e saídas de IA (`docs/specs/`, `docs/plans/`,
-  `docs/superpowers/`, `.superpowers/`, `.claude/`).
+  `.superpowers/`, `.claude/`).
 - Commits em pt-BR no padrão `tipo: descrição`.
 - Critério de pronto: `npm run check` e `npm test` passando.
 - Referência completa: `PADRAO-PRODUTOS-RENDRA.md` (no repositório do Rendra Design System).
