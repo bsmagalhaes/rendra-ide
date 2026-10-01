@@ -1,6 +1,6 @@
 # Rendra IDE
 
-> IDE gratuita e open source (MIT) para quem programa com agentes de IA. Junta terminais em grade, o editor Monaco (o do VS Code) e um explorador com as cores do Git a um painel que mostra o consumo de tokens e o custo por projeto do Claude Code e do Codex CLI, com os limites de uso do plano e a integração com o RTK para economizar tokens. Roda no Windows, macOS e Linux, lendo só arquivos locais, sem conta nem telemetria.
+> IDE open source (licença MIT) para quem programa com agentes de IA. Junta terminais em grade, o editor Monaco (o do VS Code) e um explorador com as cores do Git a um painel que mostra o consumo de tokens e o custo por projeto do Claude Code e do Codex CLI, com os limites de uso do plano e a integração com o RTK para economizar tokens. Roda no Windows, macOS e Linux, lendo só arquivos locais, sem conta nem telemetria.
 
 ## Para quem serve
 

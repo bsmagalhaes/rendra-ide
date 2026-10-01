@@ -1,6 +1,6 @@
 # Rendra IDE
 
-**Ambiente de desenvolvimento gratuito e open source para quem programa com IA: terminais em grade, editor do VS Code, explorador com cores do Git e um painel que mostra quanto cada projeto consome de tokens no Claude Code e no Codex, com o custo calculado por token e os limites de uso do plano.** Tudo roda na sua máquina, lendo os arquivos locais das CLIs, e vem integrado ao [RTK](https://github.com/rtk-ai/rtk) para gastar menos tokens.
+**Ambiente de desenvolvimento open source (licença MIT) para quem programa com IA: terminais em grade, editor do VS Code, explorador com cores do Git e um painel que mostra quanto cada projeto consome de tokens no Claude Code e no Codex, com o custo calculado por token e os limites de uso do plano.** Tudo roda na sua máquina, lendo os arquivos locais das CLIs, e vem integrado ao [RTK](https://github.com/rtk-ai/rtk) para gastar menos tokens.
 
 ![Electron 31](https://img.shields.io/badge/Electron-31-47848f) ![Monaco Editor](https://img.shields.io/badge/editor-Monaco-0e639c) ![xterm.js](https://img.shields.io/badge/terminal-xterm.js-2b2b2b) ![Windows · macOS · Linux](https://img.shields.io/badge/Windows_·_macOS_·_Linux-e8650a) ![Licença MIT](https://img.shields.io/badge/licença-MIT-2ead33) [![CI](https://github.com/bsmagalhaes/rendra-ui-ide/actions/workflows/ci.yml/badge.svg)](https://github.com/bsmagalhaes/rendra-ui-ide/actions/workflows/ci.yml)
 
@@ -180,8 +180,8 @@ pricing.json       tabela de preços por token
 
 ## Perguntas frequentes
 
-**O Rendra IDE é gratuito?**
-Sim. Código aberto sob a licença MIT, sem conta, sem assinatura e sem telemetria.
+**O Rendra IDE é open source?**
+Sim. Código aberto sob a licença MIT, sem conta e sem telemetria.
 
 **O custo mostrado é o que eu pago?**
 Não necessariamente. É o custo equivalente pelo preço de tabela da API (tokens × preço por 1 milhão). Em planos por assinatura, serve para comparar projetos e modelos e ver onde o consumo está, não como fatura.
