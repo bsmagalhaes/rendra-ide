@@ -131,8 +131,10 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      backgroundThrottling: !process.env.RENDRA_E2E_HIDDEN,
     },
     show: false,
+    paintWhenInitiallyHidden: true,
     titleBarStyle: 'hidden',
   });
 
@@ -141,7 +143,7 @@ function createWindow() {
   mainWindow.once('ready-to-show', () => {
     if (process.env.RENDRA_E2E_HIDDEN) {
       // Só nos testes automáticos: janela fora da tela, sem foco, para não atrapalhar quem usa a máquina
-      mainWindow.setPosition(-32000, -32000);
+      mainWindow.setBounds({ x: -10000, y: 0, width: 1920, height: 1080 }); // tamanho real, só longe da tela
       mainWindow.showInactive();
       return;
     }
