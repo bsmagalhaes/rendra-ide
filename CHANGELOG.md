@@ -1,7 +1,13 @@
 # Novidades
 
 ## Próxima versão
+### Atualização
+- Quando há versão nova, aparece um botão verde "Nova versão" no rodapé da barra lateral esquerda, perto de Novidades e Sobre; ele some quando o app está atualizado. O clique abre a confirmação e atualiza como antes. O aviso "Versão X disponível" na barra inferior foi removido.
+- Na primeira abertura depois de atualizar, o app mostra um modal com as novidades da versão. Ele só fecha pelo botão "Fechar": não fecha sozinho, nem ao clicar fora, nem com Esc, e não volta a aparecer para a mesma versão.
+### Terminal
+- O terminal do WSL só abre em distribuições realmente instaladas; um nome de distribuição que não está na lista é recusado.
 ### Explorador
+- Criar arquivo ou pasta recusa os caracteres reservados do Windows (`: * ? " < > |`) com um aviso próprio.
 - Botão direito no explorador abre o menu "Novo arquivo" e "Nova pasta": o item nasce na pasta clicada, na pasta do arquivo clicado ou, em área vazia, na raiz do projeto. O nome é digitado na própria árvore (Enter cria, Esc cancela), recusa vazio, `/`, `\`, `..` e nomes que já existem, e o arquivo novo abre no editor. Funciona também em projetos WSL.
 
 ## 1.1.4 · 01/10/2026

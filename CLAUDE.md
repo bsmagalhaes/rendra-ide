@@ -27,9 +27,11 @@ destes arquivos: o setup de Git Bash, RTK e WSL roda pelo app (primeira abertura
   Na primeira abertura o app oferece instalar Git Bash, RTK e WSL (ou `npm run setup`).
 - Atualização: o app compara a própria versão com a do `package.json` na `main` do GitHub
   (10 s depois de abrir e a cada 6 h). Só aparece aviso quando a **versão** muda, não a cada commit.
-  A barra inferior mostra "Versão X disponível · Atualizar agora"; o app fecha (pergunta antes se
-  há arquivos para salvar), `scripts/apply-update.js` roda `git pull --ff-only` e, se as
-  dependências mudaram, `npm install`, e reabre o app, que abre a página Novidades.
+  O botão verde "Nova versão" aparece no rodapé da barra lateral esquerda (só quando há versão
+  nova); ao clicar, o app pergunta, fecha (pergunta antes se há arquivos para salvar),
+  `scripts/apply-update.js` roda `git pull --ff-only` e, se as dependências mudaram, `npm install`,
+  e reabre o app, que na primeira abertura abre o modal de Novidades da versão (só fecha pelo botão
+  "Fechar" e aparece uma vez por versão).
   Dados do usuário (configurações, workspaces, preços, cache) ficam em `%APPDATA%\Rendra IDE` e
   nunca são tocados. Se o usuário alterou arquivos do app e o pull não é fast-forward, nada é
   perdido: o app abre na versão antiga e avisa. Se o histórico do `origin/main` foi
@@ -99,6 +101,16 @@ Preços. Confira o diff antes do commit: se as páginas mudaram de formato, o sc
 - Commits em pt-BR no padrão `tipo: descrição`.
 - Critério de pronto: `npm run check` e `npm test` passando.
 - Referência completa: `PADRAO-PRODUTOS-RENDRA.md` (no repositório do Rendra Design System).
+
+## Regras de máquina para agentes
+A máquina é usada pelo dono ao mesmo tempo em que o agente trabalha. Por isso:
+- Processos: encerre só o PID que o próprio agente iniciou (guarde o PID ao iniciar). Nunca encerre
+  por nome (`taskkill /IM`, `Stop-Process -Name`, `pkill`): isso derruba o Electron, o Node e os
+  terminais do dono.
+- E2E e capturas: só com `RENDRA_E2E_HIDDEN=1` (a janela abre fora da tela e sem foco).
+  `scripts/e2e-barra-editor.js` já liga a variável sozinho; ao abrir o app à mão para uma captura, defina-a.
+- Um processo pesado por vez: e2e, `npm install`, suíte inteira, build e abertura do Electron
+  rodam em série, nunca em paralelo.
 
 # REGRA INEGOCIÁVEL: MATRIZ DE MODELOS
 

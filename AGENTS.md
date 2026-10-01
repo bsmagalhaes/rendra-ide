@@ -27,6 +27,7 @@ and in the About page credits.
 | `renderer/devcode.js` | IDE: workspaces, explorer tree, Monaco editor groups, xterm terminals, Terminal page |
 | `renderer/pricing.js` | Preços page: editable per-token tables, price-feed banner |
 | `renderer/about.js` | Novidades (CHANGELOG.md) and Sobre (product; credits/licenses at the end, Tokenmeter and RTK last) |
+| `renderer/novidades.js` | Modal of the current version's notes on the first launch after an update (closes only with its button) |
 | `renderer/setup.js` | First-run environment setup modal (Git Bash, RTK, WSL) |
 | `src/scanner.js` / `src/scan-worker.js` | Scans in a worker thread; parse cache persisted to `userData/scan-cache.json` |
 | `src/claude-parser.js` | Claude Code JSONL → tokens/cost/daily/hourly/heatmap/projects |
