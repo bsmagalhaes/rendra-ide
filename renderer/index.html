@@ -71,6 +71,10 @@
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.6 13.4l-7.2 7.2a2 2 0 01-2.8 0L3 13V3h10l7.6 7.6a2 2 0 010 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>
     <span>Preços</span>
   </button>
+  <button class="nav-tab nav-update" id="nav-update" type="button" hidden title="Nova versão disponível">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>
+    <span>Nova versão</span>
+  </button>
   <button class="nav-tab nav-tab-bottom" data-page="novidades" title="Novidades de cada versão">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>
     <span>Novidades</span>
@@ -575,6 +579,17 @@
   </div>
 </div>
 
+<!-- Novidades da versão (primeira abertura depois de atualizar): só fecha pelo botão -->
+<div id="novidades-overlay" role="dialog" aria-modal="true" aria-labelledby="novidades-titulo">
+  <div class="novidades-modal">
+    <div class="settings-title" id="novidades-titulo"></div>
+    <div class="about-md novidades-corpo" id="novidades-corpo"></div>
+    <div class="settings-actions">
+      <button class="btn btn-primary" id="novidades-fechar" type="button">Fechar</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast" class="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
@@ -586,6 +601,7 @@
 <script src="novo-item.js"></script>
 <script src="terminal-escolha.js"></script>
 <script src="consumo.js"></script>
+<script src="novidades.js"></script>
 <script src="app.js"></script>
 <script src="editor-panel.js"></script>
 <script src="devcode.js"></script>

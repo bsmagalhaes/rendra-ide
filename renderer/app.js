@@ -667,20 +667,27 @@ function renderClaude(data) {
 
 // ── Render All ─────────────────────────────────────────────────────────────
 // ── App updates ────────────────────────────────────────────────────────────
-// git clones (how Rendra IDE is distributed): the status strip shows "Versão X disponível" with
-// "Atualizar agora", which closes the app, runs git pull + npm install and reopens it.
-// Packaged builds: download progress and "Reiniciar e atualizar". The first launch on a new
-// version opens the Novidades page with a notice.
+// git clones (how Rendra IDE is distributed): quando há versão nova aparece o botão verde "Nova
+// versão" no rodapé da barra lateral; o clique pergunta e roda o fluxo existente (fecha o app, git
+// pull + npm install e reabre). Packaged builds: o mesmo botão ("Reiniciar e atualizar" ao baixar) e
+// o progresso do download na barra de status. A primeira abertura numa versão nova mostra o modal
+// de Novidades, que só fecha pelo botão (renderer/novidades.js).
 let updateInfo = null;
 function renderUpdate(s) {
   updateInfo = s;
+  const btn = document.getElementById('nav-update');
   const el = document.getElementById('update-status');
-  if (!s || !['available', 'downloading', 'ready'].includes(s.state)) { el.hidden = true; return; }
-  el.hidden = false;
-  el.innerHTML = s.state === 'downloading'
-    ? `Baixando a versão ${escapeHtml(s.version)}${s.percent != null ? ` · ${s.percent}%` : ''}…`
-    : `Versão ${escapeHtml(s.version)} disponível · <button type="button" id="update-install">${s.state === 'ready' ? 'Reiniciar e atualizar' : 'Atualizar agora'}</button>`;
-  document.getElementById('update-install')?.addEventListener('click', installUpdate);
+  const pronta = !!s && ['available', 'ready'].includes(s.state);
+  btn.hidden = !pronta;
+  if (pronta) btn.title = s.state === 'ready'
+    ? `Versão ${s.version} baixada: clique para reiniciar e atualizar`
+    : `Versão ${s.version} disponível: clique para atualizar`;
+  if (s && s.state === 'downloading') {
+    el.hidden = false;
+    el.textContent = `Baixando a versão ${s.version}${s.percent != null ? ` · ${s.percent}%` : ''}…`;
+  } else {
+    el.hidden = true;
+  }
 }
 
 async function installUpdate() {
@@ -694,19 +701,24 @@ async function installUpdate() {
   if (res && res.ok === false) showToast(res.error);
 }
 
+const VERSAO_VISTA = 'app.lastSeenVersion';
 async function initUpdates() {
+  document.getElementById('nav-update').addEventListener('click', installUpdate);
   tm.update.onStatus(renderUpdate);
   renderUpdate(await tm.update.status());
   const last = await tm.update.lastResult?.();
   if (last && !last.ok) setTimeout(() => showToast(`Não foi possível atualizar: ${last.error}`), 1500);
   const version = await tm.appVersion();
   let seen = null;
-  try { seen = localStorage.getItem('app.lastSeenVersion'); localStorage.setItem('app.lastSeenVersion', version); } catch { /* ignore */ }
-  if (seen && seen !== version) {
-    setTimeout(() => {
-      navigate('novidades');
-      showToast(`Rendra IDE atualizado para a versão ${version} · veja as novidades`);
-    }, 1500);
+  try { seen = localStorage.getItem(VERSAO_VISTA); } catch { /* ignore */ }
+  const gravar = () => { try { localStorage.setItem(VERSAO_VISTA, version); } catch { /* ignore */ } };
+  if (RendraNovidades.deveAbrir(seen, version)) {
+    // about.js carrega depois deste arquivo: espera todos os scripts antes de montar as notas
+    if (document.readyState !== 'complete') await new Promise(r => window.addEventListener('load', r, { once: true }));
+    // A versão só vira "vista" no clique em Fechar: sem ler, o modal volta na próxima abertura
+    RendraNovidades.abrir({ versao: version, html: await window.changelogPage.notasHtml(version), aoFechar: gravar });
+  } else if (!seen) {
+    gravar(); // instalação nova: nada a mostrar, só lembra a versão
   }
 }
 

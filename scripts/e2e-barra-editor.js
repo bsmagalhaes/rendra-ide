@@ -866,7 +866,7 @@ CENARIOS['explorador-criar'] = async () => {
 
     // 4) nome inválido: toast, o campo continua e nada é gravado; Esc cancela
     const antes = fs.readdirSync(sb.projeto).sort().join(',');
-    for (const [nome, trecho] of [['a.txt', 'já existe'], ['x/y', 'não pode ter'], ['..', 'inválido']]) {
+    for (const [nome, trecho] of [['a.txt', 'já existe'], ['x/y', 'não pode ter'], ['..', 'inválido'], ['a:b.txt', 'caracteres reservados'], ['q?.txt', 'caracteres reservados']]) {
       c = await centro('b.txt');
       await botaoDireito(c.x, c.y);
       await app.espera(`!!document.querySelector('.dev-ctx-menu')`, 5000, 'menu de contexto');
@@ -881,6 +881,86 @@ CENARIOS['explorador-criar'] = async () => {
     }
     afirma(fs.readdirSync(sb.projeto).sort().join(',') === antes, 'nenhum item foi criado pelos nomes inválidos');
     await app.foto('explorador-criar-final');
+  });
+};
+
+// Botão verde "Nova versão" no rodapé da barra lateral: só existe quando há versão nova, e o clique
+// dispara o fluxo de atualização que já existia (o confirm do git pull; aqui o confirm é falso e
+// registra a mensagem, então nada é atualizado de verdade).
+CENARIOS['atualizacao'] = async () => {
+  await comApp({ semTerminal: true }, async app => {
+    const estado = s => app.ev(`renderUpdate(${JSON.stringify(s)})`);
+    const visivel = () => app.ev(`(() => { const b = document.getElementById('nav-update'); return !!b && !b.hidden && b.offsetParent !== null; })()`);
+    await estado({ state: 'idle' });
+    afirma(!(await visivel()), 'sem versão nova: o botão não aparece');
+    afirma(!/Atualizar agora/.test(await app.texto('#status-strip')), 'a barra de status não oferece mais "Atualizar agora"');
+
+    await estado({ state: 'available', mode: 'git', version: '9.9.9', notes: '### Teste\n- item novo' });
+    afirma(await visivel(), 'com versão nova: o botão aparece');
+    afirma((await app.texto('#nav-update')).trim() === 'Nova versão', `rótulo "${(await app.texto('#nav-update')).trim()}"`);
+    const bg = await app.estilo('#nav-update', 'backgroundColor');
+    const verde = await app.ev(`(() => { const e = document.createElement('i'); e.style.color = getComputedStyle(document.documentElement).getPropertyValue('--green'); document.body.appendChild(e); const c = getComputedStyle(e).color; e.remove(); return c; })()`);
+    afirma(bg === verde, `fundo verde (${bg})`);
+    const pos = await app.ev(`(() => { const b = document.getElementById('nav-update'), n = document.querySelector('.nav-tab[data-page=novidades]'), bar = document.getElementById('activity-bar'); const rb = b.getBoundingClientRect(), rn = n.getBoundingClientRect(), rr = bar.getBoundingClientRect(); return { pai: b.parentElement.id, antes: rb.bottom <= rn.top + 1, dentro: rb.left >= rr.left && rb.right <= rr.right, cabe: b.scrollWidth <= b.clientWidth, sobra: rr.bottom - rn.bottom }; })()`);
+    afirma(pos.pai === 'activity-bar' && pos.antes && pos.dentro, 'o botão fica na barra lateral, logo acima de Novidades');
+    afirma(pos.cabe, 'o rótulo cabe no botão');
+    await app.foto('atualizacao-botao', await app.caixa('#activity-bar').then(c => ({ x: 0, y: Math.max(0, c.b - 260), width: 260, height: 260 })));
+
+    await app.ev(`window.__confirmou = null; window.confirm = m => { window.__confirmou = m; return false; }`);
+    await app.clica('#nav-update');
+    await sleep(300);
+    const msg = await app.ev('window.__confirmou');
+    afirma(!!msg && msg.includes('9.9.9'), 'o clique dispara o fluxo de atualização (confirmação da versão 9.9.9)');
+
+    await estado({ state: 'idle' });
+    afirma(!(await visivel()), 'a versão nova some quando o estado volta a idle');
+  });
+};
+
+// Primeira abertura depois de atualizar: modal de Novidades que só fecha pelo botão Fechar
+CENARIOS['novidades'] = async () => {
+  await comApp({ semTerminal: true }, async app => {
+    const visivel = () => app.ev(`document.getElementById('novidades-overlay').classList.contains('visible')`);
+    const vista = () => app.ev(`localStorage.getItem('app.lastSeenVersion')`);
+    const versao = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
+    await sleep(1500);
+    afirma(!(await visivel()), 'instalação nova (sem versão vista): o modal não abre');
+    afirma(await vista() === versao, 'a versão atual fica gravada como vista');
+
+    // simula a atualização: a versão vista é uma anterior; reabre a página como num novo arranque
+    await app.ev(`localStorage.setItem('app.lastSeenVersion', '0.0.1')`);
+    await app.send('Page.reload');
+    await app.espera(`document.getElementById('novidades-overlay')?.classList.contains('visible')`, 30000, 'modal de Novidades aberto');
+    afirma((await app.texto('#novidades-titulo')).includes(versao), `título cita a versão: "${await app.texto('#novidades-titulo')}"`);
+    afirma((await app.texto('#novidades-corpo')).trim().length > 20, 'o modal mostra as notas da versão');
+    afirma(await vista() === '0.0.1', 'abrir o modal não grava a versão como vista');
+    await app.foto('novidades-modal');
+
+    // clique fora, Esc e tempo: continua aberto
+    await app.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: 6, y: 6, button: 'left', buttons: 1, clickCount: 1 });
+    await app.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: 6, y: 6, button: 'left', buttons: 0, clickCount: 1 });
+    await sleep(400);
+    afirma(await visivel(), 'clicar fora não fecha');
+    const esc = { key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 };
+    await app.send('Input.dispatchKeyEvent', { type: 'keyDown', ...esc });
+    await app.send('Input.dispatchKeyEvent', { type: 'keyUp', ...esc });
+    await sleep(400);
+    afirma(await visivel(), 'Esc não fecha');
+    await sleep(8000);
+    afirma(await visivel(), 'passados 8 segundos continua aberto');
+    afirma(await vista() === '0.0.1', 'sem clicar em Fechar a versão não é gravada');
+
+    // só o botão fecha
+    await app.clica('#novidades-fechar');
+    await sleep(500);
+    afirma(!(await visivel()), 'o botão Fechar fecha');
+    afirma(await vista() === versao, 'Fechar grava a versão como vista');
+
+    // mostra só uma vez por versão
+    await app.send('Page.reload');
+    await app.espera(`!!document.querySelector('.ws.active')`, 30000, 'app recarregado');
+    await sleep(3000);
+    afirma(!(await visivel()), 'na abertura seguinte o modal não volta');
   });
 };
 

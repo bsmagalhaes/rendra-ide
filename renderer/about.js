@@ -123,5 +123,12 @@
   });
 
   window.aboutPage = { open: openAbout };
-  window.changelogPage = { open: openChangelog };
+  // Notas de uma versão (trecho do CHANGELOG) já em HTML, para o modal da primeira abertura
+  async function notasHtml(version) {
+    await load();
+    const trecho = window.RendraNovidades.secao(info.changelog, version);
+    return trecho ? md(trecho) : '<p>Esta versão não traz notas no CHANGELOG.</p>';
+  }
+
+  window.changelogPage = { open: openChangelog, notasHtml };
 })();

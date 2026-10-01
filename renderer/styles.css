@@ -926,6 +926,31 @@ body.dev-mode #page-terminal.active { display: flex; flex-direction: column; hei
   font-family: var(--font); font-size: 9px; font-weight: 700; padding: 2px 8px; margin-left: 4px;
 }
 
+/* botão "Nova versão" no rodapé da barra lateral: só aparece com versão nova */
+.nav-update {
+  margin: auto 5px 4px; height: 50px; border-radius: 4px; gap: 3px;
+  background: var(--green); color: #0f0f0f;
+}
+.nav-update[hidden] { display: none; }
+.nav-update:hover { color: #0f0f0f; filter: brightness(1.1); }
+.nav-update span { text-align: center; line-height: 1.15; letter-spacing: 0.04em; }
+.nav-update svg { width: 18px; height: 18px; stroke-width: 2; }
+.nav-update:not([hidden]) + .nav-tab-bottom { margin-top: 0; }
+
+/* Novidades da versão (modal que só fecha pelo botão) */
+#novidades-overlay {
+  position: fixed; inset: 0; background: rgba(22,22,22,0.9);
+  z-index: 500; display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none; /* sem transição: aparece inteiro, sem meio-termo translúcido */
+}
+#novidades-overlay.visible { opacity: 1; pointer-events: all; }
+.novidades-modal {
+  background: var(--surface); border: 1px solid var(--border-hi); border-radius: 6px;
+  padding: 20px 22px; width: min(620px, calc(100vw - 32px)); max-height: 86vh; display: flex; flex-direction: column;
+}
+.novidades-modal .settings-title { margin-bottom: 10px; }
+.novidades-corpo { overflow-y: auto; min-height: 0; padding-right: 6px; }
+
 /* about: product first (full width), credits at the end */
 .about-hero { background: var(--surface); border: 1px solid var(--border); border-left: 2px solid var(--orange); border-radius: var(--radius); padding: 18px 20px; margin-bottom: 10px; }
 .about-brand { font-size: 22px; font-weight: 700; letter-spacing: 0.12em; }
