@@ -90,7 +90,11 @@ async function listWslDistros() {
   return distros;
 }
 
-function registerDevCode({ ipcMain, dialog, store, getWindow }) {
+// `deps` troca as dependências de sistema nos testes (wsl.exe e node-pty reais não entram neles)
+function registerDevCode({ ipcMain, dialog, store, getWindow, deps = {} }) {
+  const listDistros = deps.listWslDistros || listWslDistros;
+  const wakeDistro = deps.wakeWslDistro || wakeWslDistro;
+  const loadPty = deps.loadPty || (() => require('@lydell/node-pty'));
   const roots = new Set(); // lower-cased absolute folders the renderer may touch
   const ptys = new Map();
   let nextPtyId = 1;
@@ -146,7 +150,7 @@ function registerDevCode({ ipcMain, dialog, store, getWindow }) {
 
   let wslCache = null;
   ipcMain.handle('dev:wsl-info', async () => {
-    if (!wslCache) wslCache = listWslDistros().then(distros => ({ available: distros.length > 0, distros }));
+    if (!wslCache) wslCache = listDistros().then(distros => ({ available: distros.length > 0, distros }));
     return wslCache;
   });
 
@@ -390,15 +394,22 @@ function registerDevCode({ ipcMain, dialog, store, getWindow }) {
 
   ipcMain.handle('pty:create', async (_e, { cols, rows, cwd, shell: shellKey } = {}) => {
     try {
-      pty = pty || require('@lydell/node-pty');
+      pty = pty || loadPty();
       const home = HOME;
       const wsl = cwd && inside(cwd) ? wslFor(cwd) : null;
-      if (wsl) await wakeWslDistro(wsl.distro); // on failure the terminal still opens and shows WSL's own error
+      if (wsl) await wakeDistro(wsl.distro); // on failure the terminal still opens and shows WSL's own error
       const dir = wsl ? path.resolve(cwd) : (cwd && isDir(cwd) && inside(cwd) ? path.resolve(cwd) : home);
       // WSL workspace → always a Linux login shell in the distro, started in the project folder
       const shells = availableShells();
       // Terminal pedido no WSL num projeto do Windows: wsl.exe na pasta do projeto vista de dentro da distro
-      const pedidoWsl = !wsl && IS_WIN && typeof shellKey === 'string' && shellKey.startsWith('wsl:') ? shellKey.slice(4) : null;
+      // O nome vem do renderer: só vale uma distribuição instalada (nunca vira argumento do wsl.exe sem conferir)
+      let pedidoWsl = null;
+      if (!wsl && IS_WIN && typeof shellKey === 'string' && shellKey.startsWith('wsl:')) {
+        const pedido = shellKey.slice(4).trim().toLowerCase();
+        const distro = (await listDistros()).find(d => d.name.toLowerCase() === pedido);
+        if (!distro) return { error: `Distribuição WSL "${shellKey.slice(4)}" não encontrada` };
+        pedidoWsl = distro.name;
+      }
       const sh = wsl
         ? { key: 'wsl', label: `WSL ${wsl.distro}`, file: 'wsl.exe', args: ['-d', wsl.distro, '--cd', wsl.linuxPath] }
         : pedidoWsl
