@@ -139,6 +139,12 @@ function createWindow() {
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 
   mainWindow.once('ready-to-show', () => {
+    if (process.env.RENDRA_E2E_HIDDEN) {
+      // Só nos testes automáticos: janela fora da tela, sem foco, para não atrapalhar quem usa a máquina
+      mainWindow.setPosition(-32000, -32000);
+      mainWindow.showInactive();
+      return;
+    }
     if (process.platform === 'darwin') {
       // macOS: fill the screen's work area (menu bar and Dock stay visible) without the
       // maximized/full-screen state, which isn't how Mac apps normally open

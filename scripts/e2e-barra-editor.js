@@ -2,6 +2,7 @@
 // recolhível da IDE, com o app real rodando em sandbox: uma pasta temporária com home falso
 // (RENDRA_HOME) e dados falsos (RENDRA_DATA_DIR). Nada do usuário é lido nem gravado.
 // Fora do `npm test`: abre o Electron e leva minutos (o cenário `ritmo` espera o timer de 60 s).
+// A janela abre fora da tela e sem foco (RENDRA_E2E_HIDDEN=1, ligado pelo próprio script).
 //
 //   node scripts/e2e-barra-editor.js                        todos os cenários
 //   node scripts/e2e-barra-editor.js --cenario=normal,velho  só esses
@@ -145,7 +146,7 @@ async function abrir(sb, { w = 1920, h = 1080 } = {}) {
   const porta = 9400 + Math.floor(Math.random() * 400);
   const electron = require(path.join(ROOT, 'node_modules', 'electron'));
   // O home real continua (shells e Chromium precisam dele); o app lê o home falso via RENDRA_HOME
-  const env = { ...process.env, RENDRA_DATA_DIR: sb.data, RENDRA_HOME: sb.home, CODEX_HOME: path.join(sb.home, '.codex') };
+  const env = { ...process.env, RENDRA_E2E_HIDDEN: '1', RENDRA_DATA_DIR: sb.data, RENDRA_HOME: sb.home, CODEX_HOME: path.join(sb.home, '.codex') };
   delete env.ELECTRON_RUN_AS_NODE;
   const proc = spawn(electron, [ROOT, `--remote-debugging-port=${porta}`], { cwd: ROOT, env, stdio: 'ignore' });
   const { ws, send, ev } = await conectar(porta);

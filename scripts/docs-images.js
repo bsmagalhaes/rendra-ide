@@ -189,7 +189,7 @@ async function main() {
 
   const electron = require(path.join(ROOT, 'node_modules', 'electron'));
     // The real home stays (shells and Chromium need it); the app reads the demo home via RENDRA_HOME
-  const env = { ...process.env, RENDRA_DATA_DIR: DATA, RENDRA_HOME: HOME, CODEX_HOME: path.join(HOME, '.codex') };
+  const env = { ...process.env, RENDRA_E2E_HIDDEN: '1', RENDRA_DATA_DIR: DATA, RENDRA_HOME: HOME, CODEX_HOME: path.join(HOME, '.codex') };
   delete env.ELECTRON_RUN_AS_NODE;
   const app = spawn(electron, [ROOT, `--remote-debugging-port=${PORT}`], { cwd: ROOT, env, stdio: 'ignore' });
   const { ws, send, ev } = await connect();
