@@ -1,5 +1,9 @@
 # Novidades
 
+## Próxima versão
+### Explorador
+- Botão direito no explorador abre o menu "Novo arquivo" e "Nova pasta": o item nasce na pasta clicada, na pasta do arquivo clicado ou, em área vazia, na raiz do projeto. O nome é digitado na própria árvore (Enter cria, Esc cancela), recusa vazio, `/`, `\`, `..` e nomes que já existem, e o arquivo novo abre no editor. Funciona também em projetos WSL.
+
 ## 1.1.4 · 01/10/2026
 ### Consumo do plano do Claude Code
 - A barra de título mostra o percentual do limite de 5 horas e do semanal, com cor por nível (laranja a partir de 70%, vermelho a partir de 90%), sempre visível e atualizada a cada minuto. Passe o mouse para ver conta, plano e quando reinicia. A barra usa a leitura pela statusline do Claude Code: fica em cinza quando a última leitura tem mais de 15 minutos e não aparece quando não há dados do plano.

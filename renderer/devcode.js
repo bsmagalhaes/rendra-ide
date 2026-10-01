@@ -261,6 +261,7 @@
     el.querySelector('[data-acao=esconder-editor]').addEventListener('click', () => setEditorHidden(ws, 'esconder'));
     applyEditorHidden(ws);
     ws.refs.tree.addEventListener('click', e => onTreeClick(ws, e));
+    ws.refs.tree.addEventListener('contextmenu', e => onTreeContextMenu(ws, e));
     el.querySelectorAll('.dev-splitter').forEach(sp => initSplitter(ws, sp));
     renderTree(ws);
     layoutTerminals(ws);
@@ -530,9 +531,12 @@
     const frag = document.createDocumentFragment();
     await renderDir(ws, ws.root.root, 0, frag);
     const scroll = tree.scrollTop; // live refreshes must not jump the list
+    ws.novoRecriando = true; // recriar a árvore tira o campo "novo item" do DOM: não é um cancelamento
     tree.innerHTML = '';
     tree.appendChild(frag);
     tree.scrollTop = scroll;
+    mostrarCampoNovo(ws);
+    ws.novoRecriando = false;
     decorateTree(ws);
   }
 
@@ -684,6 +688,91 @@
     if (!ws.root) { ws.git = null; return; }
     ws.git = await dev.gitStatus(ws.root.root);
     decorateTree(ws);
+  }
+
+  // ── Novo arquivo / nova pasta (botão direito no explorador) ──
+  // Pasta onde nasce o item: a própria pasta clicada, a pasta do arquivo, ou a raiz em área vazia
+  function onTreeContextMenu(ws, e) {
+    e.preventDefault();
+    if (!ws.root) return;
+    const row = e.target.closest('.dev-node');
+    const dir = !row ? ws.root.root : row.dataset.dir ? row.dataset.path : parentOf(row.dataset.path);
+    document.querySelector('.dev-ctx-menu')?.remove();
+    const menu = document.createElement('div');
+    menu.className = 'dev-ctx-menu';
+    menu.setAttribute('role', 'menu');
+    menu.innerHTML = `<button type="button" role="menuitem" data-k="file">Novo arquivo</button><button type="button" role="menuitem" data-k="dir">Nova pasta</button>`;
+    document.body.appendChild(menu);
+    menu.style.left = `${Math.max(4, Math.min(e.clientX, window.innerWidth - menu.offsetWidth - 4))}px`;
+    menu.style.top = `${Math.max(4, Math.min(e.clientY, window.innerHeight - menu.offsetHeight - 4))}px`;
+    const fechar = () => { menu.remove(); document.removeEventListener('mousedown', fora, true); document.removeEventListener('keydown', tecla, true); };
+    const fora = ev => { if (!menu.contains(ev.target)) fechar(); };
+    const tecla = ev => { if (ev.key === 'Escape') { ev.stopPropagation(); fechar(); } };
+    document.addEventListener('mousedown', fora, true);
+    document.addEventListener('keydown', tecla, true);
+    menu.addEventListener('click', ev => {
+      const b = ev.target.closest('button[data-k]');
+      if (!b) return;
+      fechar();
+      iniciarNovoItem(ws, dir, b.dataset.k);
+    });
+    menu.querySelector('button').focus();
+  }
+
+  async function iniciarNovoItem(ws, dir, kind) {
+    ws.novo = { dir, kind, valor: '' };
+    if (dir !== ws.root.root) ws.expanded.add(dir); // a pasta abre para mostrar o campo
+    await renderTree(ws);
+  }
+
+  // Campo de nome inline, no lugar onde o item vai nascer (abaixo da pasta, ou no topo da raiz).
+  // Enter confirma, Esc cancela; nome inválido mostra o toast e mantém o campo aberto.
+  function mostrarCampoNovo(ws) {
+    const novo = ws.novo;
+    if (!novo) return;
+    const { tree } = ws.refs;
+    const pai = novo.dir === ws.root.root ? null : [...tree.querySelectorAll('.dev-node')].find(n => n.dataset.path === novo.dir);
+    if (novo.dir !== ws.root.root && !pai) { ws.novo = null; return; } // a pasta sumiu
+    const row = document.createElement('div');
+    row.className = 'dev-novo-row'; // fora de .dev-node: decorações e cliques da árvore não o enxergam
+    row.style.paddingLeft = `${(pai ? parseInt(pai.style.paddingLeft, 10) + 12 : 6)}px`;
+    const input = document.createElement('input');
+    input.className = 'dev-novo-input';
+    input.type = 'text';
+    input.spellcheck = false;
+    input.value = novo.valor;
+    input.setAttribute('aria-label', novo.kind === 'dir' ? 'Nome da nova pasta' : 'Nome do novo arquivo');
+    row.appendChild(input);
+    if (pai) pai.after(row); else tree.prepend(row);
+    input.focus();
+    let ocupado = false;
+    const cancelar = () => { if (ws.novo !== novo) return; ws.novo = null; row.remove(); };
+    const confirmar = async () => {
+      if (ocupado) return;
+      ocupado = true;
+      try {
+        const nome = input.value.trim();
+        const lista = await dev.list(novo.dir);
+        const existentes = Array.isArray(lista) ? lista.map(x => x.name) : [];
+        const erro = RendraNovoItem.validarNome(nome, existentes, { insensivel: CASE_INSENSITIVE });
+        if (erro) { toast(erro); return; }
+        const res = await (novo.kind === 'dir' ? dev.createDir(novo.dir, nome) : dev.createFile(novo.dir, nome));
+        if (!res?.ok) { toast(res?.error || 'Não foi possível criar'); return; }
+        ws.novo = null;
+        await renderTree(ws);
+        if (novo.kind === 'file') openFile(ws, res.path);
+      } finally {
+        ocupado = false;
+      }
+    };
+    input.addEventListener('input', () => { novo.valor = input.value; });
+    input.addEventListener('keydown', e => {
+      e.stopPropagation(); // as teclas não vão para atalhos globais nem para o terminal
+      if (e.key === 'Enter') { e.preventDefault(); confirmar(); }
+      if (e.key === 'Escape') { e.preventDefault(); cancelar(); }
+    });
+    // Sair do campo cancela. Ignora a perda de foco da janela inteira e a recriação da árvore.
+    input.addEventListener('blur', () => { if (!ws.novoRecriando && !ocupado && document.hasFocus()) cancelar(); });
   }
 
   async function onTreeClick(ws, e) {

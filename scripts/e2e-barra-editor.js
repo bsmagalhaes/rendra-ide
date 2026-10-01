@@ -803,6 +803,87 @@ CENARIOS['terminal-manual'] = async () => {
   });
 };
 
+// Botão direito no explorador: Novo arquivo e Nova pasta, com o campo de nome inline. Afirma o que
+// ficou no disco, o que a árvore mostra e que o arquivo novo abriu no editor.
+CENARIOS['explorador-criar'] = async () => {
+  await comApp({ semTerminal: true, workspaces: [{ name: 'demo', cols: 1 }] }, async (app, sb) => {
+    await app.espera(`document.querySelectorAll('.ws.active .dev-node').length >= 3`, 20000, 'árvore carregada');
+    const botaoDireito = async (x, y) => {
+      await app.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
+      await app.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'right', buttons: 2, clickCount: 1 });
+      await app.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'right', buttons: 0, clickCount: 1 });
+    };
+    const centro = async nome => app.ev(`(() => { const n = [...document.querySelectorAll('.ws.active .dev-node')].find(e => e.querySelector('.dev-node-name')?.textContent === ${JSON.stringify(nome)}); if (!n) return null; const r = n.getBoundingClientRect(); return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) }; })()`);
+    const enter = async () => {
+      const base = { key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 };
+      await app.send('Input.dispatchKeyEvent', { type: 'keyDown', ...base, text: '\r' });
+      await app.send('Input.dispatchKeyEvent', { type: 'keyUp', ...base });
+    };
+    const esc = async () => {
+      const base = { key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 };
+      await app.send('Input.dispatchKeyEvent', { type: 'keyDown', ...base });
+      await app.send('Input.dispatchKeyEvent', { type: 'keyUp', ...base });
+    };
+    const menuItens = () => app.ev(`[...document.querySelectorAll('.dev-ctx-menu button')].map(b => b.textContent)`);
+    const escolhe = async rotulo => { await app.ev(`[...document.querySelectorAll('.dev-ctx-menu button')].find(b => b.textContent === ${JSON.stringify(rotulo)}).click()`); await app.espera(`!!document.querySelector('.dev-novo-input')`, 5000, 'campo de nome'); };
+    const digita = async nome => { await app.digita(nome); await enter(); };
+    const noDisco = (...p) => fs.existsSync(path.join(sb.projeto, ...p));
+    const nomesDaArvore = () => app.ev(`[...document.querySelectorAll('.ws.active .dev-node .dev-node-name')].map(e => e.textContent)`);
+
+    // 1) botão direito numa pasta: o arquivo nasce dentro dela, abre no editor e a pasta mostra o item
+    let c = await centro('sub');
+    await botaoDireito(c.x, c.y);
+    await app.espera(`!!document.querySelector('.dev-ctx-menu')`, 5000, 'menu de contexto');
+    const itens = await menuItens();
+    afirma(JSON.stringify(itens) === JSON.stringify(['Novo arquivo', 'Nova pasta']), `menu: ${JSON.stringify(itens)}`);
+    await escolhe('Novo arquivo');
+    afirma(await app.ev(`document.activeElement?.classList.contains('dev-novo-input')`), 'o campo de nome está com o foco');
+    await app.foto('explorador-campo-nome');
+    await digita('novo.txt');
+    await app.espera(`[...document.querySelectorAll('.ws.active .dev-tab.active .dev-tab-name')].some(e => e.textContent === 'novo.txt')`, 15000, 'novo.txt aberto no editor');
+    afirma(noDisco('sub', 'novo.txt') && fs.readFileSync(path.join(sb.projeto, 'sub', 'novo.txt'), 'utf8') === '', 'sub/novo.txt criado vazio no disco');
+    afirma((await nomesDaArvore()).includes('novo.txt'), 'novo.txt aparece na árvore (dentro de sub)');
+    afirma(await app.ev(`!document.querySelector('.dev-novo-input')`), 'o campo some depois de criar');
+
+    // 2) botão direito num arquivo: a pasta nasce na pasta do arquivo (a.txt está na raiz)
+    c = await centro('a.txt');
+    await botaoDireito(c.x, c.y);
+    await app.espera(`!!document.querySelector('.dev-ctx-menu')`, 5000, 'menu de contexto');
+    await escolhe('Nova pasta');
+    await digita('pasta1');
+    await app.espera(`[...document.querySelectorAll('.ws.active .dev-node.dir .dev-node-name')].some(e => e.textContent === 'pasta1')`, 15000, 'pasta1 na árvore');
+    afirma(noDisco('pasta1') && fs.statSync(path.join(sb.projeto, 'pasta1')).isDirectory(), 'pasta1 criada na pasta do arquivo (raiz)');
+
+    // 3) área vazia: cria na raiz do workspace
+    const t = await app.caixa('.ws.active .dev-tree');
+    await botaoDireito(Math.round(t.x + t.w / 2), Math.round(t.b - 6));
+    await app.espera(`!!document.querySelector('.dev-ctx-menu')`, 5000, 'menu de contexto na área vazia');
+    await escolhe('Novo arquivo');
+    await digita('raiz.txt');
+    await app.espera(`[...document.querySelectorAll('.ws.active .dev-tab.active .dev-tab-name')].some(e => e.textContent === 'raiz.txt')`, 15000, 'raiz.txt aberto');
+    afirma(noDisco('raiz.txt'), 'raiz.txt criado na raiz do workspace');
+    afirma((await nomesDaArvore()).includes('raiz.txt'), 'raiz.txt aparece na árvore');
+
+    // 4) nome inválido: toast, o campo continua e nada é gravado; Esc cancela
+    const antes = fs.readdirSync(sb.projeto).sort().join(',');
+    for (const [nome, trecho] of [['a.txt', 'já existe'], ['x/y', 'não pode ter'], ['..', 'inválido']]) {
+      c = await centro('b.txt');
+      await botaoDireito(c.x, c.y);
+      await app.espera(`!!document.querySelector('.dev-ctx-menu')`, 5000, 'menu de contexto');
+      await escolhe('Novo arquivo');
+      await digita(nome);
+      await sleep(300);
+      const toast = await app.ev(`document.getElementById('toast').textContent`);
+      afirma(toast.includes(trecho), `nome ${JSON.stringify(nome)} recusado com o toast "${toast}"`);
+      afirma(await app.ev(`!!document.querySelector('.dev-novo-input')`), 'o campo continua aberto');
+      await esc();
+      await app.espera(`!document.querySelector('.dev-novo-input')`, 5000, 'Esc cancela');
+    }
+    afirma(fs.readdirSync(sb.projeto).sort().join(',') === antes, 'nenhum item foi criado pelos nomes inválidos');
+    await app.foto('explorador-criar-final');
+  });
+};
+
 // ── EXECUÇÃO ────────────────────────────────────────────────────────────────
 async function main() {
   const nomes = ESCOLHIDOS || Object.keys(CENARIOS);
