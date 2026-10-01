@@ -11,6 +11,7 @@ const HIDDEN = new Set(['.git']);
 
 const os = require('os');
 const { caminhoNoWsl } = require('../renderer/terminal-escolha');
+const { validarNome } = require('../renderer/novo-item');
 
 const IS_WIN = process.platform === 'win32';
 const IS_MAC = process.platform === 'darwin';
@@ -269,6 +270,25 @@ function registerDevCode({ ipcMain, dialog, store, getWindow }) {
       return { ok: false, error: e.message };
     }
   });
+
+  // Novo arquivo / nova pasta no explorador. Mesmo caminho do dev:write (fs sobre o caminho, que
+  // também é o share \\wsl.localhost em workspace WSL). O nome é validado aqui também; a criação não
+  // sobrescreve nada: 'wx' no arquivo e mkdir sem recursivo na pasta (EEXIST vira "já existe").
+  const criarItem = (parent, name, criar) => {
+    try {
+      const dir = guard(parent);
+      const erro = validarNome(name);
+      if (erro) return { ok: false, error: erro };
+      const alvo = path.join(dir, String(name).trim());
+      if (!inside(alvo)) return { ok: false, error: 'Caminho fora das pastas abertas' };
+      criar(alvo);
+      return { ok: true, path: alvo };
+    } catch (e) {
+      return { ok: false, error: e.code === 'EEXIST' ? `"${String(name).trim()}" já existe nesta pasta` : e.message };
+    }
+  };
+  ipcMain.handle('dev:create-file', (_e, parent, name) => criarItem(parent, name, alvo => fs.writeFileSync(alvo, '', { flag: 'wx' })));
+  ipcMain.handle('dev:create-dir', (_e, parent, name) => criarItem(parent, name, alvo => fs.mkdirSync(alvo)));
 
   const send = (channel, payload) => {
     const win = getWindow();

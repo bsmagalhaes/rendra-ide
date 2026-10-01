@@ -66,6 +66,8 @@ contextBridge.exposeInMainWorld('rendra', {
     onFsChanged: (cb) => ipcRenderer.on('dev:fs-changed', (_e, msg) => cb(msg)),
     read: (file) => ipcRenderer.invoke('dev:read', file),
     write: (file, content) => ipcRenderer.invoke('dev:write', file, content),
+    createFile: (parent, name) => ipcRenderer.invoke('dev:create-file', parent, name),
+    createDir: (parent, name) => ipcRenderer.invoke('dev:create-dir', parent, name),
     ptyCreate: (opts) => ipcRenderer.invoke('pty:create', opts),
     ptyShells: () => ipcRenderer.invoke('pty:shells'),
     clipboardHasImage: () => ipcRenderer.invoke('clip:has-image'),
