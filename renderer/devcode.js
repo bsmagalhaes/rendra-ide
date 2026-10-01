@@ -238,7 +238,7 @@
       <div class="dev-splitter" data-split="explorer" title="Arraste para redimensionar"></div>
       ${terminalSectionHtml(true)}
       <div class="dev-splitter" data-split="editor" title="Arraste para redimensionar"></div>
-      <section class="dev-editors"><div class="dev-editor-empty">Clique num arquivo do explorador para editar aqui</div><button class="dev-icon-btn dev-editor-hide" type="button" data-acao="esconder-editor" title="Esconder painel do editor" aria-label="Esconder painel do editor">✕</button></section>`;
+      <section class="dev-editors"><div class="dev-editor-empty">Clique num arquivo do explorador para editar aqui</div><button class="dev-icon-btn dev-editor-hide" type="button" data-acao="esconder-editor" title="Esconder painel do editor" aria-label="Esconder painel do editor"><svg class="dev-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg></button></section>`;
     $('ws-host').appendChild(el);
     ws.el = el;
     ws.refs = {

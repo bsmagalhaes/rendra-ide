@@ -549,6 +549,9 @@ CENARIOS['painel-esconde'] = async () => {
       `Monaco ${volta.monaco?.w.toFixed(0)}x${volta.monaco?.h.toFixed(0)} px, igual ao host ${volta.host.w.toFixed(0)}x${volta.host.h.toFixed(0)}`);
     afirma(perto(volta.terms.w, antes.terms.w, 2) && sobra(volta) < 24, `terminais voltaram a ${volta.terms.w.toFixed(0)} px, folga ${sobra(volta).toFixed(0)} px`);
 
+    const iconeEsconder = await app.ev(`(() => { const b = document.querySelector('.ws.active [data-acao="esconder-editor"]'); return { texto: b.textContent.trim(), svg: !!b.querySelector('svg'), title: b.title }; })()`);
+    afirma(iconeEsconder.texto === '' && iconeEsconder.svg && iconeEsconder.title === 'Esconder painel do editor', `Esconder painel usa seta, não ✕ (${JSON.stringify(iconeEsconder)})`);
+
     // 3) o ✕ da coluna esconde, e o foco vai para um terminal (nunca para o editor escondido)
     await app.ev(`document.querySelector('.ws.active [data-acao="esconder-editor"]').focus()`);
     afirma((await lerPainel(app)).noEditor, 'antes: o foco está no ✕, dentro da coluna do editor');
