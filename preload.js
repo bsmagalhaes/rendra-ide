@@ -1,4 +1,4 @@
-/*! Rendra IDE v1.1.3 | MIT | © 2026 Bruno Magalhaes | brunomagalhaes.me */
+/*! Rendra IDE v1.1.4 | MIT | © 2026 Bruno Magalhaes | brunomagalhaes.me */
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('rendra', {
