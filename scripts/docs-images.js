@@ -210,8 +210,15 @@ async function main() {
     const PROMPT = process.platform === 'win32' ? "function prompt { 'PS loja-online> ' }; Clear-Host" : "PS1='loja-online $ '; clear";
     const typeIn = async (page, i, text) => {
       await ev(`document.querySelectorAll('#${page} .xterm-helper-textarea')[${i}]?.focus()`);
-      await send('Input.insertText', { text: text + '\r' });
+      await send('Input.insertText', { text });
+      // Enter como tecla de verdade: o "\r" dentro do texto inserido não executa a linha no PSReadLine
+      for (const type of ['keyDown', 'keyUp']) await send('Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: type === 'keyDown' ? '\r' : undefined });
       await sleep(1800);
+    };
+    const telaDoTerminal = (page, i) => ev(`(document.querySelectorAll('#${page} .xterm-rows')[${i}]?.textContent || '')`);
+    // Espera o perfil do shell terminar de carregar (o prompt aparece) antes de digitar
+    const esperaPrompt = async (page, i) => {
+      for (let t = 0; t < 60 && !/PS .*>|\$ /.test(await telaDoTerminal(page, i)); t++) await sleep(1000);
     };
     await go('devcode', 5000);
     const clickNode = async name => {
@@ -219,9 +226,15 @@ async function main() {
       await sleep(700);
     };
     for (const name of ['src', 'lib', 'pages', 'Checkout.tsx']) await clickNode(name);
-    await ev(`[...document.querySelectorAll('#page-devcode [data-act="new-term"]')].find(b => b.offsetParent)?.click()`);
-    await sleep(9000); // the shell profile has to finish loading before anything is typed
+    // Nenhum terminal abre sozinho: abre dois, como o usuário faria (com WSL o botão mostra o menu, e Windows é o primeiro item)
+    for (let n = 0; n < 2; n++) {
+      await ev(`[...document.querySelectorAll('#page-devcode [data-act="new-term"]')].find(b => b.offsetParent)?.click()`);
+      await sleep(600);
+      await ev(`document.querySelector('.dev-term-menu button[data-i="0"]')?.click()`);
+      await sleep(1500);
+    }
     for (const [i, cmd] of [[0, 'git status --short'], [1, 'git log --oneline']]) {
+      await esperaPrompt('page-devcode', i);
       await typeIn('page-devcode', i, PROMPT);
       await typeIn('page-devcode', i, cmd);
     }
@@ -236,7 +249,12 @@ async function main() {
     // No RTK screenshot: rtk reads its real home and savings database, not the demo sandbox
     await go('novidades', 1200); await shot('novidades');
     await go('sobre', 1200); await shot('sobre');
-    await go('terminal', 12000);
+    await go('terminal', 1500);
+    await ev(`document.querySelector('#term-page [data-act="new-term"]').click()`);
+    await sleep(600);
+    await ev(`document.querySelector('.dev-term-menu button[data-i="0"]')?.click()`);
+    await sleep(2000);
+    await esperaPrompt('page-terminal', 0);
     const tas = await ev("document.querySelectorAll('#page-terminal .xterm-helper-textarea').length");
     if (!tas) console.warn('! nenhum terminal na página Terminal');
     await typeIn('page-terminal', 0, PROMPT);

@@ -142,7 +142,7 @@ async function conectar(porta) {
   return { ws, send, ev };
 }
 
-async function abrir(sb, { w = 1920, h = 1080 } = {}) {
+async function abrir(sb, { w = 1920, h = 1080, semTerminal = false } = {}) {
   const porta = 9400 + Math.floor(Math.random() * 400);
   const electron = require(path.join(ROOT, 'node_modules', 'electron'));
   // O home real continua (shells e Chromium precisam dele); o app lê o home falso via RENDRA_HOME
@@ -150,7 +150,7 @@ async function abrir(sb, { w = 1920, h = 1080 } = {}) {
   delete env.ELECTRON_RUN_AS_NODE;
   const proc = spawn(electron, [ROOT, `--remote-debugging-port=${porta}`], { cwd: ROOT, env, stdio: 'ignore' });
   const { ws, send, ev } = await conectar(porta);
-  const app = { sb, proc, ws, send, ev, w, h };
+  const app = { sb, proc, ws, send, ev, w, h, semTerminal };
   sb.appAtual = app;
 
   app.tamanho = async (nw, nh) => {
@@ -206,21 +206,32 @@ async function abrir(sb, { w = 1920, h = 1080 } = {}) {
   app.reiniciar = async () => {
     const { w: ow, h: oh } = app;
     await app.fechar();
-    const novo = await abrir(sb, { w: ow, h: oh });
+    const novo = await abrir(sb, { w: ow, h: oh, semTerminal: app.semTerminal });
     return novo;
   };
 
   await app.tamanho(w, h);
   await app.espera(`!!document.querySelector('.ws.active')`, 30000, 'workspace ativo');
+  // Nenhum terminal abre sozinho: os cenários que medem terminais pedem um, como o usuário faria
+  if (!semTerminal) await abrirTerminal(app);
   await sleep(800);
   return app;
+}
+
+// Clica em "novo terminal" (no workspace ativo ou na página Terminal); se a máquina tiver WSL aparece o
+// menu, e a primeira opção é sempre o Windows
+async function abrirTerminal(app, escopo = '.ws.active') {
+  await app.clica(`${escopo} [data-act="new-term"]`);
+  await sleep(500);
+  if (await app.ev(`!!document.querySelector('.dev-term-menu')`)) await app.clica('.dev-term-menu button[data-i="0"]');
+  await app.espera(`!!document.querySelector('${escopo} .term-pane')`, 20000, 'terminal aberto');
 }
 
 async function comApp(opts, fn) {
   const sb = criarSandbox(opts);
   let app = null;
   try {
-    app = await abrir(sb, opts.janela);
+    app = await abrir(sb, { ...opts.janela, semTerminal: opts.semTerminal });
     await fn(app, sb);
   } finally {
     // o app pode ter sido reiniciado dentro do cenário: fecha o último
@@ -697,7 +708,7 @@ CENARIOS['painel-terminal'] = async () => {
     const ide = await app.ev(`document.querySelectorAll('.ws.active [data-acao="alternar-editor"]').length`);
     afirma(ide === 1, 'na IDE o botão existe');
     await app.pagina('terminal');
-    await app.espera(`!!document.querySelector('#page-terminal .term-pane')`, 20000, 'terminal da página Terminal');
+    await abrirTerminal(app, '#page-terminal');
     const n = await app.ev(`document.querySelectorAll('#page-terminal [data-acao="alternar-editor"], #term-page [data-acao="alternar-editor"]').length`);
     afirma(n === 0, 'na página Terminal o botão não existe');
     const acoes = await app.ev(`[...document.querySelectorAll('#term-page .dev-panel-actions > *')].map(e => e.tagName + (e.dataset.act ? ':' + e.dataset.act : ''))`);
@@ -752,6 +763,43 @@ CENARIOS['painel-x-no-canto'] = async () => {
     afirma(c.botoes.length === 4 && c.botoes.every(b => !inter(c.x, b)), `o ✕ novo não cobre Dividir nem Fechar quadro (${c.botoes.length} botões conferidos)`);
     afirma(c.x.r <= c.ed.r + 0.5 && c.x.y >= c.ed.y - 0.5 && c.ed.r - c.x.r < 12, `o ✕ está no canto superior direito da coluna (${c.x.r.toFixed(0)} de ${c.ed.r.toFixed(0)})`);
     await app.foto('painel-canto-x-1366x768', { x: Math.round(c.ed.x), y: Math.round(c.ed.y) - 34, width: Math.round(c.ed.r - c.ed.x), height: 90, scale: 2 });
+  });
+};
+
+CENARIOS['terminal-manual'] = async () => {
+  await comApp({ semTerminal: true }, async (app, sb) => {
+    await sleep(1500);
+    const vazio = () => app.ev(`(() => {
+      const ws = document.querySelector('.ws.active');
+      const e = ws.querySelector('.dev-term-empty');
+      const b = e.querySelector('button');
+      return { panes: ws.querySelectorAll('.term-pane').length, visivel: !e.hidden && e.offsetParent !== null, botao: b.textContent.trim(), titulo: e.textContent.includes('Nenhum terminal aberto') };
+    })()`);
+    let v = await vazio();
+    afirma(v.panes === 0 && v.visivel && v.botao === 'Novo terminal' && v.titulo, `ao abrir a IDE não há terminal e o estado vazio aparece (${JSON.stringify(v)})`);
+    await app.foto('terminal-vazio');
+    // página Terminal também começa vazia
+    await app.pagina('terminal');
+    await sleep(800);
+    const pag = await app.ev(`({ panes: document.querySelectorAll('#term-page .term-pane').length, vazio: !document.querySelector('#term-page .dev-term-empty').hidden })`);
+    afirma(pag.panes === 0 && pag.vazio, `a página Terminal não abre terminal sozinha (${JSON.stringify(pag)})`);
+    await app.pagina('devcode');
+    await abrirTerminal(app);
+    afirma(await app.ev(`document.querySelectorAll('.ws.active .term-pane').length`) === 1, 'o botão do estado do cabeçalho abre exatamente um terminal');
+    afirma(await app.ev(`document.querySelector('.ws.active .dev-term-empty').hidden`), 'com terminal aberto, o estado vazio some');
+    // o menu: com WSL aparecem Windows e as distros; sem WSL o terminal abriu direto, sem menu
+    await app.clica('.ws.active [data-act="new-term"]');
+    await sleep(700);
+    const menu = await app.ev(`[...document.querySelectorAll('.dev-term-menu button')].map(b => b.textContent)`);
+    if (menu.length) {
+      afirma(/^Windows \(.+\)$/.test(menu[0]) && menu.slice(1).every(t => /^WSL \(.+\)$/.test(t)), `menu de escolha: ${JSON.stringify(menu)}`);
+      await app.foto('terminal-menu');
+      await app.tecla('Escape');
+      await sleep(200);
+      afirma(await app.ev(`!document.querySelector('.dev-term-menu')`), 'Esc fecha o menu');
+    } else {
+      afirma(await app.ev(`document.querySelectorAll('.ws.active .term-pane').length`) === 2, 'sem WSL: o clique abre o terminal direto, sem menu');
+    }
   });
 };
 
