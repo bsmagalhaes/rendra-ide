@@ -26,7 +26,7 @@
   // res: resposta de limits (forma de claude-account): { limits, fetchedAt, error, needsBridge }.
   // deps: { conta, plano, fmtResetIn(ts), fmtHora(ts) }.
   function estadoConsumo(res, agora, deps = {}) {
-    const vazio = { visivel: false, velho: false, itens: [], tooltip: '' };
+    const vazio = { visivel: false, itens: [], tooltip: '' };
     if (!res || !Array.isArray(res.limits) || !res.limits.length) return vazio;
 
     const velho = !numeroValido(res.fetchedAt) || agora - res.fetchedAt > LIMITE_ANTIGO_MS;
@@ -56,7 +56,7 @@
     if (quem) linhas.push(quem);
     linhas.push(...reinicios);
     if (velho) linhas.push(lido ? `Dado antigo, ${lido}` : 'Dado antigo');
-    return { visivel: true, velho, itens, tooltip: linhas.join('\n') };
+    return { visivel: true, itens, tooltip: linhas.join('\n') };
   }
 
   const api = { nivelDe, formatarPercentual, estadoConsumo };

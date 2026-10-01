@@ -33,7 +33,8 @@ test('sem dado nenhum a barra fica escondida (sem Claude Code, conta sem plano, 
 test('leitura normal: dois itens na ordem 5 Horas, Semanal, com texto e rótulos de acessibilidade', () => {
   const e = estadoConsumo(res(42, 27), AGORA, deps);
   assert.strictEqual(e.visivel, true);
-  assert.strictEqual(e.velho, false);
+  assert.ok(!('velho' in e), 'sem campo morto velho');
+  assert.ok(e.itens.every(i => i.classe !== 'stale'));
   assert.deepStrictEqual(e.itens.map(i => i.rotulo), ['5 Horas', 'Semanal']);
   assert.deepStrictEqual(e.itens.map(i => i.texto), ['42%', '27%']);
   assert.deepStrictEqual(e.itens.map(i => i.percent), [42, 27]);
@@ -66,12 +67,11 @@ test('percentual fora de 0..100 é limitado e valor não numérico descarta o it
 
 test('dado antigo: mais de 15 minutos fica em cinza e o tooltip diz a hora da leitura', () => {
   const limite = estadoConsumo(res(95, 80, AGORA - 15 * MIN), AGORA, deps);
-  assert.strictEqual(limite.velho, false);
+  assert.ok(limite.itens.every(i => i.classe !== 'stale'));
   assert.deepStrictEqual(limite.itens.map(i => i.classe), ['danger', 'warn']);
 
   const velho = estadoConsumo(res(95, 80, AGORA - (15 * MIN + 1000)), AGORA, deps);
-  assert.strictEqual(velho.velho, true);
-  assert.deepStrictEqual(velho.itens.map(i => i.classe), ['stale', 'stale']);
+    assert.deepStrictEqual(velho.itens.map(i => i.classe), ['stale', 'stale']);
   assert.ok(velho.tooltip.includes('lido às 09:30'), velho.tooltip);
   assert.ok(velho.itens[0].ariaTexto.endsWith(', lido às 09:30'), velho.itens[0].ariaTexto);
   assert.strictEqual(velho.itens[0].texto, '95%');
@@ -80,8 +80,7 @@ test('dado antigo: mais de 15 minutos fica em cinza e o tooltip diz a hora da le
 test('sem prova de frescor (fetchedAt ausente ou inválido) conta como dado antigo', () => {
   for (const f of [null, undefined, NaN, 'ontem']) {
     const e = estadoConsumo({ limits: limites(10, 10), fetchedAt: f }, AGORA, deps);
-    assert.strictEqual(e.velho, true, `fetchedAt ${String(f)}`);
-    assert.deepStrictEqual(e.itens.map(i => i.classe), ['stale', 'stale']);
+        assert.deepStrictEqual(e.itens.map(i => i.classe), ['stale', 'stale']);
     assert.ok(!/undefined|NaN|null/.test(e.tooltip), e.tooltip);
   }
 });
