@@ -242,4 +242,4 @@ async function installWsl(log) {
   return { ok: r.ok, needsReboot: true };
 }
 
-module.exports = { listWslDistros, check, installGit, installRtk, enableRtkHook, installWsl, rtkAssetName, archFromUname, BIN_DIR };
+module.exports = { listWslDistros, check, installGit, installRtk, enableRtkHook, installWsl, rtkPath, rtkAssetName, archFromUname, BIN_DIR };

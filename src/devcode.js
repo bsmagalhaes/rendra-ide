@@ -504,4 +504,4 @@ function registerDevCode({ ipcMain, dialog, store, getWindow, deps = {} }) {
   return { killAll, guardWindowClose };
 }
 
-module.exports = { registerDevCode };
+module.exports = { registerDevCode, toWslUnc };
