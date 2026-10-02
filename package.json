@@ -98,14 +98,9 @@
           "arch": [
             "x64"
           ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
         }
       ],
+      "artifactName": "Rendra-IDE-Setup.${ext}",
       "icon": "assets/icon.ico"
     },
     "nsis": {
@@ -116,27 +111,18 @@
       "shortcutName": "Rendra IDE",
       "installerIcon": "assets/icon.ico",
       "uninstallerIcon": "assets/icon.ico",
-      "runAfterFinish": true
+      "runAfterFinish": true,
+      "differentialPackage": false
     },
     "mac": {
       "target": [
-        {
-          "target": "dmg",
-          "arch": [
-            "arm64",
-            "x64"
-          ]
-        },
-        {
-          "target": "zip",
-          "arch": [
-            "arm64",
-            "x64"
-          ]
-        }
+        "dmg",
+        "zip"
       ],
       "icon": "assets/icon-1024.png",
-      "category": "public.app-category.developer-tools"
+      "category": "public.app-category.developer-tools",
+      "artifactName": "Rendra-IDE-mac-${arch}.${ext}",
+      "hardenedRuntime": true
     },
     "linux": {
       "target": [
@@ -155,7 +141,9 @@
       ],
       "icon": "assets/icon-1024.png",
       "category": "Development",
-      "maintainer": "Bruno Magalhaes <contato@brunomagalhaes.me>"
+      "maintainer": "Bruno Magalhaes <contato@brunomagalhaes.me>",
+      "artifactName": "Rendra-IDE.${ext}",
+      "executableName": "rendra-ide"
     },
     "files": [
       "main.js",
@@ -169,6 +157,10 @@
       "src/**/*",
       "assets/**/*",
       "!**/*.map",
+      "!node_modules/monaco-editor/esm/**",
+      "!node_modules/monaco-editor/dev/**",
+      "!node_modules/monaco-editor/min-maps/**",
+      "!node_modules/@lydell/**/*.pdb",
       "!**/node_modules/.cache/**"
     ],
     "publish": [
@@ -177,6 +169,12 @@
         "owner": "bsmagalhaes",
         "repo": "rendra-ui-ide"
       }
-    ]
+    ],
+    "dmg": {
+      "writeUpdateInfo": false
+    },
+    "deb": {
+      "packageName": "rendra-ide"
+    }
   }
 }
