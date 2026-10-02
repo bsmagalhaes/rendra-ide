@@ -187,8 +187,10 @@ function periodStartMs(days) {
 }
 
 // filters.projects: names to include (empty/missing = all); filters.days: 1..90 (1 = today)
-function aggregateClaude(claudeDir, filters = {}) {
-  if (!fs.existsSync(claudeDir)) {
+// extraDirs: pastas `projects` de outros ambientes onde o terminal roda o Claude Code (distros WSL)
+function aggregateClaude(claudeDir, filters = {}, extraDirs = []) {
+  const roots = [claudeDir, ...extraDirs].filter(d => d && fs.existsSync(d));
+  if (!roots.length) {
     return { available: false };
   }
   if (!diskLoaded) loadDiskCache();
@@ -198,9 +200,9 @@ function aggregateClaude(claudeDir, filters = {}) {
   const selected = Array.isArray(filters.projects) && filters.projects.length ? new Set(filters.projects) : null;
   const periodStart = periodStartMs(days);
 
-  const projectDirs = fs.readdirSync(claudeDir, { withFileTypes: true })
+  const projectDirs = roots.flatMap(root => fs.readdirSync(root, { withFileTypes: true })
     .filter(d => d.isDirectory())
-    .map(d => d.name);
+    .map(d => path.join(root, d.name)));
 
   const allProjects = new Map(); // every project seen in the lookback window → 90-day tokens (for the filter list)
   const projectMap = new Map();  // project name → aggregated (period)
@@ -225,8 +227,8 @@ function aggregateClaude(claudeDir, filters = {}) {
 
   const seen = new Set(); // message ids already counted (duplicate lines, resumed sessions)
 
-  for (const projectFolder of projectDirs) {
-    const projectPath = path.join(claudeDir, projectFolder);
+  for (const projectPath of projectDirs) {
+    const projectFolder = path.basename(projectPath);
 
     const projectName = decodeProjectName(projectFolder);
 

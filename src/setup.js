@@ -48,9 +48,9 @@ async function rtkPath() {
   return where('rtk');
 }
 
-async function listWslDistros() {
+async function listWslDistros(timeout = 15000) {
   if (!IS_WIN) return null;
-  const r = await run('wsl.exe', ['-l', '-v'], { timeout: 15000, encoding: 'buffer' });
+  const r = await run('wsl.exe', ['-l', '-v'], { timeout, encoding: 'buffer' });
   if (!r.ok || !r.stdout) return null; // WSL not installed (or not enabled)
   const out = r.stdout.toString('utf16le').replace(/\0/g, '');
   return out.split(/\r?\n/).slice(1)
@@ -234,4 +234,4 @@ async function installWsl(log) {
   return { ok: r.ok, needsReboot: true };
 }
 
-module.exports = { check, installGit, installRtk, enableRtkHook, installWsl, BIN_DIR };
+module.exports = { listWslDistros, check, installGit, installRtk, enableRtkHook, installWsl, BIN_DIR };

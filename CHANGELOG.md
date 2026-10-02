@@ -1,5 +1,9 @@
 # Novidades
 
+## Próxima versão
+### Uso no terminal WSL
+- O consumo do Claude Code e do Codex agora considera o sistema do terminal, não só o do Windows: se você abre o terminal em uma distro WSL e roda os agentes lá, as sessões de `/home/<usuário>/.claude` e `/home/<usuário>/.codex` entram na soma, junto com as do Windows e sem contar nada duas vezes. Só distros em execução são lidas (a IDE não acorda distro parada); com o WSL desligado, a leitura segue só com o Windows.
+
 ## 1.1.5 · 01/10/2026
 ### Atualização
 - Quando há versão nova, aparece um botão verde "Nova versão" no rodapé da barra lateral esquerda, perto de Novidades e Sobre; ele some quando o app está atualizado. O clique abre a confirmação e atualiza como antes. O aviso "Versão X disponível" na barra inferior foi removido.

@@ -72,12 +72,18 @@ function parseRollout(file) {
 
 function dayKey(ts) { return new Date(ts).toLocaleDateString('en-CA'); }
 
-function aggregateCodex() {
-  const home = codexHome();
+// opts.home: pasta .codex do Windows (padrão: CODEX_HOME ou ~/.codex); opts.extraSessionDirs: pastas
+// `sessions` de outros ambientes onde o terminal roda o Codex (distros WSL). Um arquivo de
+// sessão (nome rollout-<data>-<id>.jsonl) que aparece em mais de um lugar conta uma vez só.
+function aggregateCodex(opts = {}) {
+  const home = opts.home || codexHome();
   const sessionsDir = path.join(home, 'sessions');
-  if (!fs.existsSync(sessionsDir)) return { available: false, home };
+  const extras = (opts.extraSessionDirs || []).filter(d => fs.existsSync(d));
+  if (!fs.existsSync(sessionsDir) && !extras.length) return { available: false, home };
   const cutoff = Date.now() - LOOKBACK_DAYS * 86400000;
-  const files = listRollouts(sessionsDir, cutoff);
+  const vistos = new Set();
+  const files = [sessionsDir, ...extras].flatMap(d => listRollouts(d, cutoff))
+    .filter(f => { const k = path.basename(f); if (vistos.has(k)) return false; vistos.add(k); return true; });
 
   const daily = new Map();
   const models = new Map();
