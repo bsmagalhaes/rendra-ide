@@ -404,16 +404,28 @@
       <div class="section-heading">Agentes</div>
       <div class="rtk-agents">
         <div class="rtk-agent" id="rtk-agent-claude">
-          <div class="rtk-agent-name">Claude Code</div>
-          <div class="rtk-agent-state" id="rtk-claude-state">—</div>
+          <div class="rtk-agent-head">
+            <div class="rtk-agent-name">Claude Code</div>
+            <div class="rtk-agent-state" id="rtk-claude-state">—</div>
+          </div>
+          <div class="rtk-agent-total accent-claude" id="rtk-claude-total" tabindex="0" aria-describedby="rtk-claude-tip">—</div>
+          <div class="rtk-tip" id="rtk-claude-tip" role="tooltip"></div>
+          <div class="rtk-env-list" id="rtk-claude-envs"></div>
+          <div class="rtk-agent-warnings" id="rtk-claude-warnings"></div>
         </div>
         <div class="rtk-agent" id="rtk-agent-codex">
-          <div class="rtk-agent-name">Codex</div>
-          <div class="rtk-agent-state" id="rtk-codex-state">—</div>
-          <button class="btn btn-primary" id="rtk-codex-enable" type="button" style="display:none">Ativar RTK no Codex</button>
+          <div class="rtk-agent-head">
+            <div class="rtk-agent-name">Codex</div>
+            <div class="rtk-agent-state" id="rtk-codex-state">—</div>
+          </div>
+          <div class="rtk-agent-total accent-codex" id="rtk-codex-total" tabindex="0" aria-describedby="rtk-codex-tip">—</div>
+          <div class="rtk-tip" id="rtk-codex-tip" role="tooltip"></div>
+          <div class="rtk-env-list" id="rtk-codex-envs"></div>
+          <div class="rtk-agent-warnings" id="rtk-codex-warnings"></div>
         </div>
       </div>
-      <p class="rtk-note">A economia abaixo é do RTK como um todo: soma os comandos filtrados de todos os agentes (Claude Code e Codex); o RTK não separa por agente.</p>
+      <div class="rtk-warnings" id="rtk-warnings"></div>
+      <p class="rtk-note">Cada agente grava em um banco próprio e o total soma os sistemas (Windows, Linux e WSL). O histórico anterior à versão 1.2.0 está na conta do Claude Code. Passe o mouse ou o foco no total de cada agente para ver o detalhe por sistema.</p>
 
       <div class="section-heading">Economia</div>
       <div class="summary-row rtk-summary">
@@ -448,13 +460,13 @@
 
       <div class="chart-row">
         <div class="chart-cell">
-          <div class="section-heading">Economia diária</div>
+          <div class="section-heading">Economia diária <span class="rtk-legend"><i class="rtk-dot claude"></i>Claude Code <i class="rtk-dot codex"></i>Codex</span></div>
           <div class="chart-container">
             <canvas id="chart-rtk-daily" class="chart-canvas"></canvas>
           </div>
         </div>
         <div class="chart-cell">
-          <div class="section-heading">Comandos que mais economizam</div>
+          <div class="section-heading">Por comando (Claude Code, neste sistema)</div>
           <div class="chart-container" style="padding:0;overflow:hidden">
             <table class="breakdown-table">
               <thead><tr>
@@ -467,6 +479,7 @@
       </div>
 
       <div class="section-heading">Comandos do RTK</div>
+      <p class="rtk-note" id="rtk-run-note">Os botões leem o banco do Claude Code neste sistema.</p>
       <div class="rtk-actions">
         <button class="rtk-btn" data-rtk="gain">Resumo de economia</button>
         <button class="rtk-btn" data-rtk="graph">Gráfico diário</button>

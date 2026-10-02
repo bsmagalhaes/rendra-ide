@@ -49,9 +49,9 @@ function createRtkStatus(deps) {
   const procEnv = deps.processEnv || process.env;
 
   const emptyAgents = () => ({
-    claude: { hook: false, hookAbsolute: false, dbEnvConfigured: false, dbPath: null, gain: ZERO_GAIN(), error: null },
+    claude: { installed: false, hook: false, hookAbsolute: false, dbEnvConfigured: false, dbPath: null, gain: ZERO_GAIN(), error: null },
     codex: {
-      hook: false, hookAbsolute: false, dbEnvConfigured: false, dbPath: null, trust: null,
+      installed: false, hook: false, hookAbsolute: false, dbEnvConfigured: false, dbPath: null, trust: null,
       gain: ZERO_GAIN(), error: null, writableRootsSnippet: null,
     },
   });
@@ -98,12 +98,14 @@ function createRtkStatus(deps) {
     const hooksText = hooks.text || '';
     const tomlText = toml.text || '';
 
+    const [claudeHere, codexHere] = await Promise.all([env.exists(e, dirs.claudeDir), env.exists(e, dirs.codexDir)]);
     const claudeDb = P.claudeDbPath(o);
     const codexDb = P.codexDbPath(o);
     const [cg, xg] = await Promise.all([readGain(e, rtk, claudeDb), readGain(e, rtk, codexDb)]);
     const trust = C.codexHookTrust(hooksText, tomlText, hooksPath);
     out.agents = {
       claude: {
+        installed: claudeHere,
         hook: C.hasRtkHook(settingsText, 'claude'),
         hookAbsolute: C.isAbsoluteHook(settingsText, 'claude'),
         dbEnvConfigured: C.claudeDbEnv(settingsText) === claudeDb,
@@ -111,6 +113,7 @@ function createRtkStatus(deps) {
         files: plannedFiles('claude', dirs, pathEnv),
       },
       codex: {
+        installed: codexHere,
         hook: C.hasRtkHook(hooksText, 'codex'),
         hookAbsolute: C.isAbsoluteHook(hooksText, 'codex'),
         dbEnvConfigured: C.codexDbEnv(tomlText) === codexDb,

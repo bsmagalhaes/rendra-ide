@@ -309,9 +309,25 @@ function translateRtkCheck(text) {
   return RTK_CHECK_PT.reduce((s, [re, pt]) => s.replace(re, pt), text);
 }
 
+// Soma, linhas por sistema e textos vêm de renderer/rtk-agents.js (puro e testado); aqui só se monta a tela
+const RA = window.RendraRtkAgents;
+let rtkData = null;
+const cssColor = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+function renderRtkAgent(agent, agg, view) {
+  const state = document.getElementById(`rtk-${agent}-state`);
+  state.textContent = view.state;
+  state.classList.toggle('ok', view.allActive);
+  document.getElementById(`rtk-${agent}-total`).textContent = `${fmtTokens(agg.total.saved)} tokens economizados`;
+  document.getElementById(`rtk-${agent}-tip`).textContent = RA.tooltipLines(agg).join('\n');
+  document.getElementById(`rtk-${agent}-envs`).innerHTML = RA.rowsHtml(view);
+  document.getElementById(`rtk-${agent}-warnings`).innerHTML = RA.warningsHtml(view.warnings);
+}
+
 async function loadRtk() {
   rtkLoaded = true;
   const data = await tm.rtkStatus();
+  rtkData = data;
   const missing = document.getElementById('rtk-missing');
   const body = document.getElementById('rtk-body');
   if (!data?.installed) {
@@ -328,34 +344,32 @@ async function loadRtk() {
   checks.innerHTML = (data.checks || []).map(c =>
     `<span class="rtk-check${c.ok ? ' ok' : ''}">${escapeHtml(translateRtkCheck(c.text))}</span>`).join('');
 
-  // Agents RTK is wired into: Claude Code (hook) and Codex (AGENTS.md + RTK.md)
-  const claudeHook = (data.checks || []).some(c => c.ok && /hook/i.test(c.text));
-  const setAgent = (id, ok, text) => {
-    const el = document.getElementById(id);
-    el.textContent = text;
-    el.classList.toggle('ok', ok);
-  };
-  setAgent('rtk-claude-state', claudeHook, claudeHook ? 'RTK ativo (hook configurado)' : 'RTK não configurado');
-  const cx = data.codex || {};
-  setAgent('rtk-codex-state', !!cx.configured,
-    !cx.installed ? 'Codex não instalado' : cx.configured ? 'RTK ativo (AGENTS.md + RTK.md)' : 'RTK ainda não configurado no Codex');
-  document.getElementById('rtk-codex-enable').style.display = cx.installed && !cx.configured ? '' : 'none';
+  // Um total por agente (soma dos sistemas) e, por sistema, o estado do RTK e as ações
+  const envs = data.environments || [];
+  const agents = RA.aggregateAgents(envs);
+  for (const a of ['claude', 'codex']) renderRtkAgent(a, agents[a], RA.agentView(envs, a));
+  document.getElementById('rtk-warnings').innerHTML = RA.warningsHtml(RA.globalWarnings(envs));
 
-  const sum = data.gain?.summary || {};
-  document.getElementById('rtk-saved').textContent    = fmtTokens(sum.total_saved || 0);
+  // Cartões do topo: os dois agentes somados
+  const sum = RA.combinedTotals(agents);
+  document.getElementById('rtk-saved').textContent    = fmtTokens(sum.saved);
   document.getElementById('rtk-saved-sub').textContent = 'tokens que não entraram no contexto';
-  document.getElementById('rtk-pct').textContent      = (sum.avg_savings_pct || 0).toFixed(1).replace('.', ',') + '%';
-  document.getElementById('rtk-commands').textContent = (sum.total_commands || 0).toLocaleString('pt-BR');
-  document.getElementById('rtk-input').textContent    = fmtTokens(sum.total_input || 0);
-  document.getElementById('rtk-output').textContent   = fmtTokens(sum.total_output || 0);
-  document.getElementById('rtk-time').textContent     = fmtDuration(sum.total_time_ms);
-  document.getElementById('rtk-time-sub').textContent = `média de ${sum.avg_time_ms || 0} ms por comando`;
+  document.getElementById('rtk-pct').textContent      = sum.pct.toFixed(1).replace('.', ',') + '%';
+  document.getElementById('rtk-commands').textContent = sum.commands.toLocaleString('pt-BR');
+  document.getElementById('rtk-input').textContent    = fmtTokens(sum.input);
+  document.getElementById('rtk-output').textContent   = fmtTokens(sum.output);
+  document.getElementById('rtk-time').textContent     = fmtDuration(sum.timeMs);
+  document.getElementById('rtk-time-sub').textContent = `média de ${Math.round(sum.avgTimeMs)} ms por comando`;
 
-  const daily = (data.gain?.daily || []).slice(-30);
-  makeBarChart('chart-rtk-daily', daily.map(d => fmtDateBR(d.date).slice(0, 5)), [
-    { label: 'Economizados', data: daily.map(d => d.saved_tokens), backgroundColor: 'rgba(76,175,117,0.8)', borderRadius: 3, borderSkipped: false, maxBarThickness: 40 },
+  // Duas séries, com as cores dos tokens (--orange do Claude Code, --codex do Codex)
+  const s = RA.chartSeries(agents);
+  const bar = { borderRadius: 3, borderSkipped: false, maxBarThickness: 40 };
+  makeBarChart('chart-rtk-daily', s.labels.slice(-30).map(d => fmtDateBR(d).slice(0, 5)), [
+    { label: 'Claude Code', data: s.claude.slice(-30), backgroundColor: cssColor('--orange'), ...bar },
+    { label: 'Codex', data: s.codex.slice(-30), backgroundColor: cssColor('--codex'), ...bar },
   ]);
 
+  // "Por comando" só existe em texto e só para o Claude Code neste sistema (o JSON não o exporta)
   const tbody = document.getElementById('rtk-cmd-tbody');
   tbody.innerHTML = (data.byCommand || []).slice(0, 10).map(r => `
     <tr>
@@ -365,6 +379,43 @@ async function loadRtk() {
       <td class="mono dim">${r.pct.toFixed(1).replace('.', ',')}%</td>
       <td class="mono dim">${escapeHtml(r.time)}</td>
     </tr>`).join('') || '<tr><td class="dim" colspan="5">Sem dados ainda.</td></tr>';
+}
+
+// Instalar/atualizar o RTK e ativar um agente, por sistema (botões das linhas de cada agente)
+function showRtkResult(cmd, text) {
+  document.getElementById('rtk-term-cmd').textContent = `$ ${cmd}`;
+  document.getElementById('rtk-term-out').textContent = text;
+}
+
+async function runRtkAction(btn) {
+  const { rtkAction: kind, env: envId, agent } = btn.dataset;
+  if (kind === 'copy-snippet') {
+    const pre = btn.closest('details')?.querySelector('pre');
+    if (pre) navigator.clipboard.writeText(pre.textContent).then(() => showToast('Trecho copiado'));
+    return;
+  }
+  const env = (rtkData?.environments || []).find(e => e.id === envId);
+  if (!env) return;
+  if (kind === 'enable') {
+    const files = env.agents?.[agent]?.files || [];
+    if (!confirm(RA.confirmText(agent, env.label, files))) return;
+  }
+  document.querySelectorAll('.rtk-act').forEach(b => { b.disabled = true; });
+  try {
+    if (kind === 'install') {
+      showRtkResult(`instalar RTK (${env.label})`, 'Instalando…');
+      const res = await tm.rtkInstall(envId);
+      showRtkResult(`instalar RTK (${env.label})`, RA.installText(res, env.label));
+      showToast(res?.ok ? 'RTK instalado' : 'Não foi possível instalar o RTK');
+    } else if (kind === 'enable') {
+      showRtkResult(`rtk init (${env.label})`, 'Ativando…');
+      const res = await tm.rtkEnable(envId, agent);
+      showRtkResult(`rtk init (${env.label})`, RA.resultText(res, agent, env.label));
+      showToast(res?.ok ? 'RTK ativado' : 'Não foi possível ativar o RTK');
+    }
+  } finally {
+    await loadRtk();
+  }
 }
 
 async function runRtkCommand(btn) {
@@ -881,17 +932,10 @@ async function init() {
     navigator.clipboard.writeText(document.getElementById('rtk-term-out').textContent)
       .then(() => showToast('Saída copiada'));
   });
-  // Codex setup changes files (AGENTS.md / RTK.md in the Codex folder), so it asks first
-  document.getElementById('rtk-codex-enable').addEventListener('click', async e => {
-    if (!confirm('Ativar o RTK no Codex? Isso roda "rtk init -g --codex", que adiciona as instruções do RTK ao AGENTS.md e cria o RTK.md na pasta do Codex.')) return;
-    const btn = e.currentTarget;
-    btn.disabled = true;
-    const res = await tm.rtkRun('codex-init');
-    btn.disabled = false;
-    document.getElementById('rtk-term-cmd').textContent = `$ ${res.command || 'rtk init -g --codex'}`;
-    document.getElementById('rtk-term-out').textContent = (res.output || '').trim() || '(sem saída)';
-    showToast(res.ok ? 'RTK ativado no Codex' : 'Não foi possível ativar o RTK no Codex');
-    await loadRtk();
+  // Install/update RTK and enable an agent per system: one delegated listener for the row buttons
+  document.getElementById('page-rtk').addEventListener('click', e => {
+    const btn = e.target.closest('[data-rtk-action]');
+    if (btn && !btn.disabled) runRtkAction(btn);
   });
 
   // Settings

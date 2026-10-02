@@ -208,3 +208,8 @@ test('avisos do host (WinGet defasado) entram no ambiente do host', async () => 
   assert.strictEqual(host.warnings[0].kind, 'winget');
   assert.deepStrictEqual((await m.st.status()).environments[0].warnings, undefined);
 });
+
+test('installed por agente: a pasta do agente existe no ambiente', async () => {
+  const a = (await montar({ files: { '/home/ana/.claude': 'dir' } }).st.status()).environments[0].agents;
+  assert.deepStrictEqual([a.claude.installed, a.codex.installed], [true, false]);
+});

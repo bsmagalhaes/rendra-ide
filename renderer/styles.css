@@ -13,6 +13,9 @@
 
   --orange:  #e8650a;
   --gemini:  #4a9eff;
+  /* azul do Codex: exceção documentada à regra no-blue (como o --gemini e os submódulos do explorador);
+     usado só para identificar o Codex na página RTK. Contraste 6,05:1 sobre --surface */
+  --codex:   #4a9eff;
   --green:   #4caf75;
 
   --font:    'Space Mono', monospace;
@@ -208,6 +211,7 @@ body { display: flex; flex-direction: column; }
 .stat-card-value { font-size: 20px; font-weight: 700; line-height: 1; color: var(--text); }
 .stat-card-value.accent-claude { color: var(--orange); }
 .stat-card-value.accent-gemini { color: var(--gemini); }
+.stat-card-value.accent-codex { color: var(--codex); }
 .stat-card-value.accent-combined { color: var(--green); }
 .stat-card-sub { font-size: 10px; color: var(--text-muted); margin-top: 4px; }
 
@@ -297,6 +301,7 @@ body { display: flex; flex-direction: column; }
   height: 100%; transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
 }
 .table-bar-fill.claude { background: var(--orange); }
+.table-bar-fill.codex { background: var(--codex); }
 
 .mono { font-family: var(--font); }
 .dim  { color: var(--text-muted); }
@@ -878,15 +883,48 @@ body.dev-mode #page-terminal.active { display: flex; flex-direction: column; hei
 .price-help b { color: var(--text-muted); }
 
 /* ── RTK agents ── */
-.rtk-agents { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.rtk-agents { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-items: start; }
 .rtk-agent {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 10px 14px; display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; position: relative;
 }
+.rtk-agent-head { display: flex; align-items: center; gap: 12px; }
 .rtk-agent-name { font-size: 12px; font-weight: 700; color: var(--text); min-width: 90px; }
 .rtk-agent-state { font-size: 11px; color: var(--text-dim); flex: 1; }
 .rtk-agent-state.ok { color: var(--green); }
+/* Total economizado do agente; orange e codex sobre --surface (5,00:1 e 6,05:1), nunca sobre --surface2 (laranja 4,60:1) */
+.rtk-agent-total { font-size: 20px; font-weight: 700; line-height: 1.2; width: fit-content; cursor: default; border-radius: 3px; }
+.rtk-agent-total.accent-claude { color: var(--orange); }
+.rtk-agent-total.accent-codex { color: var(--codex); }
+.rtk-agent-total:focus-visible { outline: 1px solid var(--border-hi); outline-offset: 3px; }
+/* Hover e foco: detalhe por sistema (Windows, Linux, cada distro) */
+.rtk-tip {
+  display: none; position: absolute; left: 14px; top: 62px; z-index: 5; min-width: 220px;
+  background: var(--bg); border: 1px solid var(--border-hi); border-radius: var(--radius);
+  padding: 8px 10px; font-size: 10px; line-height: 1.7; color: var(--text); white-space: pre-line;
+}
+.rtk-agent-total:hover + .rtk-tip, .rtk-agent-total:focus + .rtk-tip { display: block; }
+.rtk-env-list { display: flex; flex-direction: column; gap: 4px; }
+.rtk-env-row { display: flex; align-items: center; gap: 8px; font-size: 11px; min-height: 22px; }
+.rtk-env-label { font-weight: 700; color: var(--text); min-width: 90px; }
+.rtk-env-state { flex: 1; color: var(--text-muted); }
+.rtk-env-state.ok { color: var(--green); }
+.rtk-env-state.warn { color: #e8a33d; }
+.rtk-act { padding: 3px 10px; font-size: 10px; }
+.rtk-warnings:empty, .rtk-agent-warnings:empty { display: none; }
+.rtk-warnings { margin-top: 8px; }
+.rtk-warn {
+  background: var(--surface2); border-left: 2px solid #e8a33d; border-radius: var(--radius);
+  padding: 6px 10px; margin-top: 6px; font-size: 11px; line-height: 1.6; color: var(--text);
+}
+.rtk-warn.snippet { border-left-color: var(--border-hi); color: var(--text-muted); }
+.rtk-warn summary { cursor: pointer; }
+.rtk-snippet { white-space: pre-wrap; font-size: 10px; margin: 6px 0; color: var(--text); }
 .rtk-note { font-size: 10px; color: var(--text-dim); margin-top: 8px; line-height: 1.6; }
+.rtk-legend { margin-left: 10px; font-size: 10px; font-weight: 400; color: var(--text-muted); text-transform: none; letter-spacing: 0; }
+.rtk-dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin: 0 4px 0 8px; }
+.rtk-dot.claude { background: var(--orange); }
+.rtk-dot.codex { background: var(--codex); }
 
 /* ── ABOUT PAGE ── */
 .nav-tab-bottom { margin-top: auto; margin-bottom: 6px; }
