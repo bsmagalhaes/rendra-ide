@@ -1,6 +1,6 @@
 # Novidades
 
-## Próxima versão
+## 1.2.1 · 02/10/2026
 ### Correções
 - A contagem de uso no WSL não trava mais os testes no Linux, o que destrava a publicação automática das versões no GitHub.
 

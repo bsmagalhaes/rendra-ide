@@ -1,4 +1,4 @@
-/*! Rendra IDE v1.2.0 | MIT | © 2026 Bruno Magalhaes | brunomagalhaes.me */
+/*! Rendra IDE v1.2.1 | MIT | © 2026 Bruno Magalhaes | brunomagalhaes.me */
 const { app, BrowserWindow, ipcMain, shell, Tray, Menu, nativeImage, Notification, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
