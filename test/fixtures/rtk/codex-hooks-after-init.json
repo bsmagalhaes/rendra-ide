@@ -1,0 +1,101 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f '/home/ana/.codex/.orca/agent-hooks/codex-hook.sh' ]; then /bin/sh '/home/ana/.codex/.orca/agent-hooks/codex-hook.sh'; else cat >/dev/null; fi",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f '/home/ana/.codex/.orca/agent-hooks/codex-hook.sh' ]; then /bin/sh '/home/ana/.codex/.orca/agent-hooks/codex-hook.sh'; else cat >/dev/null; fi",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f '/home/ana/.codex/.orca/agent-hooks/codex-hook.sh' ]; then /bin/sh '/home/ana/.codex/.orca/agent-hooks/codex-hook.sh'; else cat >/dev/null; fi",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "rtk hook codex"
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f '/home/ana/.codex/.orca/agent-hooks/codex-hook.sh' ]; then /bin/sh '/home/ana/.codex/.orca/agent-hooks/codex-hook.sh'; else cat >/dev/null; fi",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f '/home/ana/.codex/.orca/agent-hooks/codex-hook.sh' ]; then /bin/sh '/home/ana/.codex/.orca/agent-hooks/codex-hook.sh'; else cat >/dev/null; fi",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f '/home/ana/.codex/.orca/agent-hooks/codex-hook.sh' ]; then /bin/sh '/home/ana/.codex/.orca/agent-hooks/codex-hook.sh'; else cat >/dev/null; fi",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f '/home/ana/.codex/.orca/agent-hooks/codex-hook.sh' ]; then /bin/sh '/home/ana/.codex/.orca/agent-hooks/codex-hook.sh'; else cat >/dev/null; fi",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f '/home/ana/.codex/.orca/agent-hooks/codex-hook.sh' ]; then /bin/sh '/home/ana/.codex/.orca/agent-hooks/codex-hook.sh'; else cat >/dev/null; fi",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

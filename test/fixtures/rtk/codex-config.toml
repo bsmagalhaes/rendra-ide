@@ -1,0 +1,39 @@
+model = "gpt-6-astra"
+
+[hooks.state."/home/ana/.codex/hooks.json:session_start:0:0"]
+enabled = true
+trusted_hash = "sha256:0000000d0000000d0000000d0000000d0000000d0000000d0000000d0000000d"
+
+[hooks.state."/home/ana/.codex/hooks.json:user_prompt_submit:0:0"]
+enabled = true
+trusted_hash = "sha256:0000001200000012000000120000001200000012000000120000001200000012"
+
+[hooks.state."/home/ana/.codex/hooks.json:pre_tool_use:0:0"]
+enabled = true
+trusted_hash = "sha256:0000000c0000000c0000000c0000000c0000000c0000000c0000000c0000000c"
+
+[hooks.state."/home/ana/.codex/hooks.json:permission_request:0:0"]
+enabled = true
+trusted_hash = "sha256:0000001200000012000000120000001200000012000000120000001200000012"
+
+[hooks.state."/home/ana/.codex/hooks.json:post_tool_use:0:0"]
+enabled = true
+trusted_hash = "sha256:0000000d0000000d0000000d0000000d0000000d0000000d0000000d0000000d"
+
+[hooks.state."/home/ana/.codex/hooks.json:subagent_start:0:0"]
+enabled = true
+trusted_hash = "sha256:0000000e0000000e0000000e0000000e0000000e0000000e0000000e0000000e"
+
+[hooks.state."/home/ana/.codex/hooks.json:subagent_stop:0:0"]
+enabled = true
+trusted_hash = "sha256:0000000d0000000d0000000d0000000d0000000d0000000d0000000d0000000d"
+
+[hooks.state."/home/ana/.codex/hooks.json:stop:0:0"]
+enabled = true
+trusted_hash = "sha256:0000000400000004000000040000000400000004000000040000000400000004"
+
+[projects."/mnt/d/projeto-ficticio"]
+trust_level = "trusted"
+
+[tui]
+theme = "dark"
