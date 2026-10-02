@@ -1,6 +1,6 @@
 # Novidades
 
-## Próxima versão
+## 1.1.5 · 01/10/2026
 ### Atualização
 - Quando há versão nova, aparece um botão verde "Nova versão" no rodapé da barra lateral esquerda, perto de Novidades e Sobre; ele some quando o app está atualizado. O clique abre a confirmação e atualiza como antes. O aviso "Versão X disponível" na barra inferior foi removido.
 - Na primeira abertura depois de atualizar, o app mostra um modal com as novidades da versão. Ele só fecha pelo botão "Fechar": não fecha sozinho, nem ao clicar fora, nem com Esc, e não volta a aparecer para a mesma versão.

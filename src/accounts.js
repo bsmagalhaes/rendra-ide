@@ -1,4 +1,4 @@
-/*! Rendra IDE v1.1.4 | MIT | © 2026 Bruno Magalhaes | brunomagalhaes.me */
+/*! Rendra IDE v1.1.5 | MIT | © 2026 Bruno Magalhaes | brunomagalhaes.me */
 // Currently logged-in Claude Code account and its plan limits.
 //
 // Claude Code keeps the login in two places:
