@@ -12,15 +12,16 @@ function getToday(daily) {
   return entry ? { tokens: entry.totalTokens, cost: entry.estimatedCostUSD } : { tokens: 0, cost: 0 };
 }
 
-async function scan(settings) {
+// deps (testes): home, codexHome, wslRoots (injeta raízes WSL falsas)
+async function scan(settings, deps = {}) {
   // RENDRA_HOME: demo home for npm run docs:images; otherwise USERPROFILE on Windows, $HOME elsewhere
-  const userProfile = process.env.RENDRA_HOME || require('os').homedir();
+  const userProfile = process.env.RENDRA_HOME || deps.home || require('os').homedir();
   const claudeDir = settings?.claudePath || path.join(userProfile, '.claude', 'projects');
   const geminiDir = settings?.geminiPath || path.join(userProfile, '.gemini');
 
   const start = Date.now();
   // o terminal pode ser WSL: as sessões das distros entram junto com as do Windows (demo/RENDRA_HOME não)
-  const wsl = process.env.RENDRA_HOME || process.env.RENDRA_NO_WSL ? { claude: [], codex: [] } : await wslRoots();
+  const wsl = process.env.RENDRA_HOME || process.env.RENDRA_NO_WSL ? { claude: [], codex: [] } : await (deps.wslRoots || wslRoots)();
 
   let claude, gemini;
   try { claude = aggregateClaude(claudeDir, settings?.filters, settings?.claudePath ? [] : wsl.claude); } catch (e) {
@@ -30,7 +31,7 @@ async function scan(settings) {
     gemini = { available: false, dataNote: `Scan error: ${e.message}` };
   }
   let codex;
-  try { codex = aggregateCodex({ extraSessionDirs: wsl.codex }); } catch (e) {
+  try { codex = aggregateCodex({ extraSessionDirs: wsl.codex, ...(deps.codexHome ? { home: deps.codexHome } : {}) }); } catch (e) {
     codex = { available: false, dataNote: `Scan error: ${e.message}` };
   }
 

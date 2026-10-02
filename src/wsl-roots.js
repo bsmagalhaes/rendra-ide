@@ -2,10 +2,10 @@
 // Onde os agentes gravam as sessões depende do sistema do TERMINAL, não do da IDE: quem abre o
 // terminal WSL no Windows roda o Claude Code e o Codex dentro da distro, e os arquivos ficam em
 // /home/<usuário>/.claude/projects e /home/<usuário>/.codex/sessions. Daqui o Windows os alcança
-// pelo caminho UNC //wsl.localhost/<distro>/home/<usuário>/... (barras invertidas no Windows)
+// pelo caminho UNC //wsl.localhost/<distro>/home/<usuário>/... (no Windows, com barras invertidas)
 // Descoberta: distros de `wsl -l -v` (sem docker-desktop), só as que estão em execução (ler uma
 // distro parada pelo UNC a acordaria); em cada uma, as pastas de /home e /root que têm
-// .claude/projects ou .codex/sessions. Falha silenciosa, com tempo limite e cache.
+// .claude/projects ou .codex/sessions. Falha silenciosa, com cache e tempo limite total (timeoutMs, 6 s) sobre a descoberta inteira: a listagem de distros e o acesso UNC.
 
 const fs = require('fs');
 const path = require('path');
@@ -15,17 +15,18 @@ let cache = null; // { at, value }
 const _limpaCache = () => { cache = null; };
 
 const uncPadrao = distro => ['', '', 'wsl.localhost', distro].join(path.win32.sep);
-const existe = p => { try { return fs.statSync(p).isDirectory(); } catch { return false; } };
-const nomes = p => { try { return fs.readdirSync(p); } catch { return []; } };
+// assíncrono (fs.promises, thread pool): um UNC travado não congela o processo que chama
+const existe = async p => { try { return (await fs.promises.stat(p)).isDirectory(); } catch { return false; } };
+const nomes = async p => { try { return await fs.promises.readdir(p); } catch { return []; } };
 
-function varre(raiz) {
+async function varre(raiz) {
   const out = VAZIO();
-  const homes = [path.join(raiz, 'root'), ...nomes(path.join(raiz, 'home')).map(u => path.join(raiz, 'home', u))];
+  const homes = [path.join(raiz, 'root'), ...(await nomes(path.join(raiz, 'home'))).map(u => path.join(raiz, 'home', u))];
   for (const h of homes) {
     const c = path.join(h, '.claude', 'projects');
     const x = path.join(h, '.codex', 'sessions');
-    if (existe(c)) out.claude.push(c);
-    if (existe(x)) out.codex.push(x);
+    if (await existe(c)) out.claude.push(c);
+    if (await existe(x)) out.codex.push(x);
   }
   return out;
 }
@@ -36,7 +37,7 @@ async function descobre({ listDistros, uncRoot }) {
   try { distros = await listDistros(); } catch { return out; }
   for (const d of distros || []) {
     if (!/^running$/i.test(d.state)) continue;
-    const r = varre(uncRoot(d.name));
+    const r = await varre(uncRoot(d.name));
     out.claude.push(...r.claude);
     out.codex.push(...r.codex);
   }

@@ -99,3 +99,46 @@ test('o resultado fica em cache pelo ttl (o scan periódico não repete o wsl.ex
   await wslRoots(d); await wslRoots(d);
   assert.strictEqual(n, 1);
 });
+
+// Fiação do scanner: as raízes WSL descobertas chegam aos parsers (Codex e Claude)
+test('scanner: injeta as raízes WSL no Codex e no Claude Code', async () => {
+  const { scan } = require('../src/scanner');
+  const c = cenario();
+  const vazio = fs.mkdtempSync(path.join(os.tmpdir(), 'rendra-wsl-vazio-'));
+  const roots = { claude: [path.join(c.distro, 'home', 'ana', '.claude', 'projects')], codex: [path.join(c.distro, 'home', 'ana', '.codex', 'sessions')] };
+  const antes = { h: process.env.RENDRA_HOME, n: process.env.RENDRA_NO_WSL };
+  delete process.env.RENDRA_HOME; delete process.env.RENDRA_NO_WSL;
+  try {
+    const com = await scan({ geminiPath: vazio }, { home: vazio, codexHome: vazio, wslRoots: async () => roots });
+    assert.strictEqual(com.codex.available, true);
+    assert.strictEqual(com.codex.totalTokens, 1010, 'tokens do Codex vêm da distro');
+    assert.strictEqual(com.claude.available, true);
+    assert.ok(com.claude.totalTokens >= 550, 'tokens do Claude vêm da distro');
+    const sem = await scan({ geminiPath: vazio }, { home: vazio, codexHome: vazio, wslRoots: async () => ({ claude: [], codex: [] }) });
+    assert.strictEqual(sem.codex.available, false);
+    assert.ok(!sem.claude.available || !sem.claude.totalTokens);
+    // claudePath explícito do usuário vale sozinho: a distro não entra
+    const manual = await scan({ geminiPath: vazio, claudePath: vazio }, { home: vazio, codexHome: vazio, wslRoots: async () => roots });
+    assert.ok(!manual.claude.available || !manual.claude.totalTokens);
+  } finally {
+    if (antes.h !== undefined) process.env.RENDRA_HOME = antes.h;
+    if (antes.n !== undefined) process.env.RENDRA_NO_WSL = antes.n;
+  }
+});
+
+test('descoberta assíncrona: raiz UNC travada estoura o tempo limite sem bloquear o processo', async () => {
+  _limpaCache();
+  const c = cenario();
+  const orig = fs.promises.readdir;
+  fs.promises.readdir = p => (String(p).startsWith(c.distro) ? new Promise(() => {}) : orig.call(fs.promises, p));
+  try {
+    let ticks = 0;
+    const iv = setInterval(() => ticks++, 10);
+    const t = Date.now();
+    const r = await wslRoots({ ...c.deps, timeoutMs: 150 });
+    clearInterval(iv);
+    assert.deepStrictEqual(r, { claude: [], codex: [] });
+    assert.ok(Date.now() - t < 1500);
+    assert.ok(ticks >= 5, 'o laço de eventos seguiu girando durante a espera');
+  } finally { fs.promises.readdir = orig; }
+});
