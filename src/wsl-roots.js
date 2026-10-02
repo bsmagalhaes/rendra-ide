@@ -50,8 +50,14 @@ async function wslRoots(deps = {}) {
   const ttl = deps.ttl ?? 60000;
   if (ttl && cache && Date.now() - cache.at < ttl) return cache.value;
   const listDistros = deps.listDistros || (() => require('./setup').listWslDistros(4000));
-  const limite = new Promise(r => { const t = setTimeout(() => r(VAZIO()), deps.timeoutMs ?? 6000); t.unref?.(); });
-  const value = await Promise.race([descobre({ listDistros, uncRoot: deps.uncRoot || uncPadrao }), limite]);
+  // O timer NÃO pode ter unref: ele é o que mantém o laço de eventos vivo enquanto a descoberta
+  // está pendurada (wsl.exe ou UNC travado); sem ele, no Linux o processo encerra com a promessa
+  // pendente. Quando a descoberta termina antes, o timer é cancelado.
+  let t;
+  const limite = new Promise(r => { t = setTimeout(() => r(VAZIO()), deps.timeoutMs ?? 6000); });
+  let value;
+  try { value = await Promise.race([descobre({ listDistros, uncRoot: deps.uncRoot || uncPadrao }), limite]); }
+  finally { clearTimeout(t); }
   if (ttl) cache = { at: Date.now(), value };
   return value;
 }

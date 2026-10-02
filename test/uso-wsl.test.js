@@ -142,3 +142,11 @@ test('descoberta assíncrona: raiz UNC travada estoura o tempo limite sem bloque
     assert.ok(ticks >= 5, 'o laço de eventos seguiu girando durante a espera');
   } finally { fs.promises.readdir = orig; }
 });
+
+test('processo isolado: descoberta pendurada não deixa o laço de eventos esvaziar (regressão do Linux)', () => {
+  const { spawnSync } = require('child_process');
+  const raiz = path.join(__dirname, '..', 'src', 'wsl-roots').split(path.sep).join('/');
+  const code = `require(${JSON.stringify(raiz)}).wslRoots({ platform: 'win32', ttl: 0, timeoutMs: 80, listDistros: () => new Promise(() => {}) }).then(r => console.log(JSON.stringify(r)));`;
+  const r = spawnSync(process.execPath, ['-e', code], { encoding: 'utf8', timeout: 10000 });
+  assert.strictEqual(r.stdout.trim(), '{"claude":[],"codex":[]}', 'o processo encerrou antes do tempo limite resolver');
+});
