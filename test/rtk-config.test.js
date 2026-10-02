@@ -6,7 +6,8 @@ const fs = require('fs');
 const path = require('path');
 const C = require('../src/rtk-config');
 
-const fx = n => fs.readFileSync(path.join(__dirname, 'fixtures', 'rtk', n), 'utf8');
+// autocrlf pode converter as fixtures no checkout do Windows: os testes partem de LF
+const fx = n => fs.readFileSync(path.join(__dirname, 'fixtures', 'rtk', n), 'utf8').replace(/\r\n/g, '\n');
 const ORCA_HOOKS = fx('codex-hooks-orca.json');
 const AFTER_INIT = fx('codex-hooks-after-init.json');
 const CLAUDE = fx('claude-settings-after-init.json');
