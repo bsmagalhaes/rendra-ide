@@ -120,7 +120,7 @@ npm run setup
 
 ### Atualizações
 
-O app confere o repositório ao abrir e a cada 6 horas. Quando sai uma versão nova, a barra inferior mostra **Versão X disponível · Atualizar agora**. Ao clicar, o app fecha (perguntando antes se há arquivos para salvar), baixa a versão com `git pull` e `npm install` e abre de novo na página Novidades. Configurações, workspaces e preços não mudam.
+O app confere o repositório ao abrir e a cada 6 horas. Quando sai uma versão nova, a barra lateral mostra o botão verde **Nova versão**. Ao clicar, o app fecha (perguntando antes se há arquivos para salvar), baixa a versão com `git pull` e `npm install` e abre de novo. Na primeira abertura depois de atualizar, um modal de Novidades mostra o que mudou e só fecha pelo botão **Fechar**. Configurações, workspaces e preços não mudam.
 
 Se você alterou arquivos do próprio Rendra IDE, a atualização não sobrescreve nada: o app avisa e continua na versão atual. Pelo terminal, o equivalente é:
 

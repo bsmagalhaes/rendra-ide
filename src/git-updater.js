@@ -67,7 +67,7 @@ function createGitUpdater({ root, dataDir, currentVersion, send }) {
     return state;
   }
 
-  // Called by the renderer ("Atualizar agora"): quit the app; the helper finishes the job
+  // Called by the renderer ("Nova versão" button): quit the app; the helper finishes the job
   function install(closeApp) {
     if (state.state !== 'available') return { ok: false, error: 'Nenhuma atualização disponível' };
     const node = findOnPath('node');

@@ -149,10 +149,11 @@ function registerDevCode({ ipcMain, dialog, store, getWindow, deps = {} }) {
   };
 
   let wslCache = null;
-  ipcMain.handle('dev:wsl-info', async () => {
-    if (!wslCache) wslCache = listDistros().then(distros => ({ available: distros.length > 0, distros }));
+  const wslInfo = (refresh = false) => {
+    if (!wslCache || refresh) wslCache = listDistros().then(distros => ({ available: distros.length > 0, distros }));
     return wslCache;
-  });
+  };
+  ipcMain.handle('dev:wsl-info', () => wslInfo());
 
   // ── Windows folder "mounted" for a distro ──────────────────────────────────
   // The first time someone opens via WSL they can point at their Windows projects folder.
@@ -406,7 +407,9 @@ function registerDevCode({ ipcMain, dialog, store, getWindow, deps = {} }) {
       let pedidoWsl = null;
       if (!wsl && IS_WIN && typeof shellKey === 'string' && shellKey.startsWith('wsl:')) {
         const pedido = shellKey.slice(4).trim().toLowerCase();
-        const distro = (await listDistros()).find(d => d.name.toLowerCase() === pedido);
+        const acha = info => info.distros.find(d => d.name.toLowerCase() === pedido);
+        // lista em cache; só se o nome não está nela confere de novo (distro instalada depois de aberto o app)
+        const distro = acha(await wslInfo()) || acha(await wslInfo(true));
         if (!distro) return { error: `Distribuição WSL "${shellKey.slice(4)}" não encontrada` };
         pedidoWsl = distro.name;
       }

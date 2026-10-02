@@ -921,10 +921,6 @@ body.dev-mode #page-terminal.active { display: flex; flex-direction: column; hei
 .price-banner[hidden] { display: none; }
 .update-status { font-size: 10px; color: var(--green); }
 .update-status[hidden] { display: none; }
-.update-status button {
-  background: var(--green); color: #0f0f0f; border: none; border-radius: 3px; cursor: pointer;
-  font-family: var(--font); font-size: 9px; font-weight: 700; padding: 2px 8px; margin-left: 4px;
-}
 
 /* botão "Nova versão" no rodapé da barra lateral: só aparece com versão nova */
 .nav-update {

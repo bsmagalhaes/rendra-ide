@@ -7,7 +7,7 @@
 // 4. runs npm run check and npm test
 // 5. commits "chore: versão X.Y.Z", tags vX.Y.Z and pushes both. The tag makes GitHub Actions publish
 //    the release notes (.github/workflows/release.yml); installed copies (git clone) see the new
-//    version in package.json on main and offer "Atualizar agora".
+//    version in package.json on main and offer the green "Nova versão" button.
 
 const fs = require('fs');
 const path = require('path');

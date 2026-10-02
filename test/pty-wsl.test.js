@@ -8,6 +8,7 @@ const { registerDevCode } = require('../src/devcode');
 function montar(distros) {
   const handlers = new Map();
   const lancados = [];
+  let listagens = 0;
   const ptyFalso = {
     spawn: (file, args) => { lancados.push({ file, args }); return { onData() {}, onExit() {}, write() {}, kill() {}, resize() {} }; },
   };
@@ -15,9 +16,9 @@ function montar(distros) {
   const store = { get: (k, d) => d, set() {}, delete() {} };
   registerDevCode({
     ipcMain, dialog: {}, store, getWindow: () => null,
-    deps: { listWslDistros: async () => distros.map(name => ({ name, state: 'Running', version: 2, isDefault: false })), loadPty: () => ptyFalso, wakeWslDistro: async () => true },
+    deps: { listWslDistros: async () => { listagens++; return distros.map(name => ({ name, state: 'Running', version: 2, isDefault: false })); }, loadPty: () => ptyFalso, wakeWslDistro: async () => true },
   });
-  return { criar: shell => handlers.get('pty:create')({}, { cols: 80, rows: 24, shell }), lancados };
+  return { criar: shell => handlers.get('pty:create')({}, { cols: 80, rows: 24, shell }), lancados, listagens: () => listagens };
 }
 
 test('wsl:<nome> de uma distro instalada abre o wsl.exe nela', { skip: process.platform !== 'win32' }, async () => {
@@ -44,4 +45,15 @@ test('o nome da distro vale sem diferenciar maiúsculas e usa o nome da lista', 
   const r = await t.criar('wsl:ubuntu');
   assert.strictEqual(r.error, undefined);
   assert.deepStrictEqual(t.lancados[0].args.slice(0, 2), ['-d', 'Ubuntu']);
+});
+
+test('distro conhecida reaproveita a lista em cache; nome fora da lista confere de novo e recusa', { skip: process.platform !== 'win32' }, async () => {
+  const t = montar(['Ubuntu']);
+  await t.criar('wsl:Ubuntu');
+  await t.criar('wsl:ubuntu');
+  assert.strictEqual(t.listagens(), 1);
+  const r = await t.criar('wsl:Outra');
+  assert.ok(r.error);
+  assert.strictEqual(t.listagens(), 2);
+  assert.strictEqual(t.lancados.length, 2);
 });
