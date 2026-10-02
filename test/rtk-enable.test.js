@@ -112,8 +112,7 @@ const ler = f => fs.readFileSync(f, 'utf8');
 const escrever = (f, t) => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, t); };
 async function alvo(t) { return t.distro ? (await t.env.listEnvironments()).find(e => e.id === 'Ubuntu') : t.env.HOST; }
 function ativador(t, { env = t.env, now = () => new Date(2026, 9, 2, 10, 0, 0).getTime() } = {}) {
-  const status = createRtkStatus({ env, processEnv: t.procEnv, runRtk: async () => ({ ok: true, output: '' }) });
-  return createRtkEnable({ env, processEnv: t.procEnv, now, inspect: status.inspect, gitBash: async () => true });
+  return createRtkEnable({ env, processEnv: t.procEnv, now, gitBash: async () => true });
 }
 const wslHome = '/home/bruno';
 
@@ -176,8 +175,7 @@ test('Codex no host: oito eventos do Orca iguais, RTK no índice 1 com caminho a
     assert.match(toml.added, /\[shell_environment_policy\]/);
     assert.ok(ler(toml.backup) === tomlAntes);
     assert.ok(r.notes.some(n => n.includes('Banco do Codex criado')));
-    assert.match(r.status.agents.codex.writableRootsSnippet, /codex"\]/);
-    assert.strictEqual(r.status.agents.codex.hookAbsolute, true);
+    assert.strictEqual(r.status, undefined, 'o resultado não carrega o status completo');
     assert.ok(t.chamadas.filter(c => c.db).every(c => c.db === t.d.codexDb), 'nenhum rtk com o banco do Claude');
   } finally { limpar(t); }
 });

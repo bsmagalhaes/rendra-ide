@@ -33,8 +33,7 @@ function plannedFiles(agent, dirs, procEnv = {}) {
   return ['hooks.json', 'config.toml', 'RTK.md', 'AGENTS.md'].map(n => p.join(dirs.codexDir, n));
 }
 
-// deps: env (createRtkEnv), inspect (status.inspect, para devolver o estado novo), processEnv,
-//       now, gitBash (() => Promise<bool>)
+// deps: env (createRtkEnv), processEnv, now, gitBash (() => Promise<bool>)
 function createRtkEnable(deps) {
   const { env } = deps;
   const procEnv = deps.processEnv || process.env;
@@ -194,7 +193,6 @@ function createRtkEnable(deps) {
       }
       const base = { ok: true, agent, env: e.id, changes, notes, trustMessage: agent === 'codex' ? TRUST_MSG : null };
       if (agent === 'codex') base.trust = trust.state;
-      if (deps.inspect) base.status = await deps.inspect(e);
       return base;
     } catch (err) {
       const skipped = await rollback().catch(() => []);

@@ -37,6 +37,9 @@ and in the About page credits.
 | `src/accounts.js` | Current Claude account + plan limits (statusline bridge by default, usage endpoint opt-in) |
 | `src/statusline.sh` | Claude Code statusline bridge: saves `rate_limits` to `~/.rendra-ide/`, chains the user's statusline |
 | `src/devcode.js` | IDE backend: folders (incl. WSL), file I/O confined to open folders, git status, watchers, PTYs |
+| `src/rtk-paths.js`, `rtk-config.js`, `rtk-env.js`, `rtk-status.js`, `rtk-install.js`, `rtk-enable.js`, `rtk-ipc.js` | RTK por agente e por sistema (host e WSL): caminhos e versões, edição dos hooks (Claude Code e Codex), execução no host/distro, leitura do estado, instalação, ativação com cópia e rollback, canais IPC |
+| `renderer/rtk-agents.js` | Visão da página RTK por agente e por sistema (UMD, sem DOM, testável no node) |
+| `scripts/e2e-rtk*.js` | e2e da página RTK (`RENDRA_E2E_HIDDEN=1`, home e dados em sandbox) |
 | `src/setup.js` | Checks/installs Git (Git Bash), RTK, WSL — used by the modal and `npm run setup` |
 | `src/git-updater.js` | Update check for git clones (remote `package.json` version) and hand-off to the helper |
 | `scripts/apply-update.js` | Runs after the app quits: `git pull --ff-only` (resets to `origin/main` if upstream history was rewritten and the tree is clean), `npm install` if deps changed, reopens the app |

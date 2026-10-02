@@ -80,7 +80,6 @@
   // ── Visão por agente: linhas por sistema, avisos e HTML (sem DOM) ───────────
   const NL = String.fromCharCode(10);
   const AGENT_NAME = { claude: 'Claude Code', codex: 'Codex' };
-  const TRUST_MSG = 'Abra o Codex e aprove o hook em /hooks. Sem isso o RTK não reescreve nenhum comando.';
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   function rowOf(e, agent) {
@@ -105,7 +104,7 @@
     for (const e of envs) {
       const a = e.state === 'ok' && e.agents && e.agents[agent];
       if (agent !== 'codex' || !a || !a.hook) continue;
-      if (a.trust !== 'trusted-unverified') warnings.push({ kind: 'trust', env: e.label, text: `${e.label}: ${TRUST_MSG}` });
+      if (a.trust !== 'trusted-unverified') warnings.push({ kind: 'trust', env: e.label, text: `${e.label}: ${a.trustMessage}` });
       if (a.writableRootsSnippet) warnings.push({ kind: 'snippet', env: e.label, text: a.writableRootsSnippet });
     }
     const active = rows.filter(r => r.tone === 'ok').length;
@@ -129,7 +128,7 @@
 
   function warningsHtml(list) {
     return list.map(w => (w.kind === 'snippet'
-      ? `<details class="rtk-warn snippet"><summary>${esc(w.env)}: liberar a pasta do banco do RTK no sandbox do Codex</summary>`
+      ? `<details class="rtk-warn snippet"><summary>${esc(w.env)}: liberar a pasta do banco do RTK no sandbox do Codex (só se o Codex não gravar o banco)</summary>`
         + `<pre class="rtk-snippet">${esc(w.text)}</pre><button class="rtk-copy" type="button" data-rtk-action="copy-snippet">copiar</button></details>`
       : `<div class="rtk-warn ${esc(w.kind)}">${esc(w.text)}</div>`)).join('');
   }
@@ -153,7 +152,14 @@
     if (!res || !res.ok) {
       const dica = res && res.needsUpdate ? `${NL}Use o botão Atualizar RTK deste sistema.`
         : res && res.needsInstall ? `${NL}Use o botão Instalar RTK deste sistema.` : '';
-      return `Não foi possível ativar o RTK no ${AGENT_NAME[agent]} em ${envLabel}: ${res && res.error ? res.error : 'sem resposta'}${dica}`;
+      const linhas = [`Não foi possível ativar o RTK no ${AGENT_NAME[agent]} em ${envLabel}: ${res && res.error ? res.error : 'sem resposta'}${dica}`];
+      const rb = res && res.rolledBack ? Object.entries(res.rolledBack) : [];
+      const voltou = rb.filter(([, ok]) => ok).map(([f]) => f);
+      const ficou = rb.filter(([, ok]) => !ok).map(([f]) => f);
+      if (voltou.length) linhas.push('', 'Desfeito (voltaram ao que eram):', ...voltou.map(f => `- ${f}`));
+      if (ficou.length) linhas.push('', 'Não restaurados (outra sessão mexeu neles depois):', ...ficou.map(f => `- ${f}`));
+      if (res && res.backups && res.backups.length) linhas.push('', 'Cópias de segurança que ficaram:', ...res.backups.map(f => `- ${f}`));
+      return linhas.join(NL);
     }
     const linhas = [`RTK ativado no ${AGENT_NAME[agent]} em ${envLabel}.`, ''];
     for (const c of res.changes || []) {
@@ -180,7 +186,7 @@
 
   const api = {
     aggregateAgents, combinedTotals, tooltipLines, chartSeries, fmtInt,
-    agentView, globalWarnings, rowsHtml, warningsHtml, confirmText, resultText, installText, TRUST_MSG,
+    agentView, globalWarnings, rowsHtml, warningsHtml, confirmText, resultText, installText,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RendraRtkAgents = api;

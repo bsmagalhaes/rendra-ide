@@ -3,7 +3,8 @@ const test = require('node:test');
 const assert = require('node:assert');
 const A = require('../renderer/rtk-agents');
 
-const ag = (o = {}) => ({ installed: true, hook: true, hookAbsolute: true, dbEnvConfigured: true, trust: 'trusted-unverified', error: null, gain: { summary: {}, daily: [] }, writableRootsSnippet: 'sandbox_mode = "workspace-write"', ...o });
+const MSG = 'Abra o Codex e aprove o hook em /hooks. Sem isso o RTK não reescreve nenhum comando.';
+const ag = (o = {}) => ({ installed: true, hook: true, hookAbsolute: true, dbEnvConfigured: true, trust: 'trusted-unverified', trustMessage: MSG, error: null, gain: { summary: {}, daily: [] }, writableRootsSnippet: 'sandbox_mode = "workspace-write"', ...o });
 const env = (id, label, agents, extra = {}) => ({ id, label, state: 'ok', version: '0.50.0', needsUpdate: false, agents: { claude: ag(), codex: ag(), ...agents }, ...extra });
 
 test('sistema ativo: linha ok, sem ação e sem aviso', () => {
@@ -45,8 +46,7 @@ test('hook ausente oferece Ativar; hook sem caminho absoluto ou sem banco no env
 
 test('aviso do /hooks só no Codex, só com hook, e some quando a confiança está registrada', () => {
   const pendente = A.agentView([env('host', 'Windows', { codex: ag({ trust: 'pending' }) })], 'codex');
-  assert.ok(pendente.warnings.some(w => w.kind === 'trust' && w.text === `Windows: ${A.TRUST_MSG}`));
-  assert.match(A.TRUST_MSG, /^Abra o Codex e aprove o hook em \/hooks\. Sem isso o RTK não reescreve nenhum comando\.$/);
+  assert.ok(pendente.warnings.some(w => w.kind === 'trust' && w.text === `Windows: ${MSG}`));
   const ok = A.agentView([env('host', 'Windows', {})], 'codex');
   assert.ok(!ok.warnings.some(w => w.kind === 'trust'));
   const semHook = A.agentView([env('host', 'Windows', { codex: ag({ hook: false, trust: null }) })], 'codex');
@@ -96,7 +96,7 @@ test('resultado da ativação mostra o que mudou, a cópia, o bloco acrescentado
       { file: '/h/.codex/config.toml', kind: 'modified', backup: '/h/.codex/config.toml.rendra-20261002-100000.bak', added: "[shell_environment_policy]\nset = { RTK_DB_PATH = '/x' }" },
       { file: '/h/.codex/RTK.md', kind: 'created', backup: null },
     ],
-    notes: ['Banco do Codex criado em /x.'], trustMessage: A.TRUST_MSG,
+    notes: ['Banco do Codex criado em /x.'], trustMessage: MSG,
   }, 'codex', 'Windows');
   assert.match(t, /RTK ativado no Codex em Windows/);
   assert.match(t, /config\.toml \(alterado\)\n {2}cópia de segurança: \/h\/\.codex\/config\.toml\.rendra-20261002-100000\.bak/);
@@ -111,6 +111,13 @@ test('resultado de falha explica a causa e a saída (atualizar ou instalar)', ()
   assert.match(A.resultText({ ok: false, needsUpdate: true, error: 'velho' }, 'codex', 'W'), /Atualizar RTK/);
   assert.match(A.resultText({ ok: false, needsInstall: true, error: 'sem' }, 'codex', 'W'), /Instalar RTK/);
   assert.match(A.resultText(null, 'codex', 'W'), /sem resposta/);
+});
+
+test('falha da ativação mostra o que foi desfeito, o que não foi e onde ficaram as cópias', () => {
+  const t = A.resultText({ ok: false, error: 'boom', rolledBack: { '/h/.codex/hooks.json': true, '/h/.codex/config.toml': false }, backups: ['/h/.codex/config.toml.rendra-1.bak'] }, 'codex', 'W');
+  assert.ok(t.includes('Desfeito (voltaram ao que eram):\n- /h/.codex/hooks.json'));
+  assert.ok(t.includes('Não restaurados (outra sessão mexeu neles depois):\n- /h/.codex/config.toml'));
+  assert.ok(t.includes('Cópias de segurança que ficaram:\n- /h/.codex/config.toml.rendra-1.bak'));
 });
 
 test('texto da instalação: versão, PATH da distro e aviso do WinGet; falha e distro parada', () => {

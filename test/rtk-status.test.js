@@ -213,3 +213,9 @@ test('installed por agente: a pasta do agente existe no ambiente', async () => {
   const a = (await montar({ files: { '/home/ana/.claude': 'dir' } }).st.status()).environments[0].agents;
   assert.deepStrictEqual([a.claude.installed, a.codex.installed], [true, false]);
 });
+
+test('o estado do Codex leva o texto do /hooks (fonte única em src/rtk-enable.js)', async () => {
+  const { st } = montar({});
+  const a = (await st.status()).environments[0].agents;
+  assert.strictEqual(a.codex.trustMessage, require('../src/rtk-enable').TRUST_MSG);
+});
