@@ -449,25 +449,7 @@ ipcMain.handle('setup:install', async (_e, items = []) => {
 app.on('before-quit', () => devcode.killAll());
 
 // ── RTK (Rust Token Killer) ────────────────────────────────────────────────
-// Only these commands can be run from the UI: read-only ones plus the Codex setup, which the
-// page confirms first; nothing destructive (e.g. gain --reset)
-const RTK_COMMANDS = {
-  gain:      ['gain'],
-  graph:     ['gain', '--graph'],
-  history:   ['gain', '--history'],
-  quota:     ['gain', '--quota'],
-  periods:   ['gain', '--all'],
-  failures:  ['gain', '--failures'],
-  session:   ['session'],
-  discover:  ['discover', '--all'],
-  economics: ['cc-economics'],
-  init:      ['init', '--show'],
-  config:    ['config'],
-  version:   ['--version'],
-  // the one configuring command: adds RTK instructions to Codex's AGENTS.md (UI asks first)
-  'codex-init': ['init', '-g', '--codex'],
-};
-
+// Comandos permitidos na UI e o estado por ambiente e agente: src/rtk-status.js
 function rtkBinary() {
   const local = path.join(require('os').homedir(), '.local', 'bin', process.platform === 'win32' ? 'rtk.exe' : 'rtk');
   return fs.existsSync(local) ? local : 'rtk';
@@ -492,51 +474,22 @@ function runRtk(args, timeout = 60000) {
   });
 }
 
-// Rows of the "By Command" table in `rtk gain` text output
-function parseRtkByCommand(text) {
-  const rows = [];
-  for (const line of text.split(/\r?\n/)) {
-    const m = line.match(/^\s*\d+\.\s+(.+?)\s{2,}(\d+)\s+([\d.]+[KMB]?)\s+([\d.]+)%\s+(\S+)/);
-    if (m) rows.push({ command: m[1], count: +m[2], saved: m[3], pct: +m[4], time: m[5] });
-  }
-  return rows;
-}
-
-ipcMain.handle('rtk-status', async () => {
-  const version = await runRtk(['--version']);
-  if (!version.ok) return { installed: false, missing: version.missing, output: version.output };
-  const [init, gainJson, gainText] = await Promise.all([
-    runRtk(['init', '--show']),
-    runRtk(['gain', '--all', '--format', 'json']),
-    runRtk(['gain']),
-  ]);
-  let gain = null;
-  try { gain = JSON.parse(gainJson.output); } catch { /* keep null */ }
-  const checks = init.output.split(/\r?\n/)
-    .map(l => l.match(/^\[(ok|--|!!|x)\]\s*(.+)$/i))
-    .filter(Boolean)
-    .map(m => ({ ok: m[1].toLowerCase() === 'ok', text: m[2].trim() }));
-  // Codex: RTK hooks in through $CODEX_HOME/AGENTS.md + RTK.md (`rtk init -g --codex`)
-  const codexHome = process.env.CODEX_HOME || path.join(require('os').homedir(), '.codex');
-  // o Codex também pode estar numa distro WSL (terminal WSL): vale a que tiver instalação
-  const wsl = process.env.RENDRA_HOME || process.env.RENDRA_NO_WSL ? { codex: [] } : await require('./src/wsl-roots').wslRoots();
-  const codex = require('./src/codex-rtk').codexRtkState(codexHome, wsl.codex);
-  return {
-    installed: true,
-    version: version.output.trim(),
-    checks,
-    gain,
-    byCommand: parseRtkByCommand(gainText.output),
-    codex,
-  };
+const { createRtkEnv } = require('./src/rtk-env');
+const { createRtkStatus } = require('./src/rtk-status');
+const rtkEnv = createRtkEnv();
+const rtkStatus = createRtkStatus({
+  env: rtkEnv,
+  runRtk,
+  // o campo `codex` de antes (instalação e AGENTS.md), que a página ainda lê
+  codexLegacy: async () => {
+    const codexHome = process.env.CODEX_HOME || path.join(require('os').homedir(), '.codex');
+    // o Codex também pode estar numa distro WSL (terminal WSL): vale a que tiver instalação
+    const wsl = process.env.RENDRA_HOME || process.env.RENDRA_NO_WSL ? { codex: [] } : await require('./src/wsl-roots').wslRoots();
+    return require('./src/codex-rtk').codexRtkState(codexHome, wsl.codex);
+  },
 });
-
-ipcMain.handle('rtk-run', async (_e, key) => {
-  const args = RTK_COMMANDS[key];
-  if (!args) return { ok: false, output: `Comando não permitido: ${key}` };
-  const res = await runRtk(args, key === 'discover' ? 180000 : 60000);
-  return { ...res, command: 'rtk ' + args.join(' ') };
-});
+ipcMain.handle('rtk-status', () => rtkStatus.status());
+ipcMain.handle('rtk-run', (_e, key) => rtkStatus.run(key));
 
 ipcMain.handle('show-notification', (_e, { title, body }) => {
   if (Notification.isSupported()) {
