@@ -32,10 +32,6 @@ test('versão: comparação numérica, não de texto', () => {
   assert.ok(P.compareVersions('0.50.1', '0.50.0') > 0);
   assert.ok(P.compareVersions('0.9.0', '0.50.0') < 0, '0.9.0 é menor que 0.50.0 (texto diria o contrário)');
   assert.ok(P.compareVersions('0.100.0', '0.50.0') > 0);
-  assert.strictEqual(P.isOutdated('rtk 0.48.0'), true);
-  assert.strictEqual(P.isOutdated('rtk 0.50.0'), false);
-  assert.strictEqual(P.isOutdated('rtk 0.9.0'), true);
-  assert.strictEqual(P.isOutdated(null), false);
 });
 
 test('hook no Windows: sem aspas quando o caminho é simples (correção 3)', () => {

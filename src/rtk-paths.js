@@ -42,11 +42,6 @@ function compareVersions(a, b) {
   }
   return 0;
 }
-// `rtk.version` de setup.check() é o texto cru ("rtk 0.48.0"); sem versão legível, não acusa
-function isOutdated(text) {
-  const v = parseRtkVersion(text);
-  return v ? compareVersions(v, RTK_MIN) < 0 : false;
-}
 
 // ── Comando do hook ──────────────────────────────────────────────────────────
 // Devolve { command, note }: command nulo quando o caminho não pode ser citado com segurança.
@@ -119,6 +114,6 @@ function writableRootsSnippet(codexDir) {
 
 module.exports = {
   RTK_MIN, rtkDataDir, rtkConfigDir, claudeDbPath, codexDbDir, codexDbPath,
-  parseRtkVersion, compareVersions, isOutdated,
+  parseRtkVersion, compareVersions,
   hookCommand, isRtkHookCommand, shellSplit, writableRootsSnippet,
 };
