@@ -2,7 +2,7 @@
 
 ## Próxima versão
 ### Instaladores
-- A Rendra IDE passa a ter instalador para Windows (`Rendra-IDE-Setup.exe`), macOS (Apple Silicon e Intel) e Linux (AppImage e `.deb`), na página de Releases do GitHub e no site. A instalação por `git clone` continua valendo e se atualiza pelo próprio caminho.
+- A Rendra IDE passa a ter instalador para Windows (`Rendra-IDE-Setup.exe`) e Linux (AppImage e `.deb`), na página de Releases do GitHub e no site. O instalador do Mac (Apple Silicon e Intel) entra quando a assinatura estiver configurada. A instalação por `git clone` continua valendo e se atualiza pelo próprio caminho.
 - Quem instala pelo instalador recebe as versões novas sozinho: o app baixa a atualização em segundo plano e o botão "Nova versão" pede para reiniciar. No Windows cada atualização baixa o instalador completo; no Linux o `.deb` pede a senha do sistema para instalar.
 - No Windows o instalador ainda não tem assinatura digital, então o SmartScreen mostra o aviso "O Windows protegeu seu computador" na primeira execução. O site explica o passo a passo ("Mais informações", "Executar assim mesmo").
 - O pacote ficou menor: o editor leva só os arquivos que usa.

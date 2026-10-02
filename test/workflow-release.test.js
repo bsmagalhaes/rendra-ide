@@ -39,7 +39,7 @@ test('build-mac: os cinco segredos só nos passos de conferência e de build, co
   assert.deepStrictEqual(comSegredo.map(s => s.name), ['Conferir que os cinco segredos da Apple existem', 'Construir, assinar e notarizar']);
   for (const s of comSegredo) {
     for (const v of ['CSC_LINK', 'CSC_KEY_PASSWORD', 'APPLE_ID', 'APPLE_APP_SPECIFIC_PASSWORD', 'APPLE_TEAM_ID']) {
-      assert.match(s.env[v], new RegExp(`secrets\.${v}`), `${s.name}: ${v}`);
+      assert.match(s.env[v], new RegExp(`secrets\\.${v}`), `${s.name}: ${v}`);
     }
   }
   const build = passos.find(s => s.name === 'Construir, assinar e notarizar').run;
@@ -74,6 +74,8 @@ test('o job mac recusa assinatura ou notarização pulada, e confere node-pty e 
 test('verificação: a tag precisa ser igual à versão do package.json', () => {
   const run = jobs.verificacao.steps.map(s => s.run || '').join('\n');
   assert.match(run, /GITHUB_REF_NAME" != "v\$v"/);
+  // sem o exit 1 depois da mensagem, o electron-builder criaria um segundo rascunho v<versão>
+  assert.match(run, /!= "v\$v" \]; then\s+echo "a tag[^\n]*\n\s+exit 1\s+fi/);
 });
 
 test('publicar: junta o latest-mac.yml, confere os assets e só então tira do rascunho', () => {
@@ -83,6 +85,7 @@ test('publicar: junta o latest-mac.yml, confere os assets e só então tira do r
   const confere = idx(/check-release-assets\.js/);
   const publica = idx(/--draft=false/);
   assert.ok(junta >= 0 && confere > junta && publica > confere, `ordem ${junta} ${confere} ${publica}`);
+  assert.match(jobs.publicar.if, /needs\.build\.result == 'success'/);
   assert.match(runs[publica], /--prerelease/);
   assert.match(runs[publica], /--latest/);
   assert.match(texto, /gh release upload "\$GITHUB_REF_NAME" latest-mac\.yml --clobber/);

@@ -8,7 +8,7 @@ const fs = require('fs');
 const yaml = require('js-yaml');
 
 const ARCHS = ['arm64', 'x64'];
-const zipArch = url => ARCHS.find(a => new RegExp(`-${a}\.zip$`).test(url)) || null;
+const zipArch = url => ARCHS.find(a => new RegExp(`-${a}\\.zip$`).test(url)) || null;
 
 function mergeLatestMac(textos) {
   const docs = textos.map(t => yaml.load(t));

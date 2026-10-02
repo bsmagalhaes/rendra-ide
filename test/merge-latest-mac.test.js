@@ -42,3 +42,8 @@ test('o mesmo zip repetido não duplica a entrada', () => {
   const doc = yaml.load(mergeLatestMac([yml('arm64'), yml('arm64'), yml('x64')]));
   assert.strictEqual(doc.files.length, 2);
 });
+
+test('o ponto do .zip é literal: "-x64Xzip" não conta como zip x64', () => {
+  const falso = yaml.dump({ version: '1.3.0', files: [{ url: 'Rendra-IDE-mac-x64Xzip', sha512: 's', size: 1 }, { url: 'Rendra-IDE-mac-arm64.zip', sha512: 's', size: 1 }] });
+  assert.deepStrictEqual(checkLatestMac(falso), ['falta o zip x64 em latest-mac.yml']);
+});

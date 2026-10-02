@@ -23,9 +23,14 @@ destes arquivos: o setup de Git Bash, RTK e WSL roda pelo app (primeira abertura
 `npm run setup` (`src/setup.js`, `scripts/setup-env.js`).
 
 ## Como os usuários instalam e atualizam
-- Instalação: `git clone https://github.com/bsmagalhaes/rendra-ui-ide`, `npm install`, `npm start`.
+- Duas formas de instalar, ambas válidas (a partir da 1.3.0):
+  1. Instalador da página de Releases ou do site (`Rendra-IDE-Setup.exe`, dmg no macOS, AppImage ou
+     `.deb` no Linux): o app se atualiza sozinho pelo electron-updater (baixa em segundo plano; o
+     botão "Nova versão" pede para reiniciar). Ver a seção "Instaladores".
+  2. Clone: `git clone https://github.com/bsmagalhaes/rendra-ui-ide`, `npm install`, `npm start`.
+     Atualiza pelo caminho do git descrito abaixo.
   Na primeira abertura o app oferece instalar Git Bash, RTK e WSL (ou `npm run setup`).
-- Atualização: o app compara a própria versão com a do `package.json` na `main` do GitHub
+- Atualização de clone: o app compara a própria versão com a do `package.json` na `main` do GitHub
   (10 s depois de abrir e a cada 6 h). Só aparece aviso quando a **versão** muda, não a cada commit.
   O botão verde "Nova versão" aparece no rodapé da barra lateral esquerda (só quando há versão
   nova); ao clicar, o app pergunta, fecha (pergunta antes se há arquivos para salvar),

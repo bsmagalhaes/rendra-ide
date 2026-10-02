@@ -36,3 +36,15 @@ test('o .zip.blockmap do mac é esperado, o do Windows e o do dmg reprovam', () 
 test('a lista esperada não tem espaço no nome', () => {
   for (const n of expectedAssets({ mac: true })) assert.ok(!/\s/.test(n), n);
 });
+
+test('contrato da release: os nomes literais, sem e com mac', () => {
+  const sem = ['Rendra-IDE-Setup.exe', 'latest.yml', 'Rendra-IDE.AppImage', 'Rendra-IDE.deb', 'latest-linux.yml'];
+  const mac = [
+    'Rendra-IDE-mac-arm64.dmg', 'Rendra-IDE-mac-arm64.zip', 'Rendra-IDE-mac-arm64.zip.blockmap',
+    'Rendra-IDE-mac-x64.dmg', 'Rendra-IDE-mac-x64.zip', 'Rendra-IDE-mac-x64.zip.blockmap',
+    'latest-mac.yml',
+  ];
+  assert.deepStrictEqual([...expectedAssets({ mac: false })].sort(), [...sem].sort());
+  assert.deepStrictEqual([...expectedAssets({ mac: true })].sort(), [...sem, ...mac].sort());
+  assert.strictEqual(expectedAssets({ mac: true }).length, 12);
+});

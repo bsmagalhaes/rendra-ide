@@ -327,23 +327,23 @@ ipcMain.handle('pricing:check-feed', () => checkFeed());
 // src/git-updater.js. Packaged builds, if they are ever published, use electron-updater with
 // GitHub Releases. Either way settings, workspaces, prices and caches live in the user data
 // folder, which updates never touch.
-const updateSource = selectUpdateSource({
-  isPackaged: app.isPackaged,
-  windowsStore: !!process.windowsStore,
-  isClone: fs.existsSync(path.join(__dirname, '.git')),
-});
-let updateState = updateSource === 'store' ? initialState('store') : { state: 'idle' };
-let quitAfterClose = false;
-function sendUpdate(state) {
-  updateState = state;
-  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('update:status', state);
-}
 const gitUpdater = createGitUpdater({
   root: __dirname,
   dataDir: app.getPath('userData'),
   currentVersion: app.getVersion(),
   send: sendUpdate,
 });
+const updateSource = selectUpdateSource({
+  isPackaged: app.isPackaged,
+  windowsStore: !!process.windowsStore,
+  isClone: gitUpdater.isClone,
+});
+let updateState = initialState(updateSource);
+let quitAfterClose = false;
+function sendUpdate(state) {
+  updateState = state;
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('update:status', state);
+}
 function initAutoUpdate() {
   if (updateSource === 'git') { gitUpdater.start(); return; }
   if (updateSource !== 'updater') return; // store: a Store atualiza; none: sem origem
