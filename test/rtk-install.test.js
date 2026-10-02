@@ -84,7 +84,9 @@ test('Linux: copia ao lado e renomeia por cima; falha não deixa arquivo tempor�
 
 // ── fetchRtkRelease: checksum ───────────────────────────────────────────────
 test('checksum errado aborta sem extrair nem deixar pasta temporária', async () => {
-  const antes = new Set(fs.readdirSync(os.tmpdir()).filter(n => n.startsWith('rtk-')));
+  // só as pastas do próprio fetchRtkRelease (rtk-XXXXXX); outros testes criam rtk-<nome>-XXXXXX em paralelo
+  const dele = n => /^rtk-[A-Za-z0-9]{6}$/.test(n);
+  const antes = new Set(fs.readdirSync(os.tmpdir()).filter(dele));
   const corpo = Buffer.from('conteudo do pacote');
   const ruim = 'f'.repeat(64);
   let extraiu = false;
@@ -98,7 +100,7 @@ test('checksum errado aborta sem extrair nem deixar pasta temporária', async ()
     extract: async () => { extraiu = true; },
   }), /Checksum/);
   assert.strictEqual(extraiu, false);
-  const depois = fs.readdirSync(os.tmpdir()).filter(n => n.startsWith('rtk-') && !antes.has(n));
+  const depois = fs.readdirSync(os.tmpdir()).filter(n => dele(n) && !antes.has(n));
   assert.deepStrictEqual(depois, []);
 });
 
