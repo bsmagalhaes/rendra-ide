@@ -450,7 +450,16 @@ app.on('before-quit', () => devcode.killAll());
 
 // ── RTK (Rust Token Killer) ────────────────────────────────────────────────
 // Comandos permitidos na UI e o estado por ambiente e agente: src/rtk-status.js
+// Só nos testes de ponta a ponta (janela escondida e home falso): o `rtk` é um script que devolve
+// dados fictícios (scripts/e2e-rtk-fake.js), executado pelo próprio Electron como Node. Sem as duas
+// variáveis, RENDRA_E2E_RTK_BIN é ignorada.
+const e2eRtk = process.env.RENDRA_E2E_HIDDEN && process.env.RENDRA_HOME && process.env.RENDRA_E2E_RTK_BIN || null;
+const execRtkFile = (file, args, opts, cb) => (e2eRtk && file === e2eRtk
+  ? execFile(process.execPath, [e2eRtk, ...args], { ...opts, env: { ...opts.env, ELECTRON_RUN_AS_NODE: '1' } }, cb)
+  : execFile(file, args, opts, cb));
+
 function rtkBinary() {
+  if (e2eRtk) return e2eRtk;
   const local = path.join(require('os').homedir(), '.local', 'bin', process.platform === 'win32' ? 'rtk.exe' : 'rtk');
   return fs.existsSync(local) ? local : 'rtk';
 }
@@ -461,7 +470,7 @@ function stripAnsi(s) {
 
 function runRtk(args, timeout = 60000) {
   return new Promise(resolve => {
-    execFile(rtkBinary(), args, {
+    execRtkFile(rtkBinary(), args, {
       timeout, windowsHide: true, maxBuffer: 10 * 1024 * 1024,
       env: { ...process.env, NO_COLOR: '1', CLICOLOR: '0' },
     }, (err, stdout, stderr) => {
@@ -479,12 +488,12 @@ const { createRtkStatus } = require('./src/rtk-status');
 const { createRtkInstall } = require('./src/rtk-install');
 const { createRtkEnable } = require('./src/rtk-enable');
 const { registerRtkIpc } = require('./src/rtk-ipc');
-const rtkEnv = createRtkEnv();
+const rtkEnv = createRtkEnv(e2eRtk ? { rtkPath: async () => e2eRtk, execFile: execRtkFile } : {});
 const rtkInstall = createRtkInstall({ env: rtkEnv });
 const rtkStatus = createRtkStatus({
   env: rtkEnv,
   runRtk,
-  hostWarnings: () => rtkInstall.hostWarnings(),
+  hostWarnings: () => (e2eRtk ? [] : rtkInstall.hostWarnings()), // no e2e não se consulta o PATH real
   // o campo `codex` de antes (instalação e AGENTS.md), que a página ainda lê
   codexLegacy: async () => {
     const codexHome = process.env.CODEX_HOME || path.join(require('os').homedir(), '.codex');

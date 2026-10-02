@@ -18,7 +18,8 @@ const LABEL = { win32: 'Windows', darwin: 'macOS', linux: 'Linux' };
 function createRtkEnv(deps = {}) {
   const platform = deps.platform || process.platform;
   const procEnv = deps.env || process.env;
-  const homedir = deps.homedir || (() => os.homedir());
+  // RENDRA_HOME: home falso de demonstração e testes (o mesmo que accounts.js e scanner.js usam)
+  const homedir = deps.homedir || (() => procEnv.RENDRA_HOME || os.homedir());
   const fsx = deps.fs || fs;
   const now = deps.now || Date.now;
   const exec = deps.execFile || execFile;
