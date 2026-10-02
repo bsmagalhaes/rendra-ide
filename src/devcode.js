@@ -1,4 +1,4 @@
-/*! Rendra IDE v1.1.5 | MIT | © 2026 Bruno Magalhaes | brunomagalhaes.me */
+/*! Rendra IDE v1.1.6 | MIT | © 2026 Bruno Magalhaes | brunomagalhaes.me */
 // DevCode tab backend: workspaces (one folder each), file read/write and PTY terminals.
 // File access is confined to the folders of the open workspaces; the renderer never touches fs.
 

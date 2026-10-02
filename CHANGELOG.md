@@ -1,6 +1,6 @@
 # Novidades
 
-## Próxima versão
+## 1.1.6 · 02/10/2026
 ### Uso no terminal WSL
 - O consumo do Claude Code e do Codex agora considera o sistema do terminal, não só o do Windows: se você abre o terminal em uma distro WSL e roda os agentes lá, as sessões de `/home/<usuário>/.claude` e `/home/<usuário>/.codex` entram na soma, junto com as do Windows e sem contar nada duas vezes. Só distros em execução são lidas (a IDE não acorda distro parada); com o WSL desligado, a leitura segue só com o Windows.
 
