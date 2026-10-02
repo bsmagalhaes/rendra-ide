@@ -477,26 +477,29 @@ function runRtk(args, timeout = 60000) {
 const { createRtkEnv } = require('./src/rtk-env');
 const { createRtkStatus } = require('./src/rtk-status');
 const { createRtkInstall } = require('./src/rtk-install');
+const { createRtkEnable } = require('./src/rtk-enable');
 const { registerRtkIpc } = require('./src/rtk-ipc');
 const rtkEnv = createRtkEnv();
 const rtkInstall = createRtkInstall({ env: rtkEnv });
+const rtkStatus = createRtkStatus({
+  env: rtkEnv,
+  runRtk,
+  hostWarnings: () => rtkInstall.hostWarnings(),
+  // o campo `codex` de antes (instalação e AGENTS.md), que a página ainda lê
+  codexLegacy: async () => {
+    const codexHome = process.env.CODEX_HOME || path.join(require('os').homedir(), '.codex');
+    // o Codex também pode estar numa distro WSL (terminal WSL): vale a que tiver instalação
+    const wsl = process.env.RENDRA_HOME || process.env.RENDRA_NO_WSL ? { codex: [] } : await require('./src/wsl-roots').wslRoots();
+    return require('./src/codex-rtk').codexRtkState(codexHome, wsl.codex);
+  },
+});
 registerRtkIpc({
   ipcMain,
   env: rtkEnv,
+  status: rtkStatus,
   install: rtkInstall,
+  enable: createRtkEnable({ env: rtkEnv, inspect: rtkStatus.inspect }),
   log: msg => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('setup:log', msg); },
-  status: createRtkStatus({
-    env: rtkEnv,
-    runRtk,
-    hostWarnings: () => rtkInstall.hostWarnings(),
-    // o campo `codex` de antes (instalação e AGENTS.md), que a página ainda lê
-    codexLegacy: async () => {
-      const codexHome = process.env.CODEX_HOME || path.join(require('os').homedir(), '.codex');
-      // o Codex também pode estar numa distro WSL (terminal WSL): vale a que tiver instalação
-      const wsl = process.env.RENDRA_HOME || process.env.RENDRA_NO_WSL ? { codex: [] } : await require('./src/wsl-roots').wslRoots();
-      return require('./src/codex-rtk').codexRtkState(codexHome, wsl.codex);
-    },
-  }),
 });
 
 ipcMain.handle('show-notification', (_e, { title, body }) => {

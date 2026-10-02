@@ -17,6 +17,13 @@ function rtkDataDir({ platform = process.platform, env = process.env, home } = {
   if (platform === 'darwin') return p.join(home, 'Library', 'Application Support', 'rtk');
   return p.join(env.XDG_DATA_HOME || p.join(home, '.local', 'share'), 'rtk');
 }
+// Pasta de configuração do RTK (dirs::config_dir()/rtk): onde `rtk init -g` grava filters.toml
+function rtkConfigDir({ platform = process.platform, env = process.env, home } = {}) {
+  const p = pathOf(platform);
+  if (platform === 'win32') return p.join(env.APPDATA || p.join(home, 'AppData', 'Roaming'), 'rtk');
+  if (platform === 'darwin') return p.join(home, 'Library', 'Application Support', 'rtk');
+  return p.join(env.XDG_CONFIG_HOME || p.join(home, '.config'), 'rtk');
+}
 const claudeDbPath = o => pathOf(o.platform || process.platform).join(rtkDataDir(o), 'history.db');
 const codexDbDir = o => pathOf(o.platform || process.platform).join(rtkDataDir(o), 'codex');
 const codexDbPath = o => pathOf(o.platform || process.platform).join(codexDbDir(o), 'history.db');
@@ -111,7 +118,7 @@ function writableRootsSnippet(codexDir) {
 }
 
 module.exports = {
-  RTK_MIN, rtkDataDir, claudeDbPath, codexDbDir, codexDbPath,
+  RTK_MIN, rtkDataDir, rtkConfigDir, claudeDbPath, codexDbDir, codexDbPath,
   parseRtkVersion, compareVersions, isOutdated,
   hookCommand, isRtkHookCommand, shellSplit, writableRootsSnippet,
 };

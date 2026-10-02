@@ -50,6 +50,7 @@ contextBridge.exposeInMainWorld('rendra', {
   },
   rtkRun: (key) => ipcRenderer.invoke('rtk-run', key),
   rtkInstall: (envId) => ipcRenderer.invoke('rtk-install', envId),
+  rtkEnable: (envId, agent) => ipcRenderer.invoke('rtk-enable', { env: envId, agent }),
   dev: {
     openFolder: (opts) => ipcRenderer.invoke('dev:open-folder', opts),
     wslInfo: () => ipcRenderer.invoke('dev:wsl-info'),

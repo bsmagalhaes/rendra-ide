@@ -7,6 +7,7 @@
 const path = require('path');
 const P = require('./rtk-paths');
 const C = require('./rtk-config');
+const { plannedFiles } = require('./rtk-enable');
 
 // Somente leitura. Nada que apague ou configure (gain --reset, init -g): ativar é o canal rtk-enable.
 const RTK_COMMANDS = {
@@ -107,6 +108,7 @@ function createRtkStatus(deps) {
         hookAbsolute: C.isAbsoluteHook(settingsText, 'claude'),
         dbEnvConfigured: C.claudeDbEnv(settingsText) === claudeDb,
         dbPath: claudeDb, gain: cg.gain, error: cg.error,
+        files: plannedFiles('claude', dirs, pathEnv),
       },
       codex: {
         hook: C.hasRtkHook(hooksText, 'codex'),
@@ -115,6 +117,7 @@ function createRtkStatus(deps) {
         trust: trust.state === 'no-hook' ? null : trust.state,
         dbPath: codexDb, gain: xg.gain, error: xg.error,
         writableRootsSnippet: P.writableRootsSnippet(P.codexDbDir(o)),
+        files: plannedFiles('codex', dirs, pathEnv),
       },
     };
     return out;
