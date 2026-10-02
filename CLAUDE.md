@@ -102,6 +102,13 @@ Preços. Confira o diff antes do commit: se as páginas mudaram de formato, o sc
 - Critério de pronto: `npm run check` e `npm test` passando.
 - Referência completa: `PADRAO-PRODUTOS-RENDRA.md` (no repositório do Rendra Design System).
 
+## Regras do produto
+- Dados e ferramentas (sessões, uso, configuração do Claude Code e do Codex, RTK) vêm do sistema do
+  terminal em uso, não do da instalação da IDE: Windows, Linux nativo ou WSL. No Windows, as
+  distros WSL em execução entram junto com o Windows (`src/wsl-roots.js` é a única fonte dessas
+  pastas; `src/codex-rtk.js` e os parsers a reaproveitam). Recurso novo que lê dado de agente
+  precisa cobrir os três ambientes ou registrar por escrito o que ficou de fora.
+
 ## Regras de máquina para agentes
 A máquina é usada pelo dono ao mesmo tempo em que o agente trabalha. Por isso:
 - Processos: encerre só o PID que o próprio agente iniciou (guarde o PID ao iniciar). Nunca encerre

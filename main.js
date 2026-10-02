@@ -518,12 +518,9 @@ ipcMain.handle('rtk-status', async () => {
     .map(m => ({ ok: m[1].toLowerCase() === 'ok', text: m[2].trim() }));
   // Codex: RTK hooks in through $CODEX_HOME/AGENTS.md + RTK.md (`rtk init -g --codex`)
   const codexHome = process.env.CODEX_HOME || path.join(require('os').homedir(), '.codex');
-  const agents = (() => { try { return fs.readFileSync(path.join(codexHome, 'AGENTS.md'), 'utf8'); } catch { return ''; } })();
-  const codex = {
-    installed: fs.existsSync(codexHome),
-    configured: fs.existsSync(path.join(codexHome, 'RTK.md')) || /\bRTK\b|rtk\.md/i.test(agents),
-    home: codexHome,
-  };
+  // o Codex também pode estar numa distro WSL (terminal WSL): vale a que tiver instalação
+  const wsl = process.env.RENDRA_HOME || process.env.RENDRA_NO_WSL ? { codex: [] } : await require('./src/wsl-roots').wslRoots();
+  const codex = require('./src/codex-rtk').codexRtkState(codexHome, wsl.codex);
   return {
     installed: true,
     version: version.output.trim(),
