@@ -70,8 +70,25 @@ Se algo der errado:
   a versão e o CHANGELOG já atualizados são aceitos.
 - Nunca apague nem mova uma tag já publicada para outro commit: os apps usam a versão da `main`.
 
-Não gere instaladores por enquanto: a distribuição é pelo código. A configuração do
-electron-builder e o electron-updater continuam no projeto para quando houver instaladores.
+## Instaladores (a partir da 1.3.0)
+- Alvos: Windows NSIS x64 (`Rendra-IDE-Setup.exe`, sem assinatura, sem `portable`, sem diferencial),
+  Linux AppImage e `.deb` x64 (`Rendra-IDE.AppImage`, `Rendra-IDE.deb`) e macOS dmg e zip por
+  arquitetura (`Rendra-IDE-mac-arm64.*`, `Rendra-IDE-mac-x64.*`, Developer ID e notarização). Não há
+  alvo `appx`: a Microsoft Store está só documentada.
+- A tag `vX.Y.Z` roda `.github/workflows/release.yml`: verificação, um rascunho da release, os jobs de
+  build (Windows e Linux sem segredos; macOS em job próprio com os segredos `CSC_LINK`,
+  `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`, só quando
+  `CSC_LINK` existe) e o job `publicar`, que confere os assets e só então tira a release de rascunho.
+- A tag precisa ser igual a `v` + a versão do `package.json`. Versão com sufixo (`1.3.0-rc.1`) sai
+  como pré-release e nunca vira "latest". Teste de release com versão de teste: commit da versão rc
+  numa branch, tag nela, e apague release e tag ao fim.
+- Teste de atualização de ponta a ponta nunca usa o repositório público (a release mais nova dele é o
+  que todo app instalado e os botões do site seguem): use repositório descartável com
+  `-c.publish.repo=<repo>`, ou a primeira versão real seguinte.
+- Prova do app empacotado nesta máquina: sempre com `RENDRA_DATA_DIR` temporário; clone e instalado
+  usam a mesma `%APPDATA%\Rendra IDE`.
+- Origem da atualização: `src/update-source.js` (clone usa git; empacotado usa o electron-updater;
+  pacote da Store e pasta sem `.git` não atualizam).
 
 ## Atualizar preços (sem versão nova)
 ```
