@@ -48,7 +48,7 @@ function ambiente({ distro = false, version = 'rtk 0.50.0', running = true } = {
       const f = path.join(dir, 'settings.json');
       const o = lerJson(f);
       o.hooks = o.hooks || {}; o.hooks.PreToolUse = o.hooks.PreToolUse || [];
-      if (!/rtk(\.exe)?"? hook claude/.test(JSON.stringify(o))) o.hooks.PreToolUse.push({ matcher: 'Bash', hooks: [{ type: 'command', command: 'rtk hook claude' }] });
+      if (!o.hooks.PreToolUse.some(g => (g.hooks || []).some(h => P.isRtkHookCommand(h.command, 'claude')))) o.hooks.PreToolUse.push({ matcher: 'Bash', hooks: [{ type: 'command', command: 'rtk hook claude' }] });
       grava(f, o);
       fs.writeFileSync(path.join(dir, 'RTK.md'), '<!-- rtk-owned -->\n');
       const cm = path.join(dir, 'CLAUDE.md');
@@ -61,7 +61,7 @@ function ambiente({ distro = false, version = 'rtk 0.50.0', running = true } = {
       const f = path.join(dir, 'hooks.json');
       const o = lerJson(f);
       o.hooks = o.hooks || {}; o.hooks.PreToolUse = o.hooks.PreToolUse || [];
-      if (!/rtk(\.exe)?"? hook codex/.test(JSON.stringify(o))) o.hooks.PreToolUse.push({ matcher: 'Bash', hooks: [{ type: 'command', command: 'rtk hook codex' }] });
+      if (!o.hooks.PreToolUse.some(g => (g.hooks || []).some(h => P.isRtkHookCommand(h.command, 'codex')))) o.hooks.PreToolUse.push({ matcher: 'Bash', hooks: [{ type: 'command', command: 'rtk hook codex' }] });
       grava(f, o);
       fs.writeFileSync(path.join(dir, 'RTK.md'), '<!-- rtk-owned -->\n');
       const am = path.join(dir, 'AGENTS.md');
