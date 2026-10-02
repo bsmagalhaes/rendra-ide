@@ -143,12 +143,20 @@ async function installGit(log) {
 }
 
 // ── RTK ──────────────────────────────────────────────────────────────────────
-// Release asset for this OS/CPU (github.com/rtk-ai/rtk/releases)
-function rtkAssetName() {
-  const arm = process.arch === 'arm64';
-  if (IS_WIN) return 'rtk-x86_64-pc-windows-msvc.zip';
-  if (IS_MAC) return arm ? 'rtk-aarch64-apple-darwin.tar.gz' : 'rtk-x86_64-apple-darwin.tar.gz';
+// Release asset for an OS/CPU (github.com/rtk-ai/rtk/releases); defaults to this machine
+function rtkAssetName(platform = process.platform, arch = process.arch) {
+  const arm = arch === 'arm64';
+  if (platform === 'win32') return 'rtk-x86_64-pc-windows-msvc.zip';
+  if (platform === 'darwin') return arm ? 'rtk-aarch64-apple-darwin.tar.gz' : 'rtk-x86_64-apple-darwin.tar.gz';
   return arm ? 'rtk-aarch64-unknown-linux-gnu.tar.gz' : 'rtk-x86_64-unknown-linux-musl.tar.gz';
+}
+
+// `uname -m` of a distro → the `arch` that rtkAssetName understands (process.arch spelling)
+function archFromUname(machine) {
+  const m = String(machine || '').trim().toLowerCase();
+  if (m === 'x86_64' || m === 'amd64') return 'x64';
+  if (m === 'aarch64' || m === 'arm64') return 'arm64';
+  return null;
 }
 
 async function ensureUserPath(dir, log) {
@@ -234,4 +242,4 @@ async function installWsl(log) {
   return { ok: r.ok, needsReboot: true };
 }
 
-module.exports = { listWslDistros, check, installGit, installRtk, enableRtkHook, installWsl, BIN_DIR };
+module.exports = { listWslDistros, check, installGit, installRtk, enableRtkHook, installWsl, rtkAssetName, archFromUname, BIN_DIR };
