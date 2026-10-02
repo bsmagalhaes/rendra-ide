@@ -1,6 +1,6 @@
 # Novidades
 
-## Próxima versão
+## 1.2.0 · 02/10/2026
 ### RTK para o Claude Code e o Codex
 - O RTK passa a valer em três cenários, para os dois agentes: IDE no Windows, IDE no Linux e IDE no Windows com o terminal em uma distro WSL. A IDE exige o RTK 0.50.0 ou mais novo, e instala ou atualiza o RTK em cada sistema pelos botões "Instalar RTK" e "Atualizar RTK" da página RTK (Windows, Linux e distros WSL em execução). No Windows, o `rtk.exe` em uso por um hook é trocado sem erro; a cópia antiga do WinGet não é mexida, só aparece o aviso com o comando `winget upgrade --id rtk-ai.rtk`.
 - Cada agente grava a economia em um banco próprio (`RTK_DB_PATH`): o do Claude Code é o caminho padrão do RTK e o do Codex fica na subpasta `codex`. O histórico anterior a esta versão continua na conta do Claude Code, sem copiar nem apagar nada.

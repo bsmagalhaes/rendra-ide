@@ -1,4 +1,4 @@
-/*! Rendra IDE v1.1.6 | MIT | © 2026 Bruno Magalhaes | brunomagalhaes.me */
+/*! Rendra IDE v1.2.0 | MIT | © 2026 Bruno Magalhaes | brunomagalhaes.me */
 // Cost calculation for Claude Code and Codex usage.
 //
 // Prices come from pricing.json (bundled defaults) overridden by the user's table saved from the
