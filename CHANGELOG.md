@@ -1,5 +1,14 @@
 # Novidades
 
+## Próxima versão
+### RTK para o Claude Code e o Codex
+- O RTK passa a valer em três cenários, para os dois agentes: IDE no Windows, IDE no Linux e IDE no Windows com o terminal em uma distro WSL. A IDE exige o RTK 0.50.0 ou mais novo, e instala ou atualiza o RTK em cada sistema pelos botões "Instalar RTK" e "Atualizar RTK" da página RTK (Windows, Linux e distros WSL em execução). No Windows, o `rtk.exe` em uso por um hook é trocado sem erro; a cópia antiga do WinGet não é mexida, só aparece o aviso com o comando `winget upgrade --id rtk-ai.rtk`.
+- Cada agente grava a economia em um banco próprio (`RTK_DB_PATH`): o do Claude Code é o caminho padrão do RTK e o do Codex fica na subpasta `codex`. O histórico anterior a esta versão continua na conta do Claude Code, sem copiar nem apagar nada.
+- O botão "Ativar" da página RTK liga o hook do Claude Code ou do Codex em cada sistema, com o caminho absoluto do `rtk` (o hook não depende do PATH). Antes de começar, a IDE lista todos os arquivos que serão tocados, guarda uma cópia de segurança de cada um que já existe e, se algum passo falhar, devolve os arquivos ao que eram. No Codex, ela acrescenta ao `config.toml` só o bloco `[shell_environment_policy]` com o banco do Codex, sem mexer no resto. O botão antigo que rodava `rtk init -g --codex` foi substituído por este.
+- A página RTK mostra o total economizado por agente, somando os sistemas: Claude Code em laranja e Codex em azul, com o detalhe por sistema ao passar o mouse (ou focar o total). O gráfico diário tem uma série por agente. Distro parada aparece como "WSL desligado", sem ser acordada.
+- Depois de ativar o RTK no Codex, é preciso abrir o Codex e aprovar o hook em `/hooks`; sem isso o RTK não reescreve nenhum comando, e a página avisa enquanto a aprovação não existir. Se o sandbox do Codex impedir a gravação do banco, a página mostra o trecho de `writable_roots` para você aplicar.
+- Aviso do RTK: o classificador de segurança do Codex ainda não reconhece o `rtk` embrulhado, então pode pedir mais confirmações em comandos seguros.
+
 ## 1.1.6 · 02/10/2026
 ### Uso no terminal WSL
 - O consumo do Claude Code e do Codex agora considera o sistema do terminal, não só o do Windows: se você abre o terminal em uma distro WSL e roda os agentes lá, as sessões de `/home/<usuário>/.claude` e `/home/<usuário>/.codex` entram na soma, junto com as do Windows e sem contar nada duas vezes. Só distros em execução são lidas (a IDE não acorda distro parada); com o WSL desligado, a leitura segue só com o Windows.
