@@ -196,3 +196,15 @@ test('sem rtk no host: installed false, mas os ambientes seguem na resposta', as
   assert.strictEqual(r.installed, false);
   assert.strictEqual(r.environments[0].state, 'missing');
 });
+
+test('avisos do host (WinGet defasado) entram no ambiente do host', async () => {
+  const m = montar({});
+  const st = createRtkStatus({
+    env: createRtkEnv({ platform: 'linux', env: {}, execFile: (f, a, o, cb) => cb(null, 'rtk 0.50.0\n', ''), fs: { existsSync: () => false }, homedir: () => '/home/ana', rtkPath: async () => '/home/ana/.local/bin/rtk' }),
+    processEnv: {}, runRtk: async () => ({ ok: true, output: '' }),
+    hostWarnings: async () => [{ kind: 'winget', command: 'winget upgrade --id rtk-ai.rtk' }],
+  });
+  const host = (await st.status()).environments[0];
+  assert.strictEqual(host.warnings[0].kind, 'winget');
+  assert.deepStrictEqual((await m.st.status()).environments[0].warnings, undefined);
+});

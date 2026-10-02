@@ -49,6 +49,7 @@ contextBridge.exposeInMainWorld('rendra', {
     uninstall: () => ipcRenderer.invoke('limits:bridge-uninstall'),
   },
   rtkRun: (key) => ipcRenderer.invoke('rtk-run', key),
+  rtkInstall: (envId) => ipcRenderer.invoke('rtk-install', envId),
   dev: {
     openFolder: (opts) => ipcRenderer.invoke('dev:open-folder', opts),
     wslInfo: () => ipcRenderer.invoke('dev:wsl-info'),

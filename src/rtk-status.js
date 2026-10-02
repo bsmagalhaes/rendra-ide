@@ -127,6 +127,8 @@ function createRtkStatus(deps) {
       id: e.id, kind: e.kind, label: e.label, state: 'error', error: err.message, version: null, needsUpdate: false, agents: {},
     }))));
     const host = environments.find(x => x.kind === 'host');
+    // avisos do host (cópia do WinGet defasada): só orientam, nunca mexem
+    if (host && deps.hostWarnings) host.warnings = await deps.hostWarnings().catch(() => []);
     const base = { environments, min: P.RTK_MIN };
     if (!host || host.state === 'missing') {
       return { ...base, installed: false, missing: true, output: '', codex: deps.codexLegacy ? await deps.codexLegacy() : undefined };

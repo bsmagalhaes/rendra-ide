@@ -169,8 +169,10 @@ function createRtkEnv(deps = {}) {
     try {
       fsx.mkdirSync(path.dirname(fsPath(e, p)), { recursive: true });
       fsx.writeFileSync(fsPath(e, p), text, mode ? { mode } : undefined);
-      const back = fsx.readFileSync(fsPath(e, p), 'utf8');
-      if (back !== text) return { ok: false, error: `O arquivo ${p} foi gravado, mas ao reler o conteúdo não confere.` };
+      // texto ou binário (Buffer): a releitura é do mesmo tipo
+      const bin = Buffer.isBuffer(text);
+      const back = bin ? fsx.readFileSync(fsPath(e, p)) : fsx.readFileSync(fsPath(e, p), 'utf8');
+      if (bin ? !back.equals(text) : back !== text) return { ok: false, error: `O arquivo ${p} foi gravado, mas ao reler o conteúdo não confere.` };
       return { ok: true };
     } catch (err) { return { ok: false, error: err.message }; }
   }

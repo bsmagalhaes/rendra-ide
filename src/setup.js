@@ -9,6 +9,7 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const { execFile } = require('child_process');
+const { swapBinary } = require('./rtk-install');
 
 const IS_WIN = process.platform === 'win32';
 const IS_MAC = process.platform === 'darwin';
@@ -87,8 +88,8 @@ async function latestRelease(repo) {
   return res.json();
 }
 
-async function download(url, dest, log) {
-  const res = await fetch(url, { headers: UA, redirect: 'follow' });
+async function download(url, dest, log, doFetch = fetch) {
+  const res = await doFetch(url, { headers: UA, redirect: 'follow' });
   if (!res.ok) throw new Error(`Download falhou (HTTP ${res.status})`);
   const buf = Buffer.from(await res.arrayBuffer());
   fs.writeFileSync(dest, buf);
@@ -183,35 +184,57 @@ async function ensureUserPath(dir, log) {
   if (!entries.includes(IS_WIN ? dir.toLowerCase() : dir)) process.env.PATH = `${dir}${sep}${process.env.PATH}`;
 }
 
-async function installRtk(log, binDir = BIN_DIR, { updatePath = true } = {}) {
+// Extracts a release archive: .zip with PowerShell (Windows), anything else with tar
+async function extractArchive(archive, dir) {
+  if (archive.endsWith('.zip')) await powershell(`Expand-Archive -LiteralPath ${psQuote(archive)} -DestinationPath ${psQuote(dir)} -Force`);
+  else await run('tar', ['-xzf', archive, '-C', dir], { timeout: 60000 });
+}
+
+// Downloads the release asset, checks it against the published SHA-256 and extracts the binary
+// into a temp folder. Used for this machine and for WSL distros. The caller removes `tmp`.
+// `deps` swaps network and extraction in tests.
+async function fetchRtkRelease(log, assetName, binName, deps = {}) {
+  const getRelease = deps.latestRelease || latestRelease;
+  const doFetch = deps.fetch || fetch;
+  const extract = deps.extract || extractArchive;
   log('Buscando a versão mais recente do RTK (github.com/rtk-ai/rtk)…');
-  const rel = await latestRelease('rtk-ai/rtk');
-  const name = rtkAssetName();
-  const asset = rel.assets.find(a => a.name === name);
+  const rel = await getRelease('rtk-ai/rtk');
+  const asset = rel.assets.find(a => a.name === assetName);
   const sums = rel.assets.find(a => a.name === 'checksums.txt');
-  if (!asset) throw new Error(`Pacote do RTK (${name}) não encontrado na release`);
-  log(`  versão ${rel.tag_name} · ${name}`);
+  if (!asset) throw new Error(`Pacote do RTK (${assetName}) não encontrado na release`);
+  log(`  versão ${rel.tag_name} · ${assetName}`);
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rtk-'));
-  const archive = path.join(tmp, asset.name);
-  const buf = await download(asset.browser_download_url, archive, log);
-  if (sums) {
-    // refuse a download that doesn't match the release's published checksum
-    const text = await (await fetch(sums.browser_download_url, { headers: UA })).text();
-    const expected = text.split(/\r?\n/).find(l => l.includes(asset.name))?.split(/\s+/)[0]?.toLowerCase();
-    const actual = crypto.createHash('sha256').update(buf).digest('hex');
-    if (expected && expected !== actual) throw new Error('Checksum do RTK não confere; instalação cancelada');
-    log('  checksum SHA-256 conferido');
+  try {
+    const archive = path.join(tmp, asset.name);
+    const buf = await download(asset.browser_download_url, archive, log, doFetch);
+    if (sums) {
+      // refuse a download that doesn't match the release's published checksum
+      const text = await (await doFetch(sums.browser_download_url, { headers: UA })).text();
+      const expected = text.split(/\r?\n/).find(l => l.includes(asset.name))?.split(/\s+/)[0]?.toLowerCase();
+      const actual = crypto.createHash('sha256').update(buf).digest('hex');
+      if (expected && expected !== actual) throw new Error('Checksum do RTK não confere; instalação cancelada');
+      log('  checksum SHA-256 conferido');
+    }
+    await extract(archive, tmp);
+    const found = [tmp, ...fs.readdirSync(tmp).map(n => path.join(tmp, n))]
+      .map(d => path.join(d, binName)).find(p => fs.existsSync(p));
+    if (!found) throw new Error(`${binName} não encontrado no pacote`);
+    return { found, tmp, tag: rel.tag_name };
+  } catch (e) {
+    fs.rmSync(tmp, { recursive: true, force: true });
+    throw e;
   }
-  if (IS_WIN) await powershell(`Expand-Archive -LiteralPath ${psQuote(archive)} -DestinationPath ${psQuote(tmp)} -Force`);
-  else await run('tar', ['-xzf', archive, '-C', tmp], { timeout: 60000 });
-  const found = [tmp, ...fs.readdirSync(tmp).map(n => path.join(tmp, n))]
-    .map(d => path.join(d, RTK_NAME)).find(p => fs.existsSync(p));
-  if (!found) throw new Error(`${RTK_NAME} não encontrado no pacote`);
-  fs.mkdirSync(binDir, { recursive: true });
+}
+
+async function installRtk(log, binDir = BIN_DIR, { updatePath = true } = {}) {
+  const { found, tmp } = await fetchRtkRelease(log, rtkAssetName(), RTK_NAME);
   const target = path.join(binDir, RTK_NAME);
-  fs.copyFileSync(found, target);
-  if (!IS_WIN) fs.chmodSync(target, 0o755);
-  fs.rmSync(tmp, { recursive: true, force: true });
+  try {
+    fs.mkdirSync(binDir, { recursive: true });
+    swapBinary(target, found); // never a plain copy: a running rtk.exe (hook) would fail with EBUSY
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
   log(`  instalado em ${target}`);
   if (updatePath) await ensureUserPath(binDir, log);
   return { ok: true };
@@ -242,4 +265,4 @@ async function installWsl(log) {
   return { ok: r.ok, needsReboot: true };
 }
 
-module.exports = { listWslDistros, check, installGit, installRtk, enableRtkHook, installWsl, rtkPath, rtkAssetName, archFromUname, BIN_DIR };
+module.exports = { listWslDistros, check, installGit, installRtk, fetchRtkRelease, enableRtkHook, installWsl, rtkPath, rtkAssetName, archFromUname, BIN_DIR };
