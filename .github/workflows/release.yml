@@ -1,18 +1,27 @@
-# Publishes the GitHub Release of a version when its tag is pushed (npm run release).
-# Rendra IDE is distributed as source (git clone + npm install), so no installers are built:
-# the release carries the notes of that version from CHANGELOG.md.
+# Instaladores e release da Rendra IDE, disparados pela tag vX.Y.Z (npm run release).
+# Fluxo: verificacao -> rascunho -> build (Windows e Linux) e build-mac (Apple) -> publicar.
+# A release nasce como rascunho e só sai do rascunho no job "publicar", depois de conferir que todos os
+# assets existem; assim o /releases/latest que o electron-updater e os botões do site seguem nunca
+# aponta para uma release incompleta. Sem os segredos da Apple a release sai só com Windows e Linux.
+# Segredos CSC_LINK, CSC_KEY_PASSWORD e APPLE_* só aparecem no passo de build do job build-mac: nunca no
+# env do workflow nem dos jobs Windows e Linux (o Windows tentaria importar o .p12 como certificado).
+# workflow_dispatch: constrói tudo com --publish never e sobe os arquivos como artefato do run.
 name: Release
 
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  release:
+  verificacao:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.versao.outputs.version }}
+      prerelease: ${{ steps.versao.outputs.prerelease }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -23,10 +32,241 @@ jobs:
           npm ci --ignore-scripts
           npm run check
           npm test
-      - name: Notas da versão
+      - name: Versão e tag
+        id: versao
         run: |
-          node -e "const {changelogSection}=require('./src/git-updater');const v=process.env.GITHUB_REF_NAME.replace(/^v/,'');const n=changelogSection(require('fs').readFileSync('CHANGELOG.md','utf8'),v);if(!n)process.exit(1);require('fs').writeFileSync('notes.md',n+'\n\n---\n\nComo instalar ou atualizar: veja o [README](https://github.com/'+process.env.GITHUB_REPOSITORY+'#instalação).\n')"
-      - name: Publicar release
+          v=$(node -p "require('./package.json').version")
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          case "$v" in *-*) echo "prerelease=true" >> "$GITHUB_OUTPUT" ;; *) echo "prerelease=false" >> "$GITHUB_OUTPUT" ;; esac
+          if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "$GITHUB_REF_NAME" != "v$v" ]; then
+            echo "a tag $GITHUB_REF_NAME não bate com a versão do package.json (v$v)"
+            exit 1
+          fi
+
+  # Só diz se existe o segredo do certificado (true ou false), sem expor o valor
+  segredos-mac:
+    runs-on: ubuntu-latest
+    outputs:
+      mac: ${{ steps.tem.outputs.mac }}
+    steps:
+      - id: tem
+        env:
+          TEM_CERTIFICADO: ${{ secrets.CSC_LINK != '' }}
+        run: echo "mac=$TEM_CERTIFICADO" >> "$GITHUB_OUTPUT"
+
+  # Um único rascunho por tag: os jobs de build o reaproveitam (o electron-builder acha o rascunho pela tag)
+  rascunho:
+    needs: verificacao
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Notas da versão
+        run: node scripts/release-notes.js "${{ needs.verificacao.outputs.version }}" "$GITHUB_REPOSITORY" > notes.md
+      - name: Criar o rascunho
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create "$GITHUB_REF_NAME" --title "Rendra IDE ${GITHUB_REF_NAME#v}" --notes-file notes.md
+          PRERELEASE: ${{ needs.verificacao.outputs.prerelease }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            echo "a release $GITHUB_REF_NAME já existe, será reaproveitada"
+          else
+            flag=""
+            [ "$PRERELEASE" = "true" ] && flag="--prerelease"
+            gh release create "$GITHUB_REF_NAME" --draft $flag --title "Rendra IDE ${GITHUB_REF_NAME#v}" --notes-file notes.md
+          fi
+
+  build:
+    needs: [verificacao, rascunho]
+    if: ${{ !cancelled() && needs.verificacao.result == 'success' && (needs.rascunho.result == 'success' || needs.rascunho.result == 'skipped') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            nome: windows
+            alvo: --win nsis
+          - os: ubuntu-latest
+            nome: linux
+            alvo: --linux
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --ignore-scripts
+      - name: Construir o instalador
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PUBLICAR: ${{ github.ref_type == 'tag' && 'always' || 'never' }}
+        run: npx electron-builder ${{ matrix.alvo }} --publish "$PUBLICAR"
+      - name: Ícones versionados (aviso, não falha)
+        if: matrix.nome == 'windows'
+        run: |
+          node scripts/gen-icon.js
+          git diff --quiet -- assets/icon.ico assets/icon.png assets/icon-1024.png || echo "::warning::o gen-icon.js gerou ícones diferentes dos versionados neste runner"
+          git checkout -- assets
+      - name: Conferir o que foi gerado (Windows)
+        if: matrix.nome == 'windows'
+        run: |
+          ls -la dist
+          test -f dist/Rendra-IDE-Setup.exe
+          grep -q "url: Rendra-IDE-Setup.exe" dist/latest.yml
+          if ls dist | grep -E '\.blockmap$|\.nsis\.7z$|portable'; then echo "asset proibido no Windows"; exit 1; fi
+      - name: Conferir o que foi gerado (Linux)
+        if: matrix.nome == 'linux'
+        run: |
+          ls -la dist
+          test -f dist/Rendra-IDE.AppImage
+          test -f dist/Rendra-IDE.deb
+          test -f dist/latest-linux.yml
+          dpkg-deb -I dist/Rendra-IDE.deb
+          dpkg-deb -f dist/Rendra-IDE.deb Package | grep -qx "rendra-ide"
+      - name: Guardar os arquivos do run (sem publicar)
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: instalador-${{ matrix.nome }}
+          path: |
+            dist/Rendra-IDE*
+            dist/latest*.yml
+
+  # Apple: job próprio, com os segredos só nos passos que precisam. Só roda se existir o CSC_LINK.
+  build-mac:
+    needs: [verificacao, rascunho, segredos-mac]
+    if: ${{ !cancelled() && needs.segredos-mac.outputs.mac == 'true' && needs.verificacao.result == 'success' && (needs.rascunho.result == 'success' || needs.rascunho.result == 'skipped') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            os: macos-latest
+          - arch: x64
+            os: macos-15-intel
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --ignore-scripts
+      - name: Conferir o node-pty da arquitetura
+        run: |
+          test -d "node_modules/@lydell/node-pty-darwin-${{ matrix.arch }}" || { echo "falta @lydell/node-pty-darwin-${{ matrix.arch }}"; exit 1; }
+          uname -m
+      - name: Conferir que os cinco segredos da Apple existem
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          [ -n "$CSC_LINK" ] || { echo "falta CSC_LINK"; exit 1; }
+          [ -n "$CSC_KEY_PASSWORD" ] || { echo "falta CSC_KEY_PASSWORD"; exit 1; }
+          [ -n "$APPLE_ID" ] || { echo "falta APPLE_ID"; exit 1; }
+          [ -n "$APPLE_APP_SPECIFIC_PASSWORD" ] || { echo "falta APPLE_APP_SPECIFIC_PASSWORD"; exit 1; }
+          [ -n "$APPLE_TEAM_ID" ] || { echo "falta APPLE_TEAM_ID"; exit 1; }
+          echo "os cinco segredos estão preenchidos"
+      - name: Construir, assinar e notarizar
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PUBLICAR: ${{ github.ref_type == 'tag' && 'always' || 'never' }}
+        run: npx electron-builder --mac --${{ matrix.arch }} --publish "$PUBLICAR" 2>&1 | tee build-mac.log
+      - name: Conferir assinatura e notarização
+        run: |
+          if grep -Ei "skipped macOS (notarization|application code signing)" build-mac.log; then
+            echo "o build pulou a assinatura ou a notarização"
+            exit 1
+          fi
+          app=$(find dist -maxdepth 2 -name "Rendra IDE.app" | head -1)
+          test -n "$app" || { echo "Rendra IDE.app não encontrado em dist"; exit 1; }
+          pty="$app/Contents/Resources/app.asar.unpacked/node_modules/@lydell/node-pty-darwin-${{ matrix.arch }}/prebuilds/darwin-${{ matrix.arch }}"
+          test -f "$pty/pty.node"
+          test -f "$pty/spawn-helper"
+          lipo -archs "$pty/pty.node" | grep -qw "${{ matrix.arch }}"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          xcrun stapler validate "$app" || echo "::warning::stapler validate não passou neste runner"
+          spctl -a -vv -t exec "$app" || echo "::warning::spctl não aceitou neste runner (confirmar num Mac real)"
+          ls -la dist
+      - name: Guardar o latest-mac.yml da arquitetura
+        uses: actions/upload-artifact@v4
+        with:
+          name: latest-mac-${{ matrix.arch }}
+          path: dist/latest-mac.yml
+      - name: Guardar os arquivos do run (sem publicar)
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: instalador-mac-${{ matrix.arch }}
+          path: |
+            dist/Rendra-IDE*
+            dist/latest*.yml
+
+  publicar:
+    needs: [verificacao, segredos-mac, rascunho, build, build-mac]
+    if: ${{ !cancelled() && github.ref_type == 'tag' && needs.build.result == 'success' && (needs.build-mac.result == 'success' || (needs.build-mac.result == 'skipped' && needs.segredos-mac.outputs.mac != 'true')) }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      MAC: ${{ needs.segredos-mac.outputs.mac }}
+      PRERELEASE: ${{ needs.verificacao.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --ignore-scripts
+      - name: Baixar os latest-mac.yml das duas arquiteturas
+        if: env.MAC == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          pattern: latest-mac-*
+          path: latest-mac-in
+      - name: Juntar o latest-mac.yml e reenviar ao rascunho
+        if: env.MAC == 'true'
+        run: |
+          node scripts/merge-latest-mac.js latest-mac-in/latest-mac-arm64/latest-mac.yml latest-mac-in/latest-mac-x64/latest-mac.yml > latest-mac.yml
+          cat latest-mac.yml
+          node scripts/merge-latest-mac.js --check latest-mac.yml
+          gh release upload "$GITHUB_REF_NAME" latest-mac.yml --clobber
+      - name: Conferir os assets do rascunho
+        run: |
+          gh release view "$GITHUB_REF_NAME" --json assets --jq '[.assets[].name]' > assets.json
+          if [ "$MAC" = "true" ]; then node scripts/check-release-assets.js assets.json; else node scripts/check-release-assets.js assets.json --sem-mac; fi
+      - name: Conferir o latest-mac.yml que ficou na release
+        if: env.MAC == 'true'
+        run: |
+          gh release download "$GITHUB_REF_NAME" --pattern latest-mac.yml --dir conferencia --clobber
+          node scripts/merge-latest-mac.js --check conferencia/latest-mac.yml
+      - name: Publicar a release
+        run: |
+          if [ "$PRERELEASE" = "true" ]; then
+            gh release edit "$GITHUB_REF_NAME" --draft=false --prerelease
+          else
+            gh release edit "$GITHUB_REF_NAME" --draft=false --latest
+          fi
+          gh release view "$GITHUB_REF_NAME" --json isDraft,isPrerelease,url
