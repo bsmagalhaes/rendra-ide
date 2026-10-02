@@ -45,6 +45,7 @@ const accountsMod = require('./src/accounts');
 const { currentAccount } = accountsMod;
 const { registerDevCode } = require('./src/devcode');
 const { createGitUpdater } = require('./src/git-updater');
+const { selectUpdateSource, initialState, canInstall } = require('./src/update-source');
 
 // ── App identity + data migration ──────────────────────────────────────────
 // The app is Rendra IDE; its data folder was "tokenmeter" before the rename. On the first run
@@ -326,7 +327,12 @@ ipcMain.handle('pricing:check-feed', () => checkFeed());
 // src/git-updater.js. Packaged builds, if they are ever published, use electron-updater with
 // GitHub Releases. Either way settings, workspaces, prices and caches live in the user data
 // folder, which updates never touch.
-let updateState = { state: 'idle' };
+const updateSource = selectUpdateSource({
+  isPackaged: app.isPackaged,
+  windowsStore: !!process.windowsStore,
+  isClone: fs.existsSync(path.join(__dirname, '.git')),
+});
+let updateState = updateSource === 'store' ? initialState('store') : { state: 'idle' };
 let quitAfterClose = false;
 function sendUpdate(state) {
   updateState = state;
@@ -339,7 +345,8 @@ const gitUpdater = createGitUpdater({
   send: sendUpdate,
 });
 function initAutoUpdate() {
-  if (!app.isPackaged) { gitUpdater.start(); return; }
+  if (updateSource === 'git') { gitUpdater.start(); return; }
+  if (updateSource !== 'updater') return; // store: a Store atualiza; none: sem origem
   const repo = BRAND.githubRepo || '';
   if (!repo) return;
   const { autoUpdater } = require('electron-updater');
@@ -356,10 +363,12 @@ function initAutoUpdate() {
   ipcMain.handle('update:install', () => autoUpdater.quitAndInstall()); // the unsaved-files guard still asks
 }
 ipcMain.handle('update:status', () => updateState);
-ipcMain.handle('update:check', () => app.isPackaged ? updateState : gitUpdater.check());
+ipcMain.handle('update:check', () => updateSource === 'git' || updateSource === 'none' ? gitUpdater.check() : updateState);
 ipcMain.handle('update:last-result', () => gitUpdater.lastResult());
 // git clones: quit through the normal close (asks to save edited files); the helper runs on quit
-ipcMain.handle('update:install', () => gitUpdater.install(() => { quitAfterClose = true; app.quit(); }));
+ipcMain.handle('update:install', () => canInstall(updateSource)
+  ? gitUpdater.install(() => { quitAfterClose = true; app.quit(); })
+  : { ok: true, noop: true });
 app.on('will-quit', () => gitUpdater.onQuit());
 ipcMain.handle('app:version', () => app.getVersion());
 ipcMain.handle('pricing:apply-feed', async () => {
