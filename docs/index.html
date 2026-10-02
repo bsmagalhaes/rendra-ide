@@ -33,7 +33,7 @@
       "offers": { "@type": "Offer", "price": "0", "priceCurrency": "BRL" },
       "license": "https://opensource.org/licenses/MIT",
       "url": "https://bsmagalhaes.github.io/rendra-ui-ide/",
-      "downloadUrl": "https://github.com/bsmagalhaes/rendra-ui-ide",
+      "downloadUrl": "https://github.com/bsmagalhaes/rendra-ui-ide/releases/latest",
       "image": "https://bsmagalhaes.github.io/rendra-ui-ide/og-image.png",
       "author": { "@type": "Person", "name": "Bruno Magalhaes", "url": "https://www.brunomagalhaes.me" },
       "description": "IDE com terminais em grade, editor Monaco, cores do Git e painel de consumo de tokens e custo do Claude Code e do Codex, com limites do plano e RTK."
@@ -42,6 +42,7 @@
       "@type": "FAQPage",
       "mainEntity": [
         { "@type": "Question", "name": "O Rendra IDE é open source?", "acceptedAnswer": { "@type": "Answer", "text": "Sim. Código aberto sob a licença MIT, sem conta e sem telemetria." } },
+        { "@type": "Question", "name": "O Windows mostrou um aviso azul ao instalar. É seguro?", "acceptedAnswer": { "@type": "Answer", "text": "É o SmartScreen, que avisa sobre instaladores sem assinatura digital paga. Clique em Mais informações e depois em Executar assim mesmo. O código é aberto (MIT) e o instalador é gerado pelo GitHub a partir dele." } },
         { "@type": "Question", "name": "O custo mostrado é o que eu pago?", "acceptedAnswer": { "@type": "Answer", "text": "Não necessariamente. É o custo equivalente pelo preço de tabela da API, tokens vezes o preço por 1 milhão. Em planos por assinatura, serve para comparar projetos e modelos." } },
         { "@type": "Question", "name": "Preciso ter o Claude Code ou o Codex instalados?", "acceptedAnswer": { "@type": "Answer", "text": "Não. A IDE e a página Terminal funcionam sozinhas; as páginas de consumo aparecem preenchidas quando houver sessões dessas CLIs na máquina." } },
         { "@type": "Question", "name": "Como o app lê os limites do plano sem a minha senha?", "acceptedAnswer": { "@type": "Answer", "text": "O Claude Code envia os limites de uso ao comando da statusline. O Rendra IDE registra esses dados num arquivo local e repassa tudo para a statusline que você já usava." } }
@@ -105,6 +106,14 @@
   .code { position: relative; background: #0b0b0b; border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; font: 14px/1.7 var(--mono); color: #e6e6e6; overflow-x: auto; white-space: pre; }
   .code .c { color: var(--muted); }
   .copy { position: absolute; top: 10px; right: 10px; font: 12px var(--mono); background: var(--card); color: var(--text-2); border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+  .downloads { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin-bottom: 40px; }
+  .downloads h3 { font-size: 18px; margin-bottom: 10px; }
+  .downloads p { color: var(--text-2); margin: 0 0 12px; font-size: 15px; }
+  .downloads .btn { margin: 0 8px 8px 0; }
+  .aviso { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 20px 24px; margin-bottom: 40px; }
+  .aviso h3 { font-size: 18px; margin-bottom: 10px; }
+  .aviso p, .aviso li { color: var(--text-2); }
+  .aviso img { max-width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--line); margin-top: 8px; }
   .steps h3 { font-size: 18px; margin-bottom: 10px; }
   .steps p { color: var(--text-2); margin: 0 0 14px; }
 
@@ -126,7 +135,7 @@
   .lb-close { top: 12px; right: 12px; } .lb-prev { left: 12px; top: 50%; } .lb-next { right: 12px; top: 50%; }
 
   @media (max-width: 900px) {
-    .hero-grid, .steps, footer .cols { grid-template-columns: minmax(0, 1fr); }
+    .hero-grid, .steps, .downloads, footer .cols { grid-template-columns: minmax(0, 1fr); }
     .features { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
   @media (max-width: 600px) {
@@ -147,7 +156,7 @@
         <h1>Programe com IA e veja quanto cada projeto <span>consome</span>.</h1>
         <p>Terminais em grade, o editor do VS Code e as cores do Git, junto com o consumo de tokens e o custo por projeto do Claude Code e do Codex, os limites do seu plano e o RTK para gastar menos. Open source (MIT) e 100% local.</p>
         <div class="cta">
-          <a class="btn primary" href="#instalacao">Instalar grátis</a>
+          <a class="btn primary" href="#instalacao">Baixar grátis</a>
           <a class="btn" href="https://github.com/bsmagalhaes/rendra-ui-ide">Ver no GitHub</a>
         </div>
         <div class="tags"><span>Windows</span><span>macOS</span><span>Linux</span><span>WSL</span><span>MIT</span></div>
@@ -185,8 +194,45 @@
 <section id="instalacao">
   <div class="wrap">
     <div class="eyebrow">Instalação</div>
-    <h2>Instale em quatro comandos</h2>
-    <p class="lead">Pré-requisitos: <a href="https://nodejs.org">Node.js</a> 22.12 ou mais recente e <a href="https://git-scm.com">Git</a>. Na primeira abertura, o app oferece instalar o que faltar: Git Bash, RTK e, no Windows, o WSL.</p>
+    <h2>Baixe o instalador</h2>
+    <p class="lead">Escolha o seu sistema. O instalador já traz tudo o que o app precisa e se atualiza sozinho: o botão <b>Nova versão</b> aparece na barra lateral quando sai uma versão nova. Na primeira abertura, o app oferece instalar o que faltar: Git Bash, RTK e, no Windows, o WSL.</p>
+    <div class="downloads">
+      <div>
+        <h3>Windows</h3>
+        <p>Windows 10 ou 11, 64 bits.</p>
+        <a class="btn primary" href="https://github.com/bsmagalhaes/rendra-ui-ide/releases/latest/download/Rendra-IDE-Setup.exe">Baixar para Windows</a>
+        <p>Cada atualização baixa o instalador completo, sem ação sua.</p>
+      </div>
+      <div>
+        <h3>macOS</h3>
+        <p>Escolha pelo chip do seu Mac (menu Apple, Sobre este Mac).</p>
+        <a class="btn primary" href="https://github.com/bsmagalhaes/rendra-ui-ide/releases/latest/download/Rendra-IDE-mac-arm64.dmg">Apple Silicon (M1 ou mais novo)</a>
+        <a class="btn" href="https://github.com/bsmagalhaes/rendra-ui-ide/releases/latest/download/Rendra-IDE-mac-x64.dmg">Intel</a>
+      </div>
+      <div>
+        <h3>Linux</h3>
+        <p>Distribuições 64 bits.</p>
+        <a class="btn primary" href="https://github.com/bsmagalhaes/rendra-ui-ide/releases/latest/download/Rendra-IDE.AppImage">AppImage</a>
+        <a class="btn" href="https://github.com/bsmagalhaes/rendra-ui-ide/releases/latest/download/Rendra-IDE.deb">.deb (Debian e Ubuntu)</a>
+        <p>O AppImage e o .deb se atualizam sozinhos. No .deb, o sistema pede a sua senha para instalar a versão nova.</p>
+      </div>
+    </div>
+    <div class="aviso" id="aviso-windows">
+      <h3>Aviso do Windows (SmartScreen)</h3>
+      <p>O instalador do Windows ainda não tem assinatura digital paga, por isso o Windows mostra a tela azul "O Windows protegeu seu computador" na primeira execução de cada versão. O aplicativo é o mesmo que está no GitHub, e a atualização automática confere a integridade do arquivo baixado pelo código de verificação (sha512) publicado junto da versão.</p>
+      <ol>
+        <li>Na tela azul, clique em <b>Mais informações</b>.</li>
+        <li>Clique em <b>Executar assim mesmo</b>.</li>
+      </ol>
+      <!-- LUGAR DO PRINT DO SMARTSCREEN (fazer depois da primeira release de teste, ver o relatório dos instaladores):
+           baixar Rendra-IDE-Setup.exe da release pelo navegador (para o Windows marcar o arquivo como baixado da internet),
+           executar, capturar a tela "O Windows protegeu seu computador" com "Mais informações" e depois "Executar assim mesmo",
+           cancelar sem instalar. Salvar em docs/images/smartscreen.png (legível em 320 px) e descomentar a linha abaixo:
+      <img src="images/smartscreen.png" alt="Tela azul do SmartScreen com os botões Mais informações e Executar assim mesmo" loading="lazy" width="1280" height="720">
+      -->
+    </div>
+    <h2>Ou instale pelo código</h2>
+    <p class="lead">Para quem quer o código-fonte. Pré-requisitos: <a href="https://nodejs.org">Node.js</a> 22.12 ou mais recente e <a href="https://git-scm.com">Git</a>. Cada jeito se atualiza pelo próprio caminho, e os dois usam a mesma pasta de dados do usuário (configurações, workspaces e preços), então não instale os dois ao mesmo tempo.</p>
     <div class="steps">
       <div>
         <h3>Instalar</h3>
@@ -218,6 +264,7 @@ npm start</div>
     <details><summary>O Rendra IDE é open source?</summary><p>Sim. Código aberto sob a licença MIT, sem conta e sem telemetria.</p></details>
     <details><summary>O custo mostrado é o que eu pago?</summary><p>Não necessariamente. É o custo equivalente pelo preço de tabela da API (tokens × preço por 1 milhão). Em planos por assinatura, serve para comparar projetos e modelos e ver onde o consumo está, não como fatura.</p></details>
     <details><summary>Preciso ter o Claude Code ou o Codex instalados?</summary><p>Não. A IDE e a página Terminal funcionam sozinhas. As páginas de consumo aparecem preenchidas assim que houver sessões dessas CLIs na máquina.</p></details>
+    <details><summary>O Windows mostrou um aviso azul ao instalar. É seguro?</summary><p>É o SmartScreen, que avisa sobre instaladores sem assinatura digital paga. Clique em <b>Mais informações</b> e depois em <b>Executar assim mesmo</b>. O código é aberto (MIT) e o instalador é gerado pelo GitHub a partir dele.</p></details>
     <details><summary>Funciona no macOS e no Linux?</summary><p>Sim. Os terminais se adaptam ao sistema: zsh, bash e fish no macOS e Linux; PowerShell, Git Bash, CMD e WSL no Windows.</p></details>
     <details><summary>Como o app lê os limites do plano sem a minha senha?</summary><p>O Claude Code envia os limites de uso ao comando da statusline. O Rendra IDE registra esses dados num arquivo local e repassa tudo para a statusline que você já usava.</p></details>
   </div>

@@ -103,7 +103,24 @@ Leia o AGENTS.md e adicione ao painel do Claude um gráfico de custo por modelo 
 
 ## Instalação
 
-Pré-requisitos: [Node.js](https://nodejs.org) 22.12 ou mais recente e [Git](https://git-scm.com).
+### Instalador (mais simples)
+
+Baixe o arquivo do seu sistema na [última versão](https://github.com/bsmagalhaes/rendra-ui-ide/releases/latest):
+
+| Sistema | Arquivo |
+|---|---|
+| Windows | [`Rendra-IDE-Setup.exe`](https://github.com/bsmagalhaes/rendra-ui-ide/releases/latest/download/Rendra-IDE-Setup.exe) |
+| macOS, Apple Silicon (M1 ou mais novo) | [`Rendra-IDE-mac-arm64.dmg`](https://github.com/bsmagalhaes/rendra-ui-ide/releases/latest/download/Rendra-IDE-mac-arm64.dmg) |
+| macOS, Intel | [`Rendra-IDE-mac-x64.dmg`](https://github.com/bsmagalhaes/rendra-ui-ide/releases/latest/download/Rendra-IDE-mac-x64.dmg) |
+| Linux | [`Rendra-IDE.AppImage`](https://github.com/bsmagalhaes/rendra-ui-ide/releases/latest/download/Rendra-IDE.AppImage) ou [`Rendra-IDE.deb`](https://github.com/bsmagalhaes/rendra-ui-ide/releases/latest/download/Rendra-IDE.deb) |
+
+O instalador se atualiza sozinho: o botão **Nova versão** aparece na barra lateral. No Windows, cada atualização baixa o instalador completo. No Linux, o `.deb` também se atualiza sozinho e o sistema pede a sua senha para instalar.
+
+**Aviso do Windows (SmartScreen):** o instalador do Windows ainda não tem assinatura digital paga, então o Windows mostra "O Windows protegeu seu computador" na primeira execução. Clique em **Mais informações** e depois em **Executar assim mesmo**.
+
+### Pelo código
+
+Para quem quer o código-fonte. Cada jeito se atualiza pelo próprio caminho, e os dois usam a mesma pasta de dados do usuário, então não instale os dois ao mesmo tempo. Pré-requisitos: [Node.js](https://nodejs.org) 22.12 ou mais recente e [Git](https://git-scm.com).
 
 ```bash
 git clone https://github.com/bsmagalhaes/rendra-ui-ide
