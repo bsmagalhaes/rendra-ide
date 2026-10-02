@@ -728,22 +728,16 @@ function renderUpdate(s) {
   updateInfo = s;
   const btn = document.getElementById('nav-update');
   const el = document.getElementById('update-status');
-  const pronta = !!s && ['available', 'ready'].includes(s.state);
-  btn.hidden = !pronta;
-  if (pronta) btn.title = s.state === 'ready'
-    ? `Versão ${s.version} baixada: clique para reiniciar e atualizar`
-    : `Versão ${s.version} disponível: clique para atualizar`;
-  if (s && s.state === 'downloading') {
-    el.hidden = false;
-    el.textContent = `Baixando a versão ${s.version}${s.percent != null ? ` · ${s.percent}%` : ''}…`;
-  } else {
-    el.hidden = true;
-  }
+  const ui = RendraUpdateUi.updateUi(s);
+  btn.hidden = !ui.mostrarBotao;
+  if (ui.mostrarBotao) btn.title = ui.titulo;
+  el.hidden = !ui.mostrarStatus;
+  if (ui.mostrarStatus) el.textContent = ui.textoStatus;
 }
 
 async function installUpdate() {
   const s = updateInfo || {};
-  if (s.mode === 'git') {
+  if (RendraUpdateUi.precisaConfirmar(s)) {
     const notes = s.notes ? '\n\nNovidades:\n' + s.notes.replace(/^#+\s*/gm, '').replace(/\*\*/g, '').slice(0, 700) : '';
     const warn = s.localChanges ? '\n\nAtenção: há alterações locais nos arquivos do Rendra IDE. Se elas conflitarem com a versão nova, a atualização é cancelada e nada é perdido.' : '';
     if (!confirm(`Atualizar o Rendra IDE para a versão ${s.version}?\n\nO app fecha (arquivos editados podem ser salvos antes), baixa a versão nova com git pull e npm install e abre de novo. Configurações, workspaces e preços não mudam.${warn}${notes}`)) return;
