@@ -43,6 +43,9 @@ and in the About page credits.
 | `src/setup.js` | Checks/installs Git (Git Bash), RTK, WSL — used by the modal and `npm run setup` |
 | `src/git-updater.js` | Update check for git clones (remote `package.json` version) and hand-off to the helper |
 | `scripts/apply-update.js` | Runs after the app quits: `git pull --ff-only` (resets to `origin/main` if upstream history was rewritten and the tree is clean), `npm install` if deps changed, reopens the app |
+| `src/update-source.js` | Pure choice of the update origin: git clone, electron-updater (installers), Microsoft Store or none |
+| `renderer/update-ui.js` | Pure view of the update state ("Nova versão" button, progress text); hidden in store/none modes |
+| `scripts/merge-latest-mac.js`, `check-release-assets.js`, `release-notes.js` | Release helpers run by `.github/workflows/release.yml`: merge of the two `latest-mac.yml`, asset list check, release notes |
 | `scripts/release.js` | `npm run release`: changelog, version bump, headers, checks, commit, tag, push |
 | `scripts/stamp.js` | Signature header with the package version at the top of every shipped JS/CSS file |
 | `scripts/check.js` | `npm run check`: syntax, JSON, index.html structure, required files |
