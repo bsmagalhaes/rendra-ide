@@ -418,3 +418,23 @@ test('writable_roots: CRLF continua CRLF', () => {
   const r = wr('sandbox_mode = "workspace-write"\r\n');
   assert.strictEqual(r.text, `sandbox_mode = "workspace-write"\r\n\r\n[sandbox_workspace_write]\r\nwritable_roots = ['${DB_DIR}']\r\n`);
 });
+
+test("lineInfo: ''' dentro de string de uma linha ou comentário não abre trecho multilinha (sem tabela duplicada)", () => {
+  const t = `x = "a'''b"
+y = 'c"""d' # '''
+enabled = false
+
+${tabela(RTK_KEY, 'sha256:velho')}`;
+  const s = C.readHookState(t);
+  assert.strictEqual(s.recognized, true);
+  assert.strictEqual(s.entries.get(RTK_KEY).hash, 'sha256:velho');
+  const r = C.upsertHookTrust(t, RTK_KEY, RTK_HASH);
+  assert.strictEqual(r.changed, true);
+  assert.strictEqual(r.text.split(RTK_KEY).length - 1, 1, 'a tabela do RTK aparece uma vez só');
+  assert.ok(r.text.includes(RTK_HASH));
+  const verdadeiro = `m = """
+[hooks.state.'x']
+"""
+`;
+  assert.strictEqual(C.readHookState(verdadeiro).recognized, true, 'multilinha de verdade segue protegida');
+});

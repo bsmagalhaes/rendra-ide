@@ -174,6 +174,20 @@ function codexHookHash(group, handler, event) {
 const splitLines = text => String(text || '').split(/(\r?\n)/); // linha, separador, linha, ...
 
 // Marca as linhas que estão dentro de string multilinha (não são lidas como cabeçalho nem chave)
+// Primeiro delimitador multilinha da linha que está fora de string de uma linha e de comentário
+function findMultiOpen(s) {
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (c === '#') return null;
+    if (c === '"' || c === "'") {
+      if (s.startsWith(c.repeat(3), i)) return { delim: c.repeat(3), at: i };
+      i++;
+      while (i < s.length && s[i] !== c) { if (c === '"' && s[i] === '\\') i++; i++; }
+    }
+  }
+  return null;
+}
+
 function lineInfo(parts) {
   const out = [];
   let delim = null;
@@ -183,8 +197,8 @@ function lineInfo(parts) {
     let start = false;
     if (delim) { skip = true; if (s.includes(delim)) delim = null; }
     else {
-      const m = /"""|'''/.exec(s);
-      if (m) { skip = true; start = true; if (s.indexOf(m[0], m.index + 3) < 0) delim = m[0]; }
+      const m = findMultiOpen(s);
+      if (m) { skip = true; start = true; if (s.indexOf(m.delim, m.at + 3) < 0) delim = m.delim; }
     }
     out.push({ idx: k, s, skip, start });
   }

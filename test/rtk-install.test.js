@@ -120,14 +120,14 @@ test('checksum certo extrai e devolve o binário', async () => {
 function ambiente({ version = null, uname = 'x86_64\n', bashHasRtk = false, profile = null, fail = {}, hostPlatform = 'linux', whereOut = '', wingetVersion = 'rtk 0.48.0', managed = null } = {}) {
   const calls = [];
   const writes = [];
-  const files = new Map(profile === null ? [] : [['/home/bruno/.profile', profile]]);
+  const files = new Map(profile === null ? [] : [['/home/ana/.profile', profile]]);
   const dl = { assets: [] };
   let movido = false; // depois do mv o binário novo responde 0.50.0
   const fake = {
     HOST: { id: 'host', kind: 'host', platform: hostPlatform, running: true },
     calls, writes, files, dl,
-    findRtk: async () => managed || (version ? '/home/bruno/.local/bin/rtk' : null),
-    homeOf: async () => '/home/bruno',
+    findRtk: async () => managed || (version ? '/home/ana/.local/bin/rtk' : null),
+    homeOf: async () => '/home/ana',
     run: async (e, argv) => {
       calls.push(argv.join(' '));
       const k = argv.join(' ');
@@ -135,7 +135,7 @@ function ambiente({ version = null, uname = 'x86_64\n', bashHasRtk = false, prof
       if (argv.includes('--version')) return { ok: true, stdout: (argv[0].includes('WinGet') ? wingetVersion : (movido ? 'rtk 0.50.0' : (version || 'rtk 0.50.0'))) + '\n' };
       if (argv[0] === 'mv') movido = true;
       if (argv[0] === 'uname') return { ok: true, stdout: uname };
-      if (argv[0] === 'bash') return { ok: true, stdout: bashHasRtk ? '/home/bruno/.local/bin/rtk\n' : '' };
+      if (argv[0] === 'bash') return { ok: true, stdout: bashHasRtk ? '/home/ana/.local/bin/rtk\n' : '' };
       if (argv[0] === 'where.exe') return { ok: true, stdout: whereOut };
       return { ok: true, stdout: '' };
     },
@@ -197,10 +197,10 @@ test('distro: o destino é <home>/.local/bin/rtk, gravado em temporário e posto
   const env = ambiente({ version: 'rtk 0.48.0', bashHasRtk: true });
   const { inst } = instalador(env);
   const r = await inst.install(DISTRO());
-  assert.deepStrictEqual([r.ok, r.rtk], [true, '/home/bruno/.local/bin/rtk']);
-  assert.deepStrictEqual(env.writes, ['/home/bruno/.local/bin/.rtk-new-77']);
+  assert.deepStrictEqual([r.ok, r.rtk], [true, '/home/ana/.local/bin/rtk']);
+  assert.deepStrictEqual(env.writes, ['/home/ana/.local/bin/.rtk-new-77']);
   const iChmod = env.calls.findIndex(c => c.startsWith('chmod +x'));
-  const iMv = env.calls.findIndex(c => c === 'mv -f /home/bruno/.local/bin/.rtk-new-77 /home/bruno/.local/bin/rtk');
+  const iMv = env.calls.findIndex(c => c === 'mv -f /home/ana/.local/bin/.rtk-new-77 /home/ana/.local/bin/rtk');
   assert.ok(iChmod >= 0 && iMv > iChmod, 'chmod antes do mv');
   assert.ok(env.calls.every(c => !c.startsWith('sh -c')), 'nada de script montado');
 });
@@ -210,7 +210,7 @@ test('distro: falha ao gravar não deixa temporário nem faz mv', async () => {
   const { inst } = instalador(env);
   const r = await inst.install(DISTRO());
   assert.strictEqual(r.ok, false);
-  assert.ok(env.calls.some(c => c.startsWith('rm /home/bruno/.local/bin/.rtk-new-')));
+  assert.ok(env.calls.some(c => c.startsWith('rm /home/ana/.local/bin/.rtk-new-')));
   assert.ok(!env.calls.some(c => c.startsWith('mv ')));
 });
 
@@ -218,18 +218,18 @@ test('PATH: só edita o ~/.profile quando command -v rtk falha, e a edição é 
   const sem = ambiente({ bashHasRtk: false, profile: 'umask 022\n' });
   let r = await instalador(sem).inst.install(DISTRO());
   assert.strictEqual(r.pathEdited, true);
-  const prof = sem.files.get('/home/bruno/.profile');
+  const prof = sem.files.get('/home/ana/.profile');
   assert.match(prof, /^umask 022\n\n# added by Rendra IDE \(RTK\)\nexport PATH="\$HOME\/\.local\/bin:\$PATH"\n$/);
   // segunda instalação: agora o profile já cita .local/bin, não duplica
   const de_novo = ambiente({ bashHasRtk: false, profile: prof, version: 'rtk 0.48.0' });
   r = await instalador(de_novo).inst.install(DISTRO());
   assert.strictEqual(r.pathEdited, false);
-  assert.strictEqual(de_novo.files.get('/home/bruno/.profile'), prof);
+  assert.strictEqual(de_novo.files.get('/home/ana/.profile'), prof);
   // rtk já no PATH: o profile nem é lido
   const ok = ambiente({ bashHasRtk: true, profile: 'x\n' });
   r = await instalador(ok).inst.install(DISTRO());
   assert.strictEqual(r.pathEdited, false);
-  assert.strictEqual(ok.files.get('/home/bruno/.profile'), 'x\n');
+  assert.strictEqual(ok.files.get('/home/ana/.profile'), 'x\n');
 });
 
 test('host: usa setup.installRtk e confere a versão; versão ainda velha vira erro com a causa provável', async () => {

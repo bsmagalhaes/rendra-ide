@@ -50,7 +50,7 @@ test('hook no Windows com espaço: aspas só se o Git Bash existe; senão recusa
 });
 
 test('hook no Linux e WSL: caminho absoluto; espaço entre aspas; caractere perigoso recusado', () => {
-  assert.strictEqual(P.hookCommand('/home/bruno/.local/bin/rtk', 'codex', 'linux').command, '/home/bruno/.local/bin/rtk hook codex');
+  assert.strictEqual(P.hookCommand('/home/ana/.local/bin/rtk', 'codex', 'linux').command, '/home/ana/.local/bin/rtk hook codex');
   assert.strictEqual(P.hookCommand('/home/a b/.local/bin/rtk', 'claude', 'linux').command, '"/home/a b/.local/bin/rtk" hook claude');
   for (const ruim of ['/home/$(x)/rtk', '/home/a"b/rtk', '/home/`x`/rtk', '/home/a\\b/rtk']) {
     const r = P.hookCommand(ruim, 'claude', 'linux');
@@ -66,7 +66,7 @@ test('isRtkHookCommand reproduz o critério do RTK (F45)', () => {
   assert.ok(ok('"C:/Program Files/x/rtk.exe" hook codex'));
   assert.ok(ok('"C:\\Program Files\\x\\rtk.exe" hook codex'));
   assert.ok(ok('C:/Users/x/.local/bin/rtk.exe hook codex'));
-  assert.ok(ok('/home/bruno/.local/bin/rtk hook codex'));
+  assert.ok(ok('/home/ana/.local/bin/rtk hook codex'));
   assert.ok(!ok('rtk hook claude'), 'outro agente');
   assert.ok(!ok('command -v rtk >/dev/null 2>&1 && rtk hook claude || true'));
   assert.ok(!P.isRtkHookCommand('command -v rtk >/dev/null 2>&1 && rtk hook claude || true', 'claude'));

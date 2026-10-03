@@ -32,7 +32,7 @@ function montar({ platform = 'linux', distros = [], files = {}, version = 'rtk 0
     const naDistro = file === 'wsl.exe';
     const dbPath = naDistro ? args.find(a => a.startsWith('RTK_DB_PATH='))?.slice(12) : opts.env.RTK_DB_PATH;
     const resto = naDistro ? args.slice(args.indexOf('-e') + 1).filter(a => a !== 'env' && !a.startsWith('RTK_DB_PATH=')) : args;
-    if (naDistro && resto[0] === 'sh' && resto[2].includes('printf')) return cb(null, '/home/bruno', '');
+    if (naDistro && resto[0] === 'sh' && resto[2].includes('printf')) return cb(null, '/home/ana', '');
     if (naDistro && resto[0] === 'sh' && resto[2].includes('command -v')) return cb(null, '', '');
     const ver = naDistro ? (wslVersion || version) : version;
     if (resto.includes('--version')) return cb(null, ver + '\n', '');
@@ -49,7 +49,7 @@ function montar({ platform = 'linux', distros = [], files = {}, version = 'rtk 0
     toWslUnc: unc,
     rtkPath: async () => (hostRtk === undefined ? (platform === 'win32' ? 'C:\\Users\\ana\\.local\\bin\\rtk.exe' : '/home/ana/.local/bin/rtk') : hostRtk),
   });
-  if (wslRtk) arquivos.set(unc('Ubuntu-24.04', '/home/bruno/.local/bin/rtk'), 'bin');
+  if (wslRtk) arquivos.set(unc('Ubuntu-24.04', '/home/ana/.local/bin/rtk'), 'bin');
   const hostRuns = [];
   const st = createRtkStatus({
     env, processEnv: procEnv,
@@ -80,8 +80,8 @@ test('(a) host sozinho com os dois bancos: duas leituras com RTK_DB_PATH diferen
 });
 
 test('(b) Windows com distro Running: segundo ambiente com os dados da distro, chamada por wsl.exe -d', async () => {
-  const wClaude = '/home/bruno/.local/share/rtk/history.db';
-  const wCodex = '/home/bruno/.local/share/rtk/codex/history.db';
+  const wClaude = '/home/ana/.local/share/rtk/history.db';
+  const wCodex = '/home/ana/.local/share/rtk/codex/history.db';
   const { st, chamadas } = montar({
     platform: 'win32', distros: [['Ubuntu-24.04', 'Running']], procEnv: { LOCALAPPDATA: 'C:\\Users\\ana\\AppData\\Local' },
     files: { [unc('Ubuntu-24.04', wClaude)]: 'db', [unc('Ubuntu-24.04', wCodex)]: 'db' },
@@ -95,7 +95,7 @@ test('(b) Windows com distro Running: segundo ambiente com os dados da distro, c
   const viaWsl = chamadas.filter(c => c.file === 'wsl.exe' && c.args.includes('gain'));
   assert.strictEqual(viaWsl.length, 2);
   assert.ok(viaWsl.every(c => c.args.slice(0, 3).join(' ') === '-d Ubuntu-24.04 -e'));
-  assert.ok(viaWsl.every(c => c.args.includes('/home/bruno/.local/bin/rtk')));
+  assert.ok(viaWsl.every(c => c.args.includes('/home/ana/.local/bin/rtk')));
   assert.ok(chamadas.every(c => !c.args.includes('-u')));
 });
 

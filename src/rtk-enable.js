@@ -138,6 +138,7 @@ function createRtkEnable(deps) {
       // 3. ajustes da IDE
       let trust = null;
       let tomlBlock = null;
+      let keyPathCodex = null; // calculado uma vez, ao gravar o config.toml, e reaproveitado na conferência
       if (agent === 'claude') {
         const r = await writeChecked(e, settingsPath, t => C.patchClaudeSettings(t == null ? '{}' : t, { dbPath: claudeDb, absRtk: rtk, platform: dirs.platform, gitBash: gb }));
         notes.push(...r.notes.filter(n => !n.startsWith('env.RTK_DB_PATH')));
@@ -153,6 +154,7 @@ function createRtkEnable(deps) {
         // cabe, a pasta do banco em writable_roots. O rollback cobre tudo sem caso novo.
         const hooksFinal = (await env.readFile(e, hooksPath)).text || '';
         const keyPath = p.join(await env.codexKeyDir(e, dirs), 'hooks.json');
+        keyPathCodex = keyPath;
         const targets = C.rtkTrustTargets(hooksFinal, keyPath);
         const t = await writeChecked(e, tomlPath, txt => {
           let cur = txt == null ? '' : txt;
@@ -161,7 +163,7 @@ function createRtkEnable(deps) {
           cur = a.text;
           const b = C.applyCodexTrust(cur, targets);
           if (b.changed) { cur = b.text; out.changed = true; out.notes.push('O hook do RTK foi aprovado no Codex.'); }
-          if (!b.recognized && targets.length) out.notes.push('O config.toml tem uma configuração de hooks que a IDE não sabe editar; a aprovação do hook do RTK ficou para você fazer no Codex.');
+          if (!b.recognized && targets.length) out.notes.push('O arquivo de configuração do Codex (config.toml) tem um trecho que a IDE não consegue alterar com segurança, então ela não mexeu nele. Aprove o hook do RTK dentro do Codex (digite /hooks). Mesmo aprovado, esta tela pode seguir dizendo que falta aprovar; o RTK funciona do mesmo jeito.');
           const w = C.patchWritableRoots(cur, P.codexDbDir(o), { platform: dirs.platform });
           if (w.changed) { cur = w.text; out.changed = true; out.notes.push('A pasta do banco do RTK foi liberada para o Codex gravar.'); }
           return { ...out, text: cur };
@@ -184,7 +186,7 @@ function createRtkEnable(deps) {
       if (!dbExisted) notes.push(`Banco do ${agent === 'claude' ? 'Claude Code' : 'Codex'} criado em ${dbPath}.`);
       if (!C.isAbsoluteHook(hookText, kind)) notes.push('O hook ficou como o rtk init o gravou (sem caminho absoluto); veja a nota acima.');
       if (agent === 'codex') {
-        trust = C.codexHookTrust(hooksNow, (await env.readFile(e, tomlPath)).text || '', p.join(await env.codexKeyDir(e, dirs), 'hooks.json'));
+        trust = C.codexHookTrust(hooksNow, (await env.readFile(e, tomlPath)).text || '', keyPathCodex);
       }
 
       // 5. fecha: o que não mudou perde a cópia; o que mudou entra em changes[]

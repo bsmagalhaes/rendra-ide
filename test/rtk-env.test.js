@@ -62,12 +62,12 @@ test('distro parada: zero chamadas de execução e estado wsl-off; não lê arqu
 test('distro Running: a linha usa -d, -e, env K=V e o binário; sem -u e sem --', async () => {
   const { e, chamadas } = montar({ distros: [DISTRO('Ubuntu-24.04')] });
   const d = (await e.listEnvironments())[1];
-  await e.run(d, ['/home/bruno/.local/bin/rtk', 'gain', '--all', '--format', 'json'], { env: { RTK_DB_PATH: '/home/bruno/.local/share/rtk/codex/history.db' } });
+  await e.run(d, ['/home/ana/.local/bin/rtk', 'gain', '--all', '--format', 'json'], { env: { RTK_DB_PATH: '/home/ana/.local/share/rtk/codex/history.db' } });
   assert.strictEqual(chamadas.length, 1);
   const { file, args } = chamadas[0];
   assert.strictEqual(file, 'wsl.exe');
-  assert.deepStrictEqual(args, ['-d', 'Ubuntu-24.04', '-e', 'env', 'RTK_DB_PATH=/home/bruno/.local/share/rtk/codex/history.db',
-    '/home/bruno/.local/bin/rtk', 'gain', '--all', '--format', 'json']);
+  assert.deepStrictEqual(args, ['-d', 'Ubuntu-24.04', '-e', 'env', 'RTK_DB_PATH=/home/ana/.local/share/rtk/codex/history.db',
+    '/home/ana/.local/bin/rtk', 'gain', '--all', '--format', 'json']);
   assert.ok(!args.includes('-u') && !args.includes('--'));
 });
 
@@ -86,7 +86,7 @@ test('home da distro chega como um único argumento intacto, mesmo com espaço e
 });
 
 test('home da distro é lido uma vez dentro do prazo do cache', async () => {
-  const { e, chamadas } = montar({ distros: [DISTRO('Ubuntu')], respostas: { 'printf %s': '/home/bruno' } });
+  const { e, chamadas } = montar({ distros: [DISTRO('Ubuntu')], respostas: { 'printf %s': '/home/ana' } });
   const d = (await e.listEnvironments())[1];
   await e.homeOf(d); await e.homeOf(d); await e.agentDirs(d);
   assert.strictEqual(chamadas.length, 1);
@@ -131,17 +131,17 @@ test('binário da distro: .local/bin primeiro; senão command -v (correção 10)
   const fsFalso = { existsSync: p => existentes.has(p) };
   const { e, chamadas } = montar({
     distros: [DISTRO('Ubuntu')], fsFalso,
-    respostas: { 'printf %s': '/home/bruno', 'command -v rtk': '/usr/bin/rtk\n' },
+    respostas: { 'printf %s': '/home/ana', 'command -v rtk': '/usr/bin/rtk\n' },
   });
   const d = (await e.listEnvironments())[1];
   assert.strictEqual(await e.findRtk(d), '/usr/bin/rtk');
   assert.ok(chamadas.some(c => c.args.join(' ').includes('command -v rtk')));
-  existentes.add('\\\\wsl.localhost\\Ubuntu\\home\\bruno\\.local\\bin\\rtk');
-  assert.strictEqual(await e.findRtk(d), '/home/bruno/.local/bin/rtk');
+  existentes.add('\\\\wsl.localhost\\Ubuntu\\home\\ana\\.local\\bin\\rtk');
+  assert.strictEqual(await e.findRtk(d), '/home/ana/.local/bin/rtk');
 });
 
 test('binário da distro ausente em toda parte: null', async () => {
-  const { e } = montar({ distros: [DISTRO('Ubuntu')], fsFalso: { existsSync: () => false }, respostas: { 'printf %s': '/home/bruno', 'command -v rtk': '' } });
+  const { e } = montar({ distros: [DISTRO('Ubuntu')], fsFalso: { existsSync: () => false }, respostas: { 'printf %s': '/home/ana', 'command -v rtk': '' } });
   assert.strictEqual(await e.findRtk((await e.listEnvironments())[1]), null);
 });
 

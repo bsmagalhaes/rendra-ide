@@ -126,8 +126,8 @@ test('falha da ativação mostra o que foi desfeito, o que não foi e onde ficar
 });
 
 test('texto da instalação: versão, PATH da distro e aviso do WinGet; falha e distro parada', () => {
-  const ok = A.installText({ ok: true, rtk: '/home/bruno/.local/bin/rtk', version: '0.50.0', pathEdited: true, warnings: [{ text: 'Há um RTK 0.48.0 do WinGet.' }] }, 'Ubuntu');
-  assert.match(ok, /RTK 0\.50\.0 instalado em Ubuntu: \/home\/bruno\/\.local\/bin\/rtk/);
+  const ok = A.installText({ ok: true, rtk: '/home/ana/.local/bin/rtk', version: '0.50.0', pathEdited: true, warnings: [{ text: 'Há um RTK 0.48.0 do WinGet.' }] }, 'Ubuntu');
+  assert.match(ok, /RTK 0\.50\.0 instalado em Ubuntu: \/home\/ana\/\.local\/bin\/rtk/);
   assert.match(ok, /~\/\.profile da distro/);
   assert.match(ok, /WinGet/);
   assert.match(A.installText({ ok: true, upToDate: true, version: '0.50.1' }, 'Windows'), /já está na versão 0\.50\.1/);

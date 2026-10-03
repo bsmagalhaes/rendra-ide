@@ -32,11 +32,11 @@ function ambiente({ distro = false, version = 'rtk 0.50.0', running = true } = {
     LOCALAPPDATA: path.join(tmp, 'local'), XDG_DATA_HOME: path.join(tmp, 'local'),
     APPDATA: path.join(tmp, 'roaming'), XDG_CONFIG_HOME: path.join(tmp, 'roaming'),
   };
-  // distro falsa: /home/bruno vira tmp/wsl/Ubuntu/home/bruno
+  // distro falsa: /home/ana vira tmp/wsl/Ubuntu/home/ana
   const unc = (d, p) => path.join(tmp, 'wsl', d, ...p.split('/').filter(Boolean));
   const toFs = (p, naDistro) => (naDistro ? unc('Ubuntu', p) : p);
   const rtkHost = path.join(hostHome, '.local', 'bin', process.platform === 'win32' ? 'rtk.exe' : 'rtk');
-  const rtkDistro = '/home/bruno/.local/bin/rtk';
+  const rtkDistro = '/home/ana/.local/bin/rtk';
 
   const lerJson = f => (fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : {});
   const grava = (f, o) => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, JSON.stringify(o, null, 2) + '\n'); };
@@ -85,7 +85,7 @@ function ambiente({ distro = false, version = 'rtk 0.50.0', running = true } = {
         const vars = {};
         if (resto[0] === 'env') { resto = resto.slice(1); while (resto[0] && /^[A-Z_]+=/.test(resto[0])) { const [k, ...v] = resto.shift().split('='); vars[k] = v.join('='); } }
         chamadas.push({ wsl: args.join(' ') });
-        if (resto[0] === 'sh' && resto[2].includes('printf')) return cb(null, '/home/bruno', '');
+        if (resto[0] === 'sh' && resto[2].includes('printf')) return cb(null, '/home/ana', '');
         if (resto[0] === 'sh' && resto[2].includes('command -v')) return cb(null, '', '');
         return cb(null, simular(vars, resto, true).out, '');
       }
@@ -99,11 +99,11 @@ function ambiente({ distro = false, version = 'rtk 0.50.0', running = true } = {
     toWslUnc: unc, rtkPath: async () => rtkHost,
   });
   if (distro && running) { fs.mkdirSync(path.dirname(unc('Ubuntu', rtkDistro)), { recursive: true }); fs.writeFileSync(unc('Ubuntu', rtkDistro), 'bin'); }
-  const caminho = (...p) => (distro ? unc('Ubuntu', ['', 'home', 'bruno', ...p].join('/')) : path.join(hostHome, ...p));
+  const caminho = (...p) => (distro ? unc('Ubuntu', ['', 'home', 'ana', ...p].join('/')) : path.join(hostHome, ...p));
   const dirsDe = () => ({
     claude: caminho('.claude'), codex: caminho('.codex'),
-    claudeDb: distro ? unc('Ubuntu', '/home/bruno/.local/share/rtk/history.db') : P.claudeDbPath({ platform, env: procEnv, home: hostHome }),
-    codexDb: distro ? unc('Ubuntu', '/home/bruno/.local/share/rtk/codex/history.db') : P.codexDbPath({ platform, env: procEnv, home: hostHome }),
+    claudeDb: distro ? unc('Ubuntu', '/home/ana/.local/share/rtk/history.db') : P.claudeDbPath({ platform, env: procEnv, home: hostHome }),
+    codexDb: distro ? unc('Ubuntu', '/home/ana/.local/share/rtk/codex/history.db') : P.codexDbPath({ platform, env: procEnv, home: hostHome }),
   });
   if (!distro) { fs.mkdirSync(path.dirname(rtkHost), { recursive: true }); fs.writeFileSync(rtkHost, 'bin'); }
   return { tmp, env, chamadas, procEnv, d: dirsDe(), caminho, rtkHost, rtkDistro, distro, platform };
@@ -115,7 +115,7 @@ async function alvo(t) { return t.distro ? (await t.env.listEnvironments()).find
 function ativador(t, { env = t.env, now = () => new Date(2026, 9, 2, 10, 0, 0).getTime() } = {}) {
   return createRtkEnable({ env, processEnv: t.procEnv, now, gitBash: async () => true });
 }
-const wslHome = '/home/bruno';
+const wslHome = '/home/ana';
 
 // ── Claude ──────────────────────────────────────────────────────────────────
 test('Claude no host: hook absoluto e env.RTK_DB_PATH; Orca e demais chaves iguais; banco do Claude intacto (hash)', async () => {
@@ -349,7 +349,7 @@ test('distro Running: caminho absoluto da distro no hook, arquivos pelo UNC mape
     assert.strictEqual(r.ok, true, r.error);
     const hooks = JSON.parse(ler(path.join(t.d.codex, 'hooks.json')));
     assert.strictEqual(hooks.hooks.PreToolUse[1].hooks[0].command, `${wslHome}/.local/bin/rtk hook codex`);
-    assert.match(ler(path.join(t.d.codex, 'config.toml')), /RTK_DB_PATH = '\/home\/bruno\/\.local\/share\/rtk\/codex\/history\.db'/);
+    assert.match(ler(path.join(t.d.codex, 'config.toml')), /RTK_DB_PATH = '\/home\/ana\/\.local\/share\/rtk\/codex\/history\.db'/);
     const wsl = t.chamadas.filter(c => c.wsl).map(c => c.wsl);
     assert.ok(wsl.every(l => l.startsWith('-d Ubuntu -e ')), wsl.join('\n'));
     assert.ok(wsl.every(l => !/(^| )-u /.test(l)));
@@ -476,7 +476,7 @@ test('CODEX_HOME apontando para uma junção: a chave gravada usa o destino (cam
   } finally { limpar(t); }
 });
 
-test('distro WSL: a aprovação usa a chave e o hash do comando da distro (/home/bruno/.local/bin/rtk hook codex)', async () => {
+test('distro WSL: a aprovação usa a chave e o hash do comando da distro (/home/ana/.local/bin/rtk hook codex)', async () => {
   const t = ambiente({ distro: true });
   try {
     codexBase(t);
@@ -491,7 +491,7 @@ test('distro WSL: a aprovação usa a chave e o hash do comando da distro (/home
 });
 
 // ── T6: writable_roots junto, na mesma escrita ──
-const ROOTS = '/home/bruno/.local/share/rtk/codex';
+const ROOTS = '/home/ana/.local/share/rtk/codex';
 async function wslCom(tomlInicial) {
   const t = ambiente({ distro: true });
   codexBase(t);
