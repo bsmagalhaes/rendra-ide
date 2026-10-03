@@ -52,7 +52,7 @@ function createRtkStatus(deps) {
     claude: { installed: false, hook: false, hookAbsolute: false, dbEnvConfigured: false, dbPath: null, gain: ZERO_GAIN(), error: null },
     codex: {
       installed: false, hook: false, hookAbsolute: false, dbEnvConfigured: false, dbPath: null, trust: null,
-      gain: ZERO_GAIN(), error: null, writableRootsSnippet: null,
+      gain: ZERO_GAIN(), error: null,
     },
   });
 
@@ -121,7 +121,6 @@ function createRtkStatus(deps) {
         trust: trust.state === 'no-hook' ? null : trust.state,
         trustMessage: trust.state === 'modified' || trust.state === 'untrusted' ? TRUST_MSG : null,
         dbPath: codexDb, gain: xg.gain, error: xg.error,
-        writableRootsSnippet: P.writableRootsSnippet(P.codexDbDir(o)),
         files: plannedFiles('codex', dirs, pathEnv),
       },
     };

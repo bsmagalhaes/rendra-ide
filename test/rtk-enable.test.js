@@ -168,10 +168,21 @@ test('Codex no host: oito eventos do Orca iguais, RTK no índice 1 com caminho a
     assert.strictEqual(hooks.hooks.PreToolUse[1].hooks[0].command, P.hookCommand(t.rtkHost, 'codex', t.platform, { gitBash: true }).command);
     const tomlDepois = ler(path.join(t.d.codex, 'config.toml'));
     assert.ok(tomlDepois.startsWith(tomlAntes), 'chaves [hooks.state] (inclui pre_tool_use:0:0 do Orca), trust_level e [tui] intactos');
-    assert.strictEqual(tomlDepois.slice(tomlAntes.length), `\n[shell_environment_policy]\nset = { RTK_DB_PATH = '${t.d.codexDb}' }\n`);
+    const absCmd = P.hookCommand(t.rtkHost, 'codex', t.platform, { gitBash: true }).command;
+    const hashEsperado = C.codexHookHash({ matcher: 'Bash' }, { type: 'command', command: absCmd });
+    const chave = `${path.join(t.d.codex, 'hooks.json')}:pre_tool_use:1:0`;
+    assert.strictEqual(tomlDepois.slice(tomlAntes.length), `
+[shell_environment_policy]
+set = { RTK_DB_PATH = '${t.d.codexDb}' }
+
+[hooks.state.'${chave}']
+trusted_hash = "${hashEsperado}"
+`);
+    assert.ok(!tomlDepois.slice(tomlAntes.length).includes('enabled'), 'só trusted_hash');
     assert.ok(fs.existsSync(t.d.codexDb), 'banco do Codex criado');
-    assert.strictEqual(r.trust, 'untrusted');
-    assert.match(r.trustMessage, /PreToolUse/);
+    assert.strictEqual(r.trust, 'trusted');
+    assert.strictEqual(r.trustMessage, null);
+    assert.strictEqual(C.codexHookTrust(ler(path.join(t.d.codex, 'hooks.json')), tomlDepois, path.join(t.d.codex, 'hooks.json')).state, 'trusted');
     const toml = r.changes.find(c => c.file.endsWith('config.toml'));
     assert.match(toml.added, /\[shell_environment_policy\]/);
     assert.ok(ler(toml.backup) === tomlAntes);
@@ -196,14 +207,8 @@ test('idempotência: duas ativações deixam os arquivos iguais e um só hook do
     assert.deepStrictEqual(['hooks.json', 'config.toml', 'AGENTS.md', 'RTK.md'].map(n => ler(path.join(t.d.codex, n))), snap);
     assert.strictEqual(JSON.parse(snap[0]).hooks.PreToolUse.length, 2);
     assert.deepStrictEqual(r2.changes, []);
-    assert.strictEqual(r1.trust, 'untrusted');
-    assert.strictEqual(r2.trust, 'untrusted', 'sem entrada de confiança continua pendente');
-    // com a confiança registrada e nada alterado, vira trusted
-    const hj = path.join(t.d.codex, 'hooks.json');
-    const alv = C.rtkTrustTargets(ler(hj), hj)[0];
-    escrever(path.join(t.d.codex, "config.toml"), C.upsertHookTrust(snap[1], alv.key, alv.hash).text);
-    const r3 = await a.enable(e, 'codex');
-    assert.strictEqual(r3.trust, 'trusted');
+    assert.strictEqual(r1.trust, 'trusted');
+    assert.strictEqual(r2.trust, 'trusted', 'reativar com o hook aprovado não regrava nada (C11)');
     assert.deepStrictEqual(baks(), baksR1, 'ativação sem alteração não deixa cópia nova');
   } finally { limpar(t); }
 });
@@ -364,5 +369,188 @@ test('os arquivos que a ativação toca estão listados por agente (correção 6
     const st = createRtkStatus({ env: t.env, processEnv: t.procEnv, runRtk: async () => ({ ok: true, output: '' }) });
     const e = await st.inspect(t.env.HOST);
     assert.deepStrictEqual(e.agents.codex.files.map(f => path.basename(f)).sort(), nomes('codex'));
+  } finally { limpar(t); }
+});
+
+// ── T3: aprovação do hook na ativação (Windows, WSL), com backup e rollback ──
+const hashDe = cmd => C.codexHookHash({ matcher: 'Bash' }, { type: 'command', command: cmd });
+const chaveDe = (t, g = 1, i = 0) => `${path.join(t.d.codex, 'hooks.json')}:pre_tool_use:${g}:${i}`;
+
+test('aprovação: hash antigo na mesma chave é trocado (uma só tabela) e o resto do config.toml fica', async () => {
+  const t = ambiente();
+  try {
+    codexBase(t);
+    const toml = path.join(t.d.codex, 'config.toml');
+    escrever(toml, ler(toml) + `\n[hooks.state.'${chaveDe(t)}']\nenabled = true\ntrusted_hash = "sha256:velho"\n`);
+    const antes = ler(toml);
+    assert.strictEqual(C.codexHookTrust(ler(path.join(t.d.codex, 'hooks.json')), antes, path.join(t.d.codex, 'hooks.json')).state, 'no-hook');
+    const r = await ativador(t).enable(await alvo(t), 'codex');
+    assert.strictEqual(r.ok, true, r.error);
+    const depois = ler(toml);
+    assert.strictEqual(r.trust, 'trusted');
+    assert.strictEqual(depois.split(`[hooks.state.'${chaveDe(t)}']`).length - 1, 1, 'nenhuma tabela duplicada');
+    assert.ok(depois.includes(`enabled = true\ntrusted_hash = "${hashDe(P.hookCommand(t.rtkHost, 'codex', t.platform, { gitBash: true }).command)}"`));
+    assert.ok(depois.includes('[tui]') && depois.includes('trust_level = "trusted"'));
+  } finally { limpar(t); }
+});
+
+test('aprovação: só entradas do RTK; outro handler do mesmo grupo (1:0) não recebe hooks.state e o RTK (1:1) sim', async () => {
+  const t = ambiente();
+  try {
+    codexBase(t);
+    const hj = path.join(t.d.codex, 'hooks.json');
+    const o = JSON.parse(ler(hj));
+    o.hooks.PreToolUse.push({ matcher: 'Bash', hooks: [{ type: 'command', command: 'echo de-outro-programa' }, { type: 'command', command: 'rtk hook codex' }] });
+    escrever(hj, JSON.stringify(o, null, 2) + '\n');
+    const r = await ativador(t).enable(await alvo(t), 'codex');
+    assert.strictEqual(r.ok, true, r.error);
+    const toml = ler(path.join(t.d.codex, 'config.toml'));
+    assert.ok(toml.includes(`'${chaveDe(t, 1, 1)}'`), 'o RTK está em 1:1');
+    assert.ok(!toml.includes(`'${chaveDe(t, 1, 0)}'`), 'o handler alheio (1:0) não é aprovado');
+    assert.strictEqual(r.trust, 'trusted');
+  } finally { limpar(t); }
+});
+
+test('aprovação: config.toml em forma que a IDE não edita não quebra a ativação; o hook fica pendente com o texto do /hooks', async () => {
+  const t = ambiente();
+  try {
+    codexBase(t);
+    const toml = path.join(t.d.codex, 'config.toml');
+    const estranho = 'hooks.state."x".trusted_hash = "sha256:y"\nmodel = "m"\n';
+    escrever(toml, estranho);
+    const r = await ativador(t).enable(await alvo(t), 'codex');
+    assert.strictEqual(r.ok, true, r.error);
+    assert.strictEqual(ler(toml), `${estranho}\n[shell_environment_policy]\nset = { RTK_DB_PATH = '${t.d.codexDb}' }\n`);
+    assert.strictEqual(r.trust, 'untrusted');
+    assert.match(r.trustMessage, /\/hooks.*PreToolUse.*\bt\b/);
+  } finally { limpar(t); }
+});
+
+test('rollback depois da escrita do config.toml: a falha tardia devolve hooks.json e config.toml (com a aprovação) ao que eram, por hash', async () => {
+  const t = ambiente();
+  try {
+    codexBase(t);
+    const toml = path.join(t.d.codex, 'config.toml');
+    escrever(toml, ler(toml) + 'sandbox_mode = "workspace-write"\n');
+    const arquivos = ['hooks.json', 'config.toml', 'AGENTS.md'].map(n => path.join(t.d.codex, n));
+    const antes = arquivos.map(f => sha(ler(f)));
+    const falha = { ...t.env, run: async (e, argv, o) => (argv.includes('gain') ? { ok: false, stdout: '', stderr: 'banco quebrou' } : t.env.run(e, argv, o)) };
+    const r = await ativador(t, { env: falha }).enable(await alvo(t), 'codex');
+    assert.strictEqual(r.ok, false);
+    assert.match(r.error, /rtk gain/);
+    assert.deepStrictEqual(arquivos.map(f => sha(ler(f))), antes);
+    assert.ok(!ler(toml).includes('trusted_hash = "sha256:' + hashDe('rtk hook codex').slice(7)));
+    assert.deepStrictEqual(fs.readdirSync(t.d.codex).filter(n => n.endsWith('.rendra-tmp') || n.endsWith('.bak')), [], 'sem lixo');
+  } finally { limpar(t); }
+});
+
+test('falha injetada na gravação do config.toml: hooks.json, config.toml e AGENTS.md voltam byte a byte e nada fica aprovado', async () => {
+  const t = ambiente();
+  try {
+    codexBase(t);
+    const arquivos = ['hooks.json', 'config.toml', 'AGENTS.md'].map(n => path.join(t.d.codex, n));
+    const bytes = arquivos.map(f => fs.readFileSync(f));
+    const falha = { ...t.env, writeFile: async (e, p, txt) => (p.endsWith('config.toml.rendra-tmp') ? { ok: false, error: 'disco cheio' } : t.env.writeFile(e, p, txt)) };
+    const r = await ativador(t, { env: falha }).enable(await alvo(t), 'codex');
+    assert.strictEqual(r.ok, false);
+    arquivos.forEach((f, i) => assert.ok(fs.readFileSync(f).equals(bytes[i]), f));
+  } finally { limpar(t); }
+});
+
+test('CODEX_HOME apontando para uma junção: a chave gravada usa o destino (caminho canônico), como o Codex', async () => {
+  const t = ambiente();
+  try {
+    const real = path.join(t.tmp, 'codex-real');
+    const link = path.join(t.tmp, 'codex-link');
+    fs.mkdirSync(real, { recursive: true });
+    fs.symlinkSync(real, link, 'junction');
+    t.procEnv.CODEX_HOME = link;
+    escrever(path.join(real, 'hooks.json'), ORCA_HOOKS);
+    const r = await ativador(t).enable(await alvo(t), 'codex');
+    assert.strictEqual(r.ok, true, r.error);
+    const canonico = fs.realpathSync.native(real);
+    const toml = ler(path.join(real, 'config.toml'));
+    assert.ok(toml.includes(`[hooks.state.'${path.join(canonico, 'hooks.json')}:pre_tool_use:1:0']`), toml);
+    assert.ok(!toml.includes(link), 'o apelido da junção não entra na chave');
+    assert.strictEqual(r.trust, 'trusted');
+  } finally { limpar(t); }
+});
+
+test('distro WSL: a aprovação usa a chave e o hash do comando da distro (/home/bruno/.local/bin/rtk hook codex)', async () => {
+  const t = ambiente({ distro: true });
+  try {
+    codexBase(t);
+    const r = await ativador(t).enable(await alvo(t), 'codex');
+    assert.strictEqual(r.ok, true, r.error);
+    const toml = ler(path.join(t.d.codex, 'config.toml'));
+    assert.ok(toml.includes(`[hooks.state.'/home/bruno/.codex/hooks.json:pre_tool_use:1:0']\ntrusted_hash = "${hashDe(`${wslHome}/.local/bin/rtk hook codex`)}"\n`), toml);
+    assert.strictEqual(r.trust, 'trusted');
+    const r2 = await ativador(t).enable(await alvo(t), 'codex');
+    assert.deepStrictEqual(r2.changes, [], 'reativar não regrava');
+  } finally { limpar(t); }
+});
+
+// ── T6: writable_roots junto, na mesma escrita ──
+const ROOTS = '/home/bruno/.local/share/rtk/codex';
+async function wslCom(tomlInicial) {
+  const t = ambiente({ distro: true });
+  codexBase(t);
+  escrever(path.join(t.d.codex, 'config.toml'), tomlInicial);
+  const r = await ativador(t).enable(await alvo(t), 'codex');
+  return { t, r, toml: ler(path.join(t.d.codex, 'config.toml')) };
+}
+
+test('writable_roots (WSL): com workspace-write acrescenta a tabela; o sandbox_mode original fica byte a byte', async () => {
+  const ini = 'sandbox_mode = "workspace-write"\nmodel = "m"\n';
+  const { t, r, toml } = await wslCom(ini);
+  try {
+    assert.strictEqual(r.ok, true, r.error);
+    assert.ok(toml.startsWith(ini));
+    assert.ok(toml.endsWith(`[sandbox_workspace_write]\nwritable_roots = ['${ROOTS}']\n`), toml);
+    assert.strictEqual(toml.split('sandbox_mode').length - 1, 1);
+    assert.ok(r.notes.some(n => /liberada/.test(n)));
+    const r2 = await ativador(t).enable(await alvo(t), 'codex');
+    assert.deepStrictEqual(r2.changes, [], 'segunda ativação: nada muda');
+  } finally { limpar(t); }
+});
+test('writable_roots (WSL): read-only, sem sandbox_mode ou perfil não gravam nada', async () => {
+  for (const ini of ['sandbox_mode = "read-only"\n', 'model = "m"\n', 'sandbox_mode = "workspace-write"\nprofile = "p"\n']) {
+    const { t, r, toml } = await wslCom(ini);
+    try {
+      assert.strictEqual(r.ok, true, r.error);
+      assert.ok(!toml.includes('sandbox_workspace_write'), ini);
+      assert.ok(!r.notes.some(n => /liberada/.test(n)));
+    } finally { limpar(t); }
+  }
+});
+test('writable_roots (WSL): tabela existente com outros caminhos preserva os demais; com o caminho já presente não duplica', async () => {
+  const ini = (arr) => `sandbox_mode = "workspace-write"\n\n[sandbox_workspace_write]\nwritable_roots = ${arr}\n`;
+  const a = await wslCom(ini("['/outra']"));
+  try { assert.ok(a.toml.includes(`writable_roots = ['/outra', '${ROOTS}']`), a.toml); } finally { limpar(a.t); }
+  const b = await wslCom(ini(`['${ROOTS}']`));
+  try { assert.strictEqual(b.toml.split(`'${ROOTS}'`).length - 1, 1, 'sem duplicar'); } finally { limpar(b.t); }
+});
+test('writable_roots (WSL): falha na gravação desfaz tudo, inclusive a tabela nova', async () => {
+  const t = ambiente({ distro: true });
+  try {
+    codexBase(t);
+    const toml = path.join(t.d.codex, 'config.toml');
+    escrever(toml, 'sandbox_mode = "workspace-write"\n');
+    const antes = fs.readFileSync(toml);
+    const falha = { ...t.env, run: async (e, argv, o) => (argv.includes('gain') ? { ok: false, stdout: '', stderr: 'x' } : t.env.run(e, argv, o)) };
+    const r = await ativador(t, { env: falha }).enable(await alvo(t), 'codex');
+    assert.strictEqual(r.ok, false);
+    assert.ok(fs.readFileSync(toml).equals(antes));
+  } finally { limpar(t); }
+});
+test('writable_roots (host): no Windows nunca grava, mesmo com workspace-write; em Linux e macOS grava', async () => {
+  const t = ambiente();
+  try {
+    codexBase(t);
+    const toml = path.join(t.d.codex, 'config.toml');
+    escrever(toml, 'sandbox_mode = "workspace-write"\n');
+    const r = await ativador(t).enable(await alvo(t), 'codex');
+    assert.strictEqual(r.ok, true, r.error);
+    assert.strictEqual(ler(toml).includes('sandbox_workspace_write'), process.platform !== 'win32');
   } finally { limpar(t); }
 });

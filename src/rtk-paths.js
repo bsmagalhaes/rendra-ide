@@ -99,21 +99,8 @@ function isRtkHookCommand(cmd, kind) {
   return (base === 'rtk' || base === 'rtk.exe') && t[1] === 'hook' && t[2] === kind;
 }
 
-// Snippet de writable_roots (F53), com a pasta do banco do Codex no lugar da pasta padrão
-function writableRootsSnippet(codexDir) {
-  const q = String(codexDir).split('\\').join('\\\\').split('"').join('\\"');
-  return [
-    'sandbox_mode = "workspace-write"',
-    '',
-    '[sandbox_workspace_write]',
-    `writable_roots = ["${q}"]`,
-    '',
-    'Keep existing writable_roots; do not add a duplicate table.',
-  ].join('\n');
-}
-
 module.exports = {
   RTK_MIN, rtkDataDir, rtkConfigDir, claudeDbPath, codexDbDir, codexDbPath,
   parseRtkVersion, compareVersions,
-  hookCommand, isRtkHookCommand, shellSplit, writableRootsSnippet,
+  hookCommand, isRtkHookCommand, shellSplit,
 };

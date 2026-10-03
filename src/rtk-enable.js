@@ -148,7 +148,24 @@ function createRtkEnable(deps) {
         if (r.wrote) expected.set(hooksPath, sha(r.text));
         const mk = await env.mkdirp(e, P.codexDbDir(o));
         if (!mk.ok) throw new EnableError(`Não consegui criar a pasta do banco do Codex: ${mk.error || mk.state}`);
-        const t = await writeChecked(e, tomlPath, txt => C.patchCodexConfigToml(txt == null ? '' : txt, codexDb));
+        // config.toml numa escrita só (uma leitura, uma checagem de concorrência, uma troca atômica):
+        // banco do Codex no env, aprovação do hook do RTK (hash do hooks.json já final) e, quando
+        // cabe, a pasta do banco em writable_roots. O rollback cobre tudo sem caso novo.
+        const hooksFinal = (await env.readFile(e, hooksPath)).text || '';
+        const keyPath = p.join(await env.codexKeyDir(e, dirs), 'hooks.json');
+        const targets = C.rtkTrustTargets(hooksFinal, keyPath);
+        const t = await writeChecked(e, tomlPath, txt => {
+          let cur = txt == null ? '' : txt;
+          const a = C.patchCodexConfigToml(cur, codexDb);
+          const out = { changed: a.changed, snippet: a.changed ? a.snippet : null, notes: [...a.notes] };
+          cur = a.text;
+          const b = C.applyCodexTrust(cur, targets);
+          if (b.changed) { cur = b.text; out.changed = true; out.notes.push('O hook do RTK foi aprovado no Codex.'); }
+          if (!b.recognized && targets.length) out.notes.push('O config.toml usa uma forma de hooks.state que a IDE não edita; a aprovação do hook ficou para o Codex.');
+          const w = C.patchWritableRoots(cur, P.codexDbDir(o), { platform: dirs.platform });
+          if (w.changed) { cur = w.text; out.changed = true; out.notes.push('A pasta do banco do RTK foi liberada para o Codex gravar.'); }
+          return { ...out, text: cur };
+        });
         notes.push(...t.notes);
         if (t.wrote) { expected.set(tomlPath, sha(t.text)); tomlBlock = t.snippet; }
       }

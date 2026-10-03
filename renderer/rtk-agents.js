@@ -104,8 +104,7 @@
     for (const e of envs) {
       const a = e.state === 'ok' && e.agents && e.agents[agent];
       if (agent !== 'codex' || !a || !a.hook) continue;
-      if (a.trust !== 'trusted-unverified') warnings.push({ kind: 'trust', env: e.label, text: `${e.label}: ${a.trustMessage}` });
-      if (a.writableRootsSnippet) warnings.push({ kind: 'snippet', env: e.label, text: a.writableRootsSnippet });
+      if (a.trust === 'modified' || a.trust === 'untrusted') warnings.push({ kind: 'trust', env: e.label, text: `${e.label}: ${a.trustMessage}` });
     }
     const active = rows.filter(r => r.tone === 'ok').length;
     const state = !rows.length ? '—' : active === rows.length ? 'RTK ativo'
@@ -127,10 +126,7 @@
   }
 
   function warningsHtml(list) {
-    return list.map(w => (w.kind === 'snippet'
-      ? `<details class="rtk-warn snippet"><summary>${esc(w.env)}: liberar a pasta do banco do RTK no sandbox do Codex (só se o Codex não gravar o banco)</summary>`
-        + `<pre class="rtk-snippet">${esc(w.text)}</pre><button class="rtk-copy" type="button" data-rtk-action="copy-snippet">copiar</button></details>`
-      : `<div class="rtk-warn ${esc(w.kind)}">${esc(w.text)}</div>`)).join('');
+    return list.map(w => `<div class="rtk-warn ${esc(w.kind)}">${esc(w.text)}</div>`).join('');
   }
 
   // Confirmação antes de ativar: todos os arquivos que serão tocados (correção 6)

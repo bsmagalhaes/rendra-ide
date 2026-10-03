@@ -355,3 +355,66 @@ test('confiança: mais de uma entrada do RTK recebe uma chave cada e vale o pior
 test('confiança: sem hook do RTK é no-hook', () => {
   assert.strictEqual(trustOf(ORCA_HOOKS, TOML).state, 'no-hook');
 });
+
+// ── T6: writable_roots só em forma simples, só com workspace-write, nunca no Windows ──
+const DB_DIR = '/home/ana/.local/share/rtk/codex';
+const wr = (t, o = {}) => C.patchWritableRoots(t, DB_DIR, { platform: 'linux', ...o });
+const WW = 'model = "x"\nsandbox_mode = "workspace-write"\n';
+
+test('writable_roots: no Windows nunca grava, mesmo com workspace-write', () => {
+  assert.strictEqual(wr(WW, { platform: 'win32' }).changed, false);
+});
+test('writable_roots: sem sandbox_mode, read-only, perfil ou permissões o arquivo não muda', () => {
+  const sem = [
+    'model = "x"\n',
+    'sandbox_mode = "read-only"\n',
+    'sandbox_mode = "danger-full-access"\n',
+    `${WW}profile = "p"\n`,
+    `${WW}default_permissions = "x"\n`,
+    `${WW}\n[permissions.x]\na = 1\n`,
+    '[profiles.p]\nsandbox_mode = "workspace-write"\n',
+    '[tui]\nsandbox_mode = "workspace-write"\n',
+  ];
+  for (const t of sem) { const r = wr(t); assert.strictEqual(r.changed, false, t); assert.strictEqual(r.text, t); }
+});
+test('writable_roots: sem a tabela, acrescenta ao fim e o sandbox_mode original fica byte a byte', () => {
+  const t = `${WW}\n[tui]\ntheme = "dark"\n`;
+  const r = wr(t);
+  assert.ok(r.changed);
+  assert.ok(r.text.startsWith(t));
+  assert.strictEqual(r.text.slice(t.length), `\n[sandbox_workspace_write]\nwritable_roots = ['${DB_DIR}']\n`);
+  assert.strictEqual(r.text.split('sandbox_mode').length - 1, 1, 'nenhum sandbox_mode novo');
+  assert.strictEqual(wr('sandbox_mode = \'workspace-write\'').text, `sandbox_mode = 'workspace-write'\n\n[sandbox_workspace_write]\nwritable_roots = ['${DB_DIR}']\n`);
+  assert.strictEqual(wr(r.text).changed, false, 'de novo não muda');
+});
+test('writable_roots: tabela exata sem writable_roots recebe a linha logo abaixo do cabeçalho', () => {
+  const t = `${WW}\n[sandbox_workspace_write]\nnetwork_access = true\n\n[tui]\nx = 1\n`;
+  const r = wr(t);
+  assert.strictEqual(r.text, t.replace('[sandbox_workspace_write]\n', `[sandbox_workspace_write]\nwritable_roots = ['${DB_DIR}']\n`));
+});
+test('writable_roots: array de uma linha só com strings simples recebe o caminho ao fim, sem duplicar e sem perder os outros', () => {
+  const um = (arr, extra = '') => `${WW}\n[sandbox_workspace_write]\nwritable_roots = ${arr}${extra}\nnetwork_access = true\n`;
+  assert.strictEqual(wr(um("['/a', \"/b\"]")).text, um(`['/a', "/b", '${DB_DIR}']`));
+  assert.strictEqual(wr(um('[]')).text, um(`['${DB_DIR}']`));
+  assert.strictEqual(wr(um("['/a',]")).text, um(`['/a', '${DB_DIR}']`));
+  assert.strictEqual(wr(um("['/a']", ' # nota')).text, um(`['/a', '${DB_DIR}']`, ' # nota'));
+  assert.strictEqual(wr(um(`['${DB_DIR}']`)).changed, false);
+  assert.strictEqual(wr(um(`["${DB_DIR}"]`)).changed, false, 'comparação pelo valor decodificado');
+});
+test('writable_roots: qualquer outra forma não é editada, sem erro', () => {
+  const formas = [
+    `${WW}\n[sandbox_workspace_write]\nwritable_roots = [\n  '/a',\n]\n`,
+    `${WW}\n[sandbox_workspace_write]\nwritable_roots = ['/a', # comentário\n  '/b']\n`,
+    `${WW}\nsandbox_workspace_write = { writable_roots = ['/a'] }\n`,
+    `${WW}\nsandbox_workspace_write.writable_roots = ['/a']\n`,
+    `${WW}\n[sandbox_workspace_write]\nwritable_roots = ['/a']\n\n[sandbox_workspace_write]\nnetwork_access = true\n`,
+    `${WW}\n[sandbox_workspace_write]\nwritable_roots = ['\\u0041']\n`.replace("'\\u0041'", '"\\u0041"'),
+    `${WW}\n[sandbox_workspace_write]\n"writable_roots" = ['/a']\n`,
+    `${WW}\n[ sandbox_workspace_write ]\nwritable_roots = ['/a']\n`,
+  ];
+  for (const t of formas) { const r = wr(t); assert.strictEqual(r.changed, false, t); assert.strictEqual(r.text, t); }
+});
+test('writable_roots: CRLF continua CRLF', () => {
+  const r = wr('sandbox_mode = "workspace-write"\r\n');
+  assert.strictEqual(r.text, `sandbox_mode = "workspace-write"\r\n\r\n[sandbox_workspace_write]\r\nwritable_roots = ['${DB_DIR}']\r\n`);
+});

@@ -74,12 +74,3 @@ test('isRtkHookCommand reproduz o critério do RTK (F45)', () => {
   assert.ok(!ok('rtk hook codex extra'));
   assert.ok(P.isRtkHookCommand('rtk hook claude', 'claude'));
 });
-
-test('snippet de writable_roots usa a pasta do Codex, nunca a do Claude (F53)', () => {
-  const s = P.writableRootsSnippet('/home/bruno/.local/share/rtk/codex');
-  assert.match(s, /sandbox_mode = "workspace-write"\n\n\[sandbox_workspace_write\]\nwritable_roots = \["\/home\/bruno\/\.local\/share\/rtk\/codex"\]/);
-  assert.match(s, /Keep existing writable_roots; do not add a duplicate table\./);
-  assert.ok(!/rtk"\]/.test(s));
-  const w = P.writableRootsSnippet('C:\\Users\\ana\\AppData\\Local\\rtk\\codex');
-  assert.ok(w.includes('writable_roots = ["C:\\\\Users\\\\ana\\\\AppData\\\\Local\\\\rtk\\\\codex"]'));
-});

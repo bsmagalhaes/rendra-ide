@@ -287,6 +287,104 @@ function applyCodexTrust(tomlText, targets) {
   return { text, changed, recognized: true };
 }
 
+// ── writable_roots do sandbox do Codex ───────────────────────────────────────
+// O RTK grava o banco do Codex numa pasta própria; no Linux e no WSL, em `workspace-write`, essa
+// pasta precisa estar nas raízes graváveis. A IDE só acrescenta o caminho em formas simples e só
+// quando o `sandbox_mode` do usuário já é `workspace-write` na raiz do arquivo; nunca altera o
+// `sandbox_mode` e nunca mexe no Windows (lá o modo efetivo é somente leitura, sem efeito).
+const ROOTS_LINE = /^writable_roots\s*=\s*\[(.*)\]\s*(?:#.*)?$/;
+
+// Valores de um array de strings simples numa linha; null se houver outra coisa dentro
+function simpleStringArray(inner) {
+  const items = [];
+  const re = /\s*(?:'([^']*)'|"((?:[^"\\]|\\.)*)")\s*(?:,|$)/y;
+  let pos = 0;
+  const body = inner.trim();
+  if (!body) return items;
+  re.lastIndex = 0;
+  while (pos < inner.length) {
+    re.lastIndex = pos;
+    const m = re.exec(inner);
+    if (!m || m[0].length === 0) return /^\s*$/.test(inner.slice(pos)) ? items : null;
+    const v = m[1] != null ? m[1] : decodeBasic(m[2]);
+    if (v == null) return null;
+    items.push(v);
+    pos = re.lastIndex;
+  }
+  return items;
+}
+
+function patchWritableRoots(tomlText, dir, { platform = process.platform } = {}) {
+  const text = String(tomlText || '');
+  const none = { text, changed: false };
+  if (platform === 'win32' || !dir) return none;
+  const parts = splitLines(text);
+  const info = lineInfo(parts);
+  const eol = /\r\n/.test(text) ? '\r\n' : '\n';
+  let atRoot = true;
+  let workspaceWrite = false;
+  let headerAt = -1;
+  let mentions = 0;
+  info.forEach((ln, n) => {
+    const t = ln.s.trim();
+    if (t.startsWith('#')) return;
+    if (/sandbox_workspace_write/.test(ln.s)) {
+      mentions++;
+      if (!ln.skip && /^\[sandbox_workspace_write\]\s*(?:#.*)?$/.test(t)) headerAt = n;
+    }
+    if (ln.skip) return;
+    if (t.startsWith('[')) {
+      atRoot = false;
+      if (/^\[\[?\s*["']?permissions\b/.test(t)) workspaceWrite = null; // modo efetivo vem de outro lugar
+      return;
+    }
+    if (!atRoot || !t) return;
+    if (/^sandbox_mode\s*=\s*(["'])workspace-write\1\s*(?:#.*)?$/.test(t) && workspaceWrite !== null) workspaceWrite = true;
+    if (/^(?:profile|default_permissions)\s*=/.test(t)) workspaceWrite = null;
+  });
+  if (workspaceWrite !== true) return none;
+  const quoted = tomlString(dir);
+
+  if (mentions === 0) {
+    let sep = '';
+    if (text.length) sep = text.endsWith('\n') ? eol : eol + eol;
+    return { text: `${text}${sep}[sandbox_workspace_write]${eol}writable_roots = [${quoted}]${eol}`, changed: true };
+  }
+  if (mentions !== 1 || headerAt < 0) return none; // inline, pontilhada, repetida: não se edita
+
+  let end = info.length;
+  for (let n = headerAt + 1; n < info.length; n++) {
+    if (!info[n].skip && info[n].s.trim().startsWith('[')) { end = n; break; }
+  }
+  const rootLines = [];
+  for (let n = headerAt + 1; n < end; n++) {
+    if (!info[n].skip && /^["']?writable_roots/.test(info[n].s.trim())) rootLines.push(n);
+    else if (info[n].skip && /writable_roots/.test(info[n].s)) return none;
+  }
+  if (!rootLines.length) {
+    parts.splice(info[headerAt].idx + 1, 0, eol, `writable_roots = [${quoted}]`);
+    return { text: parts.join(''), changed: true };
+  }
+  if (rootLines.length !== 1) return none;
+  const ln = info[rootLines[0]];
+  const m = ROOTS_LINE.exec(ln.s.trim());
+  if (!m) return none; // multilinha, comentário dentro do array, chave entre aspas
+  const items = simpleStringArray(m[1]);
+  if (!items) return none;
+  if (items.includes(dir)) return none;
+  const inner = m[1];
+  const lead = /^\s*/.exec(inner)[0];
+  const trail = /\s*$/.exec(inner)[0];
+  const core = inner.trim();
+  const joined = !core ? quoted : core.endsWith(',') ? `${core} ${quoted}` : `${core}, ${quoted}`;
+  const at = ln.idx;
+  const indent = /^\s*/.exec(parts[at])[0];
+  const tail = /\]\s*(#.*)?$/.exec(parts[at].trimEnd());
+  const comment = tail && tail[1] ? ` ${tail[1]}` : '';
+  parts[at] = `${indent}writable_roots = [${lead}${joined}${trail}]${comment}`;
+  return { text: parts.join(''), changed: true };
+}
+
 const WORST = ['trusted', 'modified', 'untrusted'];
 // trusted: o hash gravado é o do comando atual; modified: há chave e o hash difere (ou o hook mudou);
 // untrusted: sem entrada (ou config.toml em forma que a IDE não lê). Vale o pior entre as entradas do RTK.
@@ -306,5 +404,5 @@ function codexHookTrust(hooksJsonText, tomlText, hooksJsonPath) {
 module.exports = {
   hasRtkHook, isAbsoluteHook, patchClaudeSettings, claudeDbEnv, patchCodexHooks,
   patchCodexConfigToml, codexDbEnv, codexHookTrust, detectIndent, codexHookHash, codexHookIdentityJson,
-  readHookState, upsertHookTrust, applyCodexTrust, rtkTrustTargets, rtkHookEntries,
+  patchWritableRoots, readHookState, upsertHookTrust, applyCodexTrust, rtkTrustTargets, rtkHookEntries,
 };

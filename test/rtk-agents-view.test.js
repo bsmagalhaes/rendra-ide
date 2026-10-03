@@ -3,8 +3,8 @@ const test = require('node:test');
 const assert = require('node:assert');
 const A = require('../renderer/rtk-agents');
 
-const MSG = 'Abra o Codex e aprove o hook em /hooks. Sem isso o RTK não reescreve nenhum comando.';
-const ag = (o = {}) => ({ installed: true, hook: true, hookAbsolute: true, dbEnvConfigured: true, trust: 'trusted-unverified', trustMessage: MSG, error: null, gain: { summary: {}, daily: [] }, writableRootsSnippet: 'sandbox_mode = "workspace-write"', ...o });
+const { TRUST_MSG: MSG } = require('../src/rtk-enable');
+const ag = (o = {}) => ({ installed: true, hook: true, hookAbsolute: true, dbEnvConfigured: true, trust: 'trusted', trustMessage: null, error: null, gain: { summary: {}, daily: [] }, ...o });
 const env = (id, label, agents, extra = {}) => ({ id, label, state: 'ok', version: '0.50.0', needsUpdate: false, agents: { claude: ag(), codex: ag(), ...agents }, ...extra });
 
 test('sistema ativo: linha ok, sem ação e sem aviso', () => {
@@ -44,23 +44,27 @@ test('hook ausente oferece Ativar; hook sem caminho absoluto ou sem banco no env
   assert.strictEqual(parcial.state, 'RTK ativo em 1 de 2 sistemas');
 });
 
-test('aviso do /hooks só no Codex, só com hook, e some quando a confiança está registrada', () => {
-  const pendente = A.agentView([env('host', 'Windows', { codex: ag({ trust: 'pending' }) })], 'codex');
-  assert.ok(pendente.warnings.some(w => w.kind === 'trust' && w.text === `Windows: ${MSG}`));
-  const ok = A.agentView([env('host', 'Windows', {})], 'codex');
-  assert.ok(!ok.warnings.some(w => w.kind === 'trust'));
-  const semHook = A.agentView([env('host', 'Windows', { codex: ag({ hook: false, trust: null }) })], 'codex');
-  assert.deepStrictEqual(semHook.warnings, []);
-  const claude = A.agentView([env('host', 'Windows', { claude: ag({ trust: 'pending' }) })], 'claude');
+test('aviso do /hooks: só no Codex, só com hook, só quando a aprovação falta (modified ou untrusted); trusted não avisa', () => {
+  const aviso = (trust, extra = {}) => A.agentView([env('host', 'Windows', { codex: ag({ trust, trustMessage: trust === 'trusted' ? null : MSG, ...extra }) })], 'codex').warnings;
+  assert.deepStrictEqual(aviso('trusted'), [], 'aprovado: nenhum aviso');
+  for (const estado of ['modified', 'untrusted']) {
+    const w = aviso(estado);
+    assert.strictEqual(w.length, 1, estado);
+    assert.strictEqual(w[0].kind, 'trust');
+    assert.strictEqual(w[0].text, `Windows: ${MSG}`);
+    assert.match(w[0].text, /\/hooks/);
+    assert.match(w[0].text, /PreToolUse/);
+    assert.match(w[0].text, /aperte t\b/);
+  }
+  assert.deepStrictEqual(aviso(null, { hook: false }), []);
+  const claude = A.agentView([env('host', 'Windows', { claude: ag({ trust: 'untrusted' }) })], 'claude');
   assert.deepStrictEqual(claude.warnings, [], 'confiança é do Codex');
 });
 
-test('snippet de writable_roots entra como aviso copiável com o texto escapado', () => {
-  const v = A.agentView([env('host', 'Windows', { codex: ag({ writableRootsSnippet: 'writable_roots = ["C:\\\\x<y>"]' }) })], 'codex');
-  const html = A.warningsHtml(v.warnings);
-  assert.match(html, /<details class="rtk-warn snippet">/);
-  assert.match(html, /data-rtk-action="copy-snippet"/);
-  assert.ok(html.includes('&lt;y&gt;') && !html.includes('<y>'));
+test('nenhum texto de writable_roots, sandbox ou trechos para copiar aparece na página', () => {
+  const v = A.agentView([env('host', 'Windows', { codex: ag({ trust: 'untrusted', trustMessage: MSG, writableRootsSnippet: 'sandbox_mode = "workspace-write"' }) })], 'codex');
+  const html = A.warningsHtml(v.warnings) + A.rowsHtml(v);
+  assert.ok(!/writable_roots|sandbox|snippet|copy-snippet/i.test(html), html);
 });
 
 test('HTML das linhas: ação com data-attributes e texto escapado', () => {
@@ -102,7 +106,7 @@ test('resultado da ativação mostra o que mudou, a cópia, o bloco acrescentado
   assert.match(t, /config\.toml \(alterado\)\n {2}cópia de segurança: \/h\/\.codex\/config\.toml\.rendra-20261002-100000\.bak/);
   assert.match(t, /\+ \[shell_environment_policy\]/);
   assert.match(t, /RTK\.md \(criado\)/);
-  assert.match(t, /Abra o Codex e aprove o hook em \/hooks/);
+  assert.match(t, /\/hooks/);
   assert.match(A.resultText({ ok: true, changes: [] }, 'claude', 'W'), /Nenhum arquivo precisou mudar/);
 });
 

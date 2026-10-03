@@ -510,11 +510,6 @@ function showRtkResult(cmd, text) {
 
 async function runRtkAction(btn) {
   const { rtkAction: kind, env: envId, agent } = btn.dataset;
-  if (kind === 'copy-snippet') {
-    const pre = btn.closest('details')?.querySelector('pre');
-    if (pre) navigator.clipboard.writeText(pre.textContent).then(() => showToast('Trecho copiado'));
-    return;
-  }
   const env = (rtkData?.environments || []).find(e => e.id === envId);
   if (!env) return;
   if (kind === 'enable') {

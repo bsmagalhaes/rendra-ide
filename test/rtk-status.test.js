@@ -187,8 +187,7 @@ test('estado do hook por agente: ausente, presente, absoluto, banco no env e con
   const a = (await montar({ files: base }).st.status()).environments[0].agents;
   assert.deepStrictEqual([a.claude.hook, a.claude.hookAbsolute, a.claude.dbEnvConfigured], [true, true, true]);
   assert.deepStrictEqual([a.codex.hook, a.codex.hookAbsolute, a.codex.dbEnvConfigured, a.codex.trust], [true, false, true, 'trusted']);
-  assert.match(a.codex.writableRootsSnippet, /writable_roots = \["\/home\/ana\/\.local\/share\/rtk\/codex"\]/);
-  assert.ok(!a.codex.writableRootsSnippet.includes('rtk"]'));
+  assert.strictEqual(a.codex.writableRootsSnippet, undefined, 'o snippet de writable_roots saiu do estado (a IDE grava sozinha quando cabe)');
 
   const vazio = (await montar({}).st.status()).environments[0].agents;
   assert.deepStrictEqual([vazio.claude.hook, vazio.codex.hook, vazio.codex.trust, vazio.codex.dbEnvConfigured], [false, false, null, false]);

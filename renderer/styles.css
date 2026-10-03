@@ -929,9 +929,7 @@ body.dev-mode #page-terminal.active { display: flex; flex-direction: column; hei
   background: var(--surface2); border-left: 2px solid #e8a33d; border-radius: var(--radius);
   padding: 6px 10px; margin-top: 6px; font-size: 11px; line-height: 1.6; color: var(--text);
 }
-.rtk-warn.snippet { border-left-color: var(--border-hi); color: var(--text-muted); }
 .rtk-warn summary { cursor: pointer; }
-.rtk-snippet { white-space: pre-wrap; font-size: 10px; margin: 6px 0; color: var(--text); }
 .rtk-note { font-size: 10px; color: var(--text-dim); margin-top: 8px; line-height: 1.6; }
 .rtk-legend { margin-left: 10px; font-size: 10px; font-weight: 400; color: var(--text-muted); text-transform: none; letter-spacing: 0; }
 .rtk-dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin: 0 4px 0 8px; }
