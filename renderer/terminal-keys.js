@@ -82,7 +82,57 @@
   }
 
   const ctrlC = { novoEstado, tocar, passar, proximoPrazo, ESPERA_COLAR, JANELA };
-  const api = { sequenciaDeTecla, ctrlC, criarCtrlC };
+
+  // ── Colar imagem (Alt+V) ─────────────────────────────────────────────────────────────────────────────────
+  // O Claude Code liga Alt+V só no Windows e no WSL e Ctrl+V nos outros sistemas; o Codex só Ctrl+V. As duas CLIs
+  // leem a imagem da área de transferência sozinhas ao receber a tecla. Bytes por sistema e shell (T7):
+  // Windows nativo manda ESC v (o Alt+V do Claude), WSL, Linux e macOS mandam Ctrl+V (\x16).
+  function bytesColarImagem(plataforma, shellKey) {
+    if (plataforma === 'win32' && shellKey !== 'wsl') return '\x1bv';
+    return '\x16';
+  }
+
+  // Atalhos da IDE reconhecidos aqui (com o foco no terminal) vêm do módulo próprio, para haver uma só regra.
+  function atalhosIde() {
+    if (typeof module !== 'undefined' && module.exports) return require('./atalhos-ide');
+    return root.RendraAtalhosIde;
+  }
+
+  // Decisão pura para um evento de tecla do terminal. Só o que a IDE trata antes do xterm; o resto é 'deixar'.
+  //   enviar         bytes ao pty (Shift+Enter)
+  //   ctrlc          Ctrl+C consumido (nunca chega o \x03 do xterm); `toque` diz se conta na máquina (keydown sem
+  //                  repeat); `selecao` diz que há texto marcado: aí o handler só copia e mostra "Copiado"
+  //   colar          Ctrl+V / Ctrl+Shift+V no Windows e no Linux (texto ou imagem)
+  //   colar-imagem   Alt+V no Windows e no Linux (bytes decididos por bytesColarImagem)
+  //   copiar-selecao Ctrl+Shift+C no Windows e no Linux
+  //   nativo         Cmd+V no macOS (colagem do browser)
+  //   atalho-ide     Ctrl+Shift+T, Ctrl+Tab, Cmd+O... (acao vem de atalhos-ide.js)
+  //   deixar         o xterm trata (inclui Control+V e Option no macOS, Alt+Backspace, Ctrl+L, Ctrl+O, PageUp)
+  // contexto: { temSelecao }. As letras vêm de ev.code (posição física da tecla, como sempre).
+  function acaoDeTecla(ev, plataforma, shellKey, contexto = {}) {
+    const mac = plataforma === 'darwin';
+    const { ctrlKey: ctrl, shiftKey: shift, altKey: alt, metaKey: meta } = ev;
+    // Ctrl+C em qualquer tipo de evento: se algum caminho deixasse o xterm tratar, o \x03 sairia sem passar
+    // pela máquina (tecla segurada, keyup, keypress)
+    if (ev.code === 'KeyC' && ctrl && !shift && !alt && !meta) {
+      return { tipo: 'ctrlc', toque: ev.type === 'keydown' && !ev.repeat, selecao: !!contexto.temSelecao };
+    }
+    if (ev.type !== 'keydown') return { tipo: 'deixar' };
+    const nova = sequenciaDeTecla(ev);
+    if (nova !== null) return { tipo: 'enviar', bytes: nova };
+    const ide = atalhosIde();
+    const acao = ide && ide.acaoDeAtalhoIde(ev, plataforma, { foraDoTerminal: false });
+    if (acao) return { tipo: 'atalho-ide', acao };
+    if (ev.code === 'KeyC' && ctrl && shift && !alt && !meta) return { tipo: mac ? 'deixar' : 'copiar-selecao' };
+    if (ev.code === 'KeyV') {
+      if (mac) return { tipo: meta && !ctrl && !alt && !shift ? 'nativo' : 'deixar' };
+      if (ctrl && !alt && !meta) return { tipo: 'colar' };
+      if (alt && !ctrl && !meta && !shift) return { tipo: 'colar-imagem', bytes: bytesColarImagem(plataforma, shellKey) };
+    }
+    return { tipo: 'deixar' };
+  }
+
+  const api = { sequenciaDeTecla, ctrlC, criarCtrlC, acaoDeTecla, bytesColarImagem };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RendraTermKeys = api;
 })(typeof window !== 'undefined' ? window : this);
