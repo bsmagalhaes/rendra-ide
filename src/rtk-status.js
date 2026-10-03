@@ -40,6 +40,29 @@ function parseRtkByCommand(text) {
   return rows;
 }
 
+// Chips de "Status da instalação": só Claude Code e Codex, por sistema, montados dos dados que a IDE
+// já tem (hook, caminho absoluto, banco no env, aprovação do Codex). Nada de OpenCode, Cursor nem
+// CLAUDE.md local, e nada vem do texto do `rtk init --show`.
+const AGENT_NAME = { claude: 'Claude Code', codex: 'Codex' };
+function buildChecks(environments) {
+  const out = [];
+  for (const e of environments || []) {
+    if (e.state !== 'ok' || !e.agents) continue;
+    for (const agent of ['claude', 'codex']) {
+      const a = e.agents[agent];
+      if (!a || (!a.installed && !a.hook)) continue;
+      const nome = `${AGENT_NAME[agent]} (${e.label})`;
+      if (!a.hook) { out.push({ ok: false, text: `${nome}: RTK não ativado` }); continue; }
+      if (!a.hookAbsolute || !a.dbEnvConfigured) { out.push({ ok: false, text: `${nome}: ativação incompleta` }); continue; }
+      if (agent === 'claude') { out.push({ ok: true, text: `${nome}: RTK ativo` }); continue; }
+      if (a.trust === 'trusted') out.push({ ok: true, text: `${nome}: RTK ativo e aprovado` });
+      else if (a.trust === 'modified') out.push({ ok: false, text: `${nome}: hook alterado, falta aprovar` });
+      else out.push({ ok: false, text: `${nome}: falta aprovar o hook` });
+    }
+  }
+  return out;
+}
+
 const stripAnsi = s => String(s || '').replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '');
 
 // deps: env (createRtkEnv), processEnv, runRtk (host: usado por rtk-run e pelas peças só do host),
@@ -140,12 +163,9 @@ function createRtkStatus(deps) {
     if (!host || host.state === 'missing') {
       return { ...base, installed: false, missing: true, output: '', codex: deps.codexLegacy ? await deps.codexLegacy() : undefined };
     }
-    // Peças só do host: checks de `rtk init --show` e a tabela "By Command" (só texto, só Claude, F48)
-    const [init, gainText] = await Promise.all([runRtk(['init', '--show']), runRtk(['gain'])]);
-    const checks = init.output.split(/\r?\n/)
-      .map(l => l.match(/^\[(ok|--|!!|x)\]\s*(.+)$/i))
-      .filter(Boolean)
-      .map(m => ({ ok: m[1].toLowerCase() === 'ok', text: m[2].trim() }));
+    // Peça só do host: a tabela "By Command" (só texto, só Claude, F48)
+    const gainText = await runRtk(['gain']);
+    const checks = buildChecks(environments);
     return {
       ...base,
       installed: true,
@@ -166,4 +186,4 @@ function createRtkStatus(deps) {
   return { status, run, inspect };
 }
 
-module.exports = { createRtkStatus, RTK_COMMANDS, parseRtkByCommand, ZERO_GAIN };
+module.exports = { createRtkStatus, RTK_COMMANDS, parseRtkByCommand, ZERO_GAIN, buildChecks };

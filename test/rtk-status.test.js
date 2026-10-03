@@ -53,7 +53,7 @@ function montar({ platform = 'linux', distros = [], files = {}, version = 'rtk 0
   const hostRuns = [];
   const st = createRtkStatus({
     env, processEnv: procEnv,
-    runRtk: async args => { hostRuns.push(args); return { ok: true, output: args[0] === 'init' ? '[ok] Hook: rtk hook claude\n' : '' }; },
+    runRtk: async args => { hostRuns.push(args); return { ok: true, output: args[0] === 'init' ? '[ok] Hook: rtk hook claude\n[ok] OpenCode: plugin\n[ok] Cursor hook: ok\n[--] Local (./CLAUDE.md): nada\n' : '' }; },
     codexLegacy: async () => ({ installed: true, configured: false, home: '/h/.codex', homes: ['/h/.codex'] }),
   });
   return { st, chamadas, hostRuns, arquivos };
@@ -172,7 +172,7 @@ test('(j) o campo codex de antes continua com installed, configured, home e home
   const r = await montar({}).st.status();
   assert.deepStrictEqual(Object.keys(r.codex).sort(), ['configured', 'home', 'homes', 'installed']);
   assert.strictEqual(r.installed, true);
-  assert.deepStrictEqual(r.checks, [{ ok: true, text: 'Hook: rtk hook claude' }]);
+  assert.deepStrictEqual(r.checks, [], 'sem agente instalado nem hook: nenhum chip (e nada vem do rtk init --show)');
   assert.deepStrictEqual(r.byCommand, []);
 });
 
@@ -252,4 +252,57 @@ test('com CODEX_HOME a chave usa o caminho canônico (junção ou link): o desti
   const env2 = createRtkEnv({ platform: 'linux', env: {}, fs: fsx, homedir: () => '/home/ana', rtkPath: async () => '/x', execFile: (f, a, o, cb) => cb(null, '', '') });
   assert.strictEqual(await env2.codexKeyDir(env2.HOST, { codexDir: '/home/ana/apelido' }), '/home/ana/apelido');
   assert.strictEqual(await env.codexKeyDir(env.HOST, { codexDir: '/home/ana/apelido' }), real);
+});
+
+// ── T7: chips só de Claude Code e Codex, por sistema, a partir dos dados da IDE ──
+const agente = (o = {}) => ({ installed: true, hook: true, hookAbsolute: true, dbEnvConfigured: true, trust: null, ...o });
+const sistema = (label, claude, codex, extra = {}) => ({ id: label, label, state: 'ok', agents: { claude, codex }, ...extra });
+const { buildChecks } = require('../src/rtk-status');
+const PROIBIDO = /opencode|cursor|local|\.\/claude\.md/i;
+
+test('chips: uma lista por agente e sistema, só Claude Code e Codex, e o estado do Codex entra', () => {
+  const lista = buildChecks([
+    sistema('Windows', agente(), agente({ trust: 'trusted' })),
+    sistema('Ubuntu', agente({ hook: false }), agente({ trust: 'modified' })),
+    sistema('Debian', agente({ installed: false, hook: false }), agente({ trust: 'untrusted' })),
+    sistema('Fedora', agente({ hookAbsolute: false }), agente({ dbEnvConfigured: false, trust: 'trusted' })),
+  ]);
+  assert.deepStrictEqual(lista, [
+    { ok: true, text: 'Claude Code (Windows): RTK ativo' },
+    { ok: true, text: 'Codex (Windows): RTK ativo e aprovado' },
+    { ok: false, text: 'Claude Code (Ubuntu): RTK não ativado' },
+    { ok: false, text: 'Codex (Ubuntu): hook alterado, falta aprovar' },
+    { ok: false, text: 'Codex (Debian): falta aprovar o hook' },
+    { ok: false, text: 'Claude Code (Fedora): ativação incompleta' },
+    { ok: false, text: 'Codex (Fedora): ativação incompleta' },
+  ]);
+  assert.ok(lista.every(c => !PROIBIDO.test(c.text) && !/[\u2014\u2013]/.test(c.text)));
+});
+
+test('chips: sistema desligado, com erro ou sem RTK não gera chip; agente sem pasta e sem hook some', () => {
+  assert.deepStrictEqual(buildChecks([
+    { id: 'U', label: 'Ubuntu', state: 'wsl-off', agents: {} },
+    { id: 'X', label: 'Fedora', state: 'error', agents: {} },
+    { id: 'D', label: 'Debian', state: 'missing', agents: {} },
+    sistema('Windows', agente({ installed: false, hook: false }), agente({ installed: false, hook: false })),
+  ]), []);
+  assert.deepStrictEqual(buildChecks(undefined), []);
+});
+
+test('chips pelo status(): vêm dos dados por sistema; o texto do rtk init --show (OpenCode, Cursor, Local) nunca chega e ele nem é chamado', async () => {
+  const hj = '/home/ana/.codex/hooks.json';
+  const files = {
+    [LIN.claude]: 'db',
+    '/home/ana/.claude/settings.json': JSON.stringify({ env: { RTK_DB_PATH: LIN.claude }, hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: '/home/ana/.local/bin/rtk hook claude' }] }] } }),
+    [hj]: JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: '/home/ana/.local/bin/rtk hook codex' }] }] } }),
+    '/home/ana/.codex/config.toml': `[shell_environment_policy]\nset = { RTK_DB_PATH = '${LIN.codex}' }\n`,
+  };
+  const m = montar({ files });
+  const r = await m.st.status();
+  assert.deepStrictEqual(r.checks, [
+    { ok: true, text: 'Claude Code (Linux): RTK ativo' },
+    { ok: false, text: 'Codex (Linux): falta aprovar o hook' },
+  ]);
+  assert.ok(!m.hostRuns.some(a => a[0] === 'init'), 'o rtk init --show não é chamado');
+  assert.ok(r.checks.every(c => !PROIBIDO.test(c.text)));
 });

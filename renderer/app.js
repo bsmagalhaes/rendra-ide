@@ -415,21 +415,6 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 }
 
-// `rtk init --show` only speaks English; translate the phrases it uses
-const RTK_CHECK_PT = [
-  [/exists but rtk not configured/i, 'existe, mas sem RTK configurado'],
-  [/RTK hook configured/i, 'hook do RTK configurado'],
-  [/native binary command/i, 'binário nativo'],
-  [/plugin not found/i, 'plugin não encontrado'],
-  [/hook: not found/i, 'hook: não encontrado'],
-  [/not found/i, 'não encontrado'],
-  [/slim mode/i, 'modo enxuto'],
-  [/ reference/i, ' referenciado'],
-];
-function translateRtkCheck(text) {
-  return RTK_CHECK_PT.reduce((s, [re, pt]) => s.replace(re, pt), text);
-}
-
 // Soma, linhas por sistema e textos vêm de renderer/rtk-agents.js (puro e testado); aqui só se monta a tela
 const RA = window.RendraRtkAgents;
 let rtkData = null;
@@ -463,7 +448,7 @@ async function loadRtk() {
 
   const checks = document.getElementById('rtk-checks');
   checks.innerHTML = (data.checks || []).map(c =>
-    `<span class="rtk-check${c.ok ? ' ok' : ''}">${escapeHtml(translateRtkCheck(c.text))}</span>`).join('');
+    `<span class="rtk-check${c.ok ? ' ok' : ''}">${escapeHtml(c.text)}</span>`).join('');
 
   // Um total por agente (soma dos sistemas) e, por sistema, o estado do RTK e as ações
   const envs = data.environments || [];
