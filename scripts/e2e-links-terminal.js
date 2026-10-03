@@ -18,6 +18,8 @@ function sandbox() {
   const home = path.join(dir, 'home'), data = path.join(dir, 'data'), projeto = path.join(home, 'projetos', 'demo');
   const escreve = (f, t) => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, t); };
   escreve(path.join(projeto, 'a.txt'), 'a\n');
+  escreve(path.join(projeto, 'docs', 'spec', 'exemplo-vitrine.md'), '# Exemplo\nlinha 2\nlinha 3 alvo\nlinha 4\nlinha 5\n');
+  fs.mkdirSync(path.join(projeto, 'docs', 'pasta-vazia'), { recursive: true });
   escreve(path.join(data, 'rendra-config.json'), JSON.stringify({
     settings: { refreshInterval: 600 }, filters: { days: 30, projects: [] }, setup: { dismissed: true },
     devcode: { workspaces: { list: [{ name: 'demo', custom: false, cols: 1, root: projeto, groups: [] }], active: 0 } },
@@ -98,9 +100,12 @@ async function alvos(porta, tipo) {
     await digita(`Write-Host "https://exemplo.invalid/a?b=1&c=2"`);
     await digita(`Write-Host "${E}]8;;https://osc.invalid/x${E}\\clique aqui${E}]8;;${E}\\"`);
     await digita(`Write-Host "${E}]8;;file:///C:/Windows/System32/calc.exe${E}\\arquivo local${E}]8;;${E}\\"`);
+    await digita('Write-Host "veja docs/spec/exemplo-vitrine.md:3 aqui"');
+    await digita('Write-Host "veja docs/spec/nao-existe-mesmo.md aqui"');
+    await digita('Write-Host "veja docs/pasta-vazia/ aqui"');
     await sleep(600);
 
-    const linhas = await ev(`[...document.querySelectorAll('.ws.active .xterm-rows > div')].map(d => d.textContent)`);
+    let linhas = await ev(`[...document.querySelectorAll('.ws.active .xterm-rows > div')].map(d => d.textContent)`);
     const cel = await ev(`document.querySelector('.ws.active .term-pane-body .xterm-char-measure-element').getBoundingClientRect().width`);
     console.log('  linhas:', JSON.stringify(linhas.filter(l => /invalid|clique|arquivo/.test(l))), 'cel', cel);
     const linha = async (texto, col) => {
@@ -195,6 +200,50 @@ async function alvos(porta, tipo) {
       lista = await abertos();
       afirma(lista[lista.length - 1] === 'https://brunomagalhaes.me/' && lista.length === n + 1, 'IPC aceita https (caminho do Sobre/Preços segue funcionando)');
     } else console.log('  (cliques pulados: stub do main não confirmado)');
+
+    // 7b) caminhos de arquivo: existente vira link e abre no editor da lateral na linha; inexistente não sublinha
+    const nAntes = stubOk ? (await abertos()).length : 0;
+    const pCam = await linha('veja docs/spec/exemplo-vitrine.md:3 aqui', 14);
+    const pNao = await linha('veja docs/spec/nao-existe-mesmo.md aqui', 14);
+        afirma(!!pCam && !!pNao, 'linhas com os caminhos impressas no terminal');
+    const sublinhados = () => ev(`[...document.querySelectorAll('.ws.active .xterm-rows span')].filter(s => getComputedStyle(s).textDecorationLine.includes('underline')).map(s => s.textContent.replace(/ /g, ' '))`);
+    if (pNao) {
+      await passa(pNao);
+      afirma(await titulo() === '' && !(await sublinhados()).some(t => /nao-existe/.test(t)), `caminho inexistente não vira link nem sublinha (title="${await titulo()}")`);
+      await fora();
+    }
+    if (pCam) {
+      // a primeira conferência de existência é assíncrona (IPC): se o mouse saiu antes da resposta, passa de novo (agora em cache)
+      for (let k = 0; k < 3; k++) { await passa(pCam); if (await titulo() === 'Clique para abrir no editor') break; await fora(); }
+      afirma(await titulo() === 'Clique para abrir no editor', `caminho existente mostra a dica ao passar o mouse (title="${await titulo()}")`);
+      const sub = await sublinhados();
+      afirma(sub.some(t => /exemplo-vitrine/.test(t)), `caminho existente fica sublinhado no hover: ${JSON.stringify(sub.slice(0, 3))}`);
+      const fotoC = await send('Page.captureScreenshot', { format: 'png' });
+      fs.mkdirSync(SAIDA, { recursive: true }); fs.writeFileSync(path.join(SAIDA, 'caminho-hover.png'), Buffer.from(fotoC.data, 'base64'));
+      await mouse('mousePressed', pCam.x, pCam.y, { button: 'left', clickCount: 1 }); await mouse('mouseReleased', pCam.x, pCam.y, { button: 'left', clickCount: 1 });
+      await espera(`!![...document.querySelectorAll('.ws.active .dev-tab.active .dev-tab-name')].find(e => e.textContent === 'exemplo-vitrine.md')`, 15000, 'arquivo aberto no editor');
+      afirma(true, 'clique no caminho existente abre o arquivo numa aba do editor');
+      await espera(`(() => { const ed = window.monaco && monaco.editor.getEditors().find(e => (e.getModel()?.uri.path || '').endsWith('exemplo-vitrine.md')); return ed && ed.getPosition().lineNumber === 3; })()`, 8000, 'cursor na linha 3').catch(() => { });
+      const linhaEd = await ev(`(() => { const ed = window.monaco && monaco.editor.getEditors().find(e => (e.getModel()?.uri.path || '').endsWith('exemplo-vitrine.md')); return ed ? ed.getPosition().lineNumber : null; })()`);
+      afirma(linhaEd === 3, `o editor vai para a linha indicada (:3), linha atual ${linhaEd}`);
+      afirma(!(await ev(`document.getElementById('save-overlay').classList.contains('visible')`)), 'caminho de arquivo abre sem confirmação');
+      if (stubOk) afirma((await abertos()).length === nAntes, 'abrir caminho não aciona o navegador do sistema (open-external)');
+      const fotoE = await send('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(path.join(SAIDA, 'caminho-aberto-no-editor.png'), Buffer.from(fotoE.data, 'base64'));
+      await fora();
+    }
+    // o painel do editor pode ter mexido no layout: mede de novo antes da pasta
+    linhas = await ev(`[...document.querySelectorAll('.ws.active .xterm-rows > div')].map(d => d.textContent)`);
+    const pPasta = await linha('veja docs/pasta-vazia/ aqui', 10);
+    afirma(!!pPasta, 'linha com a pasta impressa no terminal');
+    if (pPasta) {
+      await passa(pPasta);
+      afirma(await titulo() === 'Clique para abrir no editor', 'pasta existente (com barra final) vira link');
+      await mouse('mousePressed', pPasta.x, pPasta.y, { button: 'left', clickCount: 1 }); await mouse('mouseReleased', pPasta.x, pPasta.y, { button: 'left', clickCount: 1 });
+      await espera(`!![...document.querySelectorAll('.ws.active .dev-node.dir')].find(n => /pasta-vazia$/.test(n.dataset.path))`, 10000, 'pasta revelada no explorador');
+      afirma(true, 'clique na pasta revela a pasta no explorador (ancestrais expandidos)');
+      await fora();
+    }
 
     // 8) foto do painel do terminal (para olhar)
     fs.mkdirSync(SAIDA, { recursive: true });

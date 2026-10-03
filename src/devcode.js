@@ -13,6 +13,7 @@ const os = require('os');
 const { caminhoNoWsl } = require('../renderer/terminal-escolha');
 const { validarNome } = require('../renderer/novo-item');
 const { ambientePty } = require('./terminal-env');
+const { candidatosDoCaminho } = require('./caminho-terminal');
 
 const IS_WIN = process.platform === 'win32';
 const IS_MAC = process.platform === 'darwin';
@@ -261,6 +262,28 @@ function registerDevCode({ ipcMain, dialog, store, getWindow, deps = {} }) {
     } catch (e) {
       return { error: e.message };
     }
+  });
+
+  // Caminhos do terminal: confere se o texto aponta para um arquivo ou pasta que existe DENTRO das pastas
+  // abertas (a mesma regra do guard). Só lê metadados com tempo limite (um WSL parado não trava nada) e
+  // nunca abre nem executa: o renderer abre o resultado no editor ou revela a pasta na árvore.
+  const STAT_TIMEOUT_MS = 1500;
+  const statComLimite = alvo => Promise.race([
+    fs.promises.stat(alvo).then(st => ({ isDir: st.isDirectory(), isFile: st.isFile() }), () => null),
+    new Promise(r => setTimeout(() => r(null), deps.statTimeoutMs || STAT_TIMEOUT_MS)),
+  ]);
+  ipcMain.handle('dev:resolve-path', async (_e, { texto, cwd, root } = {}) => {
+    try {
+      const bases = [cwd, root].map(b => (typeof b === 'string' && b && inside(b) ? path.resolve(b) : null));
+      const wsl = (bases[0] && wslFor(bases[0])) || (bases[1] && wslFor(bases[1])) || null;
+      const lista = candidatosDoCaminho(texto, { cwd: bases[0], root: bases[1], isWin: IS_WIN, distro: wsl?.distro || null, home: HOME });
+      for (const alvo of lista) {
+        if (!inside(alvo)) continue;
+        const st = await statComLimite(alvo);
+        if (st && (st.isDir || st.isFile)) return { path: alvo, isDir: st.isDir };
+      }
+    } catch { /* sem link */ }
+    return null;
   });
 
   ipcMain.handle('dev:read', (_e, file) => {

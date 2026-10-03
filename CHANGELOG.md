@@ -15,6 +15,7 @@
 - Limites conhecidos: o Claude em uma distro WSL mostra só a identidade da conta ("sem dados" nos limites), porque a ponte da statusline só é instalada no Windows. Uma distro só aparece se tiver `.claude/projects` ou `.codex/sessions`.
 ### Links no terminal
 - Clicar num link do terminal (clique simples) agora mostra a confirmação "Abrir no navegador?" com o endereço completo e os botões "Abrir" e "Cancelar" (Esc também cancela). Ctrl+clique (Cmd+clique no Mac) continua abrindo direto, e arrastar para selecionar um texto que contém link não dispara a confirmação.
+- Caminhos de arquivo no texto do terminal (como docs/specs/plano.md, ./src/app.js:12, D:\pasta\arquivo.md ou /mnt/d/projeto/arquivo.md) ficam clicáveis quando o arquivo existe dentro das pastas abertas: o clique abre o arquivo no editor da lateral, na linha indicada, sem confirmação. Pasta é revelada no explorador. No WSL, o caminho Linux abre o mesmo arquivo. Caminho que não existe não vira link.
 
 ## 1.3.1 · 03/10/2026
 ### Instalador do Mac

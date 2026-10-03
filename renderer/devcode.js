@@ -788,6 +788,37 @@
     }
   }
 
+  // Clique num caminho do terminal (já conferido pelo main): arquivo abre no editor e vai à linha; pasta é
+  // revelada no explorador (expande os ancestrais, rola até ela e a destaca por um instante).
+  async function abrirCaminhoDoTerminal(ws, alvo, linha, coluna) {
+    if (!alvo.isDir) {
+      await openFile(ws, alvo.path);
+      const editor = ws.activeGroup?.editor;
+      if (editor && ws.activeGroup.active === alvo.path && linha) {
+        const pos = { lineNumber: linha, column: coluna || 1 };
+        editor.setPosition(pos);
+        editor.revealLineInCenter(linha);
+        editor.focus();
+      }
+      return;
+    }
+    if (!ws.root) return;
+    const partes = [];
+    for (let d = alvo.path; ; d = d.replace(/[\\/][^\\/]*$/, '')) {
+      partes.push(d);
+      if (lower(d) === lower(ws.root.root) || !/[\\/]/.test(d.slice(1))) break;
+      if (partes.length > 60) break;
+    }
+    partes.forEach(d => ws.expanded.add(d));
+    await renderTree(ws);
+    const no = [...ws.refs.tree.querySelectorAll('.dev-node')].find(n => n.dataset.path && lower(n.dataset.path) === lower(alvo.path));
+    if (no) {
+      no.scrollIntoView({ block: 'center' });
+      no.classList.add('revelado');
+      setTimeout(() => no.classList.remove('revelado'), 1800);
+    }
+  }
+
   function markActiveInTree(ws) {
     const current = ws.activeGroup?.active;
     ws.refs.tree.querySelectorAll('.dev-node.file').forEach(n => n.classList.toggle('active', n.dataset.path === current));
@@ -1061,6 +1092,62 @@
       return uri !== '' && !/^https?:\/\//i.test(uri);
     });
     term.options.linkHandler = { activate: abrirLink, hover: dicaLink, leave: limpaDica, allowNonHttpProtocols: false };
+    // Caminhos de arquivo no texto do terminal: só viram link se existirem dentro das pastas abertas (conferido no
+    // main, com tempo limite, só para candidatos com "/" ou "\" e extensão) e abrem no editor da lateral, na
+    // linha indicada (":12"); pasta é revelada no explorador. Nunca executa nada e não pede confirmação.
+    const cacheCaminhos = new Map(); // "cwd|raiz|texto" -> { em, promessa }
+    const resolverCaminho = texto => {
+      const chave = `${t.cwd || ''}|${ws.root?.root || ''}|${texto}`;
+      const hit = cacheCaminhos.get(chave);
+      if (hit && Date.now() - hit.em < 30000) return hit.promessa;
+      if (cacheCaminhos.size > 500) cacheCaminhos.clear();
+      const promessa = dev.resolvePath(texto, t.cwd, ws.root?.root).catch(() => null);
+      cacheCaminhos.set(chave, { em: Date.now(), promessa });
+      return promessa;
+    };
+    const dicaCaminho = () => { body.title = 'Clique para abrir no editor'; };
+    term.registerLinkProvider({
+      provideLinks(y, callback) {
+        if (!window.RendraCaminhos) { callback(undefined); return; }
+        const buf = term.buffer.active;
+        let ini = y - 1;
+        while (ini > 0 && buf.getLine(ini)?.isWrapped) ini--;
+        let texto = '';
+        const mapa = []; // índice do caractere -> { x, y } (1-based)
+        for (let l = ini; l < buf.length; l++) {
+          const linha = buf.getLine(l);
+          if (!linha || (l > ini && !linha.isWrapped)) break;
+          for (let x = 0; x < term.cols; x++) {
+            const cel = linha.getCell(x);
+            if (!cel || cel.getWidth() === 0) continue;
+            const ch = cel.getChars() || ' ';
+            for (const c of ch) { texto += c; mapa.push({ x: x + 1, y: l + 1 }); }
+          }
+          if (texto.length > 4000) break;
+        }
+        const achados = window.RendraCaminhos.acharCaminhos(texto).filter(a => mapa[a.start]?.y <= y && y <= mapa[a.end - 1]?.y);
+        if (!achados.length) { callback(undefined); return; }
+        Promise.all(achados.map(a => resolverCaminho(a.caminho))).then(res => {
+          const links = [];
+          achados.forEach((a, i) => {
+            const r = res[i];
+            if (!r) return;
+            links.push({
+              range: { start: mapa[a.start], end: mapa[a.end - 1] },
+              text: a.texto,
+              activate: ev => {
+                if (pressionado && ev && Math.hypot(ev.clientX - pressionado.x, ev.clientY - pressionado.y) > 4) return;
+                if ($('save-overlay').classList.contains('visible')) return;
+                abrirCaminhoDoTerminal(ws, r, a.linha, a.coluna);
+              },
+              hover: dicaCaminho,
+              leave: limpaDica,
+            });
+          });
+          callback(links.length ? links : undefined);
+        });
+      },
+    });
     term.open(body);
     const t = { id: null, term, fit, pane, tab, body, alive: false, name: '' };
     // clicking the tab (outside its buttons) focuses that terminal
@@ -1076,6 +1163,7 @@
       return;
     }
     t.id = res.id;
+    t.cwd = res.cwd;
     t.alive = true;
     t.shellKey = res.shellKey;
     t.name = `${res.shell} ${++ws.termCount}`;

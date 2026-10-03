@@ -658,6 +658,7 @@ body.dev-resizing, body.dev-resizing * { cursor: col-resize !important; user-sel
 .dev-node:hover { background: #262626; color: var(--text); }
 .dev-node.active { background: #2b2118; color: var(--text); box-shadow: inset 2px 0 0 var(--orange); }
 .dev-node.dir { color: var(--text); }
+.dev-node.revelado { background: #3a2a1a; box-shadow: inset 2px 0 0 var(--accent, #e8650a); }
 .dev-node { position: relative; }
 .dev-guide { position: absolute; top: 0; bottom: 0; width: 1px; background: #2c2c2c; pointer-events: none; }
 .dev-tree:hover .dev-guide { background: #3a3a3a; }
