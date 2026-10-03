@@ -1,5 +1,11 @@
 # Novidades
 
+## Próxima versão
+### Terminal
+- No Windows, o terminal passa a usar o ConPTY embarcado (o que acompanha o node-pty), no lugar do que vem no sistema. Com ele, programas de terminal como o Codex conseguem detectar as cores do terminal (consulta OSC 10 e 11), e o campo de digitação e as mensagens enviadas voltam a ser pintados. Vale para PowerShell e para o WSL; a resposta chega em poucos milissegundos.
+- No Git Bash a cor continua não sendo detectada: é uma limitação do próprio Git Bash, que consome a consulta antes de ela chegar ao terminal.
+- Se notar algo estranho, desligue a opção "Terminal moderno do Windows (ConPTY embarcado)" nas Configurações; ela vale para terminais abertos depois. No Linux e no macOS nada muda.
+
 ## 1.3.1 · 03/10/2026
 ### Instalador do Mac
 - O instalador do Mac chega para Apple Silicon (`Rendra-IDE-mac-arm64.dmg`) e Intel (`Rendra-IDE-mac-x64.dmg`), assinado e notarizado pela Apple, na página de Releases do GitHub e no site. Ele se atualiza sozinho, como os de Windows e Linux.

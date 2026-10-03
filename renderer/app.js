@@ -851,6 +851,7 @@ async function openSettings() {
   document.getElementById('s-claude-path').value  = settings.claudePath || '';
   document.getElementById('s-cost-alert').value   = settings.dailyCostAlert || 0;
   document.getElementById('s-limits-source').value = settings.limitsSource || 'statusline';
+  document.getElementById('s-conpty').checked = settings.conptyDll !== false;
   document.getElementById('settings-overlay').classList.add('visible');
 }
 
@@ -864,6 +865,7 @@ async function saveSettings() {
     claudePath:      document.getElementById('s-claude-path').value.trim(),
     dailyCostAlert:  parseFloat(document.getElementById('s-cost-alert').value) || 0,
     limitsSource:    document.getElementById('s-limits-source').value,
+    conptyDll:       document.getElementById('s-conpty').checked,
   };
   await tm.saveSettings(settings);
   currentSettings = settings;

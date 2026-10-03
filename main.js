@@ -86,6 +86,7 @@ const DEFAULT_SETTINGS = {
   openAtLogin: false,
   dailyCostAlert: 0,
   limitsSource: 'statusline', // 'api' only when the user opts in
+  conptyDll: true, // Windows: ConPTY embarcado do node-pty; false volta ao do sistema (terminais abertos depois)
 };
 
 function fmtTokensTray(n) {

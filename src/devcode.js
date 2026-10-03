@@ -91,6 +91,14 @@ async function listWslDistros() {
   return distros;
 }
 
+// ConPTY embarcado do node-pty (conpty.dll + OpenConsole.exe): repassa ao terminal as consultas de cor
+// (OSC 10/11) que o ConPTY do sistema engole. Só existe no Windows; a opção "conptyDll" das Configurações
+// (padrão ligada) volta ao ConPTY do sistema quando é false. Vale para terminais abertos depois.
+function opcoesConpty(isWin, settings) {
+  if (!isWin) return {};
+  return { useConptyDll: settings?.conptyDll !== false };
+}
+
 // `deps` troca as dependências de sistema nos testes (wsl.exe e node-pty reais não entram neles)
 function registerDevCode({ ipcMain, dialog, store, getWindow, deps = {} }) {
   const listDistros = deps.listWslDistros || listWslDistros;
@@ -426,7 +434,7 @@ function registerDevCode({ ipcMain, dialog, store, getWindow, deps = {} }) {
         cwd: wsl ? home : dir, // wsl.exe gets the Linux folder via --cd
         // advertise a full-color terminal so CLIs (git, ls, npm, rtk…) emit colors and emoji
         env: ambientePty(process.env, { wsl: sh.key === 'wsl' }),
-        useConpty: true,
+        ...opcoesConpty(IS_WIN, store.get('settings', {})),
       });
       const shell = sh.label;
       const id = nextPtyId++;
@@ -505,4 +513,4 @@ function registerDevCode({ ipcMain, dialog, store, getWindow, deps = {} }) {
   return { killAll, guardWindowClose };
 }
 
-module.exports = { registerDevCode, toWslUnc };
+module.exports = { registerDevCode, toWslUnc, opcoesConpty };
