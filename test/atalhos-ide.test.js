@@ -82,3 +82,47 @@ test('o módulo é carregado no index.html antes do terminal-keys e do devcode',
   assert.ok(pos('atalhos-ide.js') < pos('terminal-keys.js'));
   assert.ok(pos('atalhos-ide.js') < pos('devcode.js'));
 });
+
+// ── Fiação em renderer/devcode.js (T10) ─────────────────────────────────────────────────────────────────────
+const devcode = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'devcode.js'), 'utf8').replace(/\r\n/g, '\n');
+const bloco = devcode.slice(devcode.indexOf('// ── Atalhos da IDE:'), devcode.indexOf('  window.devcode = {'));
+
+test('a escuta dos atalhos é um keydown em captura no document que chama a decisão pura', () => {
+  assert.ok(bloco.length > 200, 'bloco dos atalhos não encontrado');
+  assert.match(bloco, /document\.addEventListener\('keydown', ev => \{/);
+  assert.match(bloco, /\}, true\);\s*$/);
+  assert.match(bloco, /RendraAtalhosIde\.acaoDeAtalhoIde\(ev, window\.rendra\.platform, \{ foraDoTerminal: !alvo\.closest\?\.\('\.xterm'\) \}\)/);
+});
+
+test('as ações usam as funções que os botões já usam: pedirNovoTerminal, pickFolder e showInGroup', () => {
+  assert.match(bloco, /pedirNovoTerminal\(ws, ancora\)/);
+  assert.match(bloco, /pickFolder\(ws\)/);
+  assert.match(bloco, /showInGroup\(ws, grupo, proxima\)/);
+  assert.match(bloco, /RendraAtalhosIde\.proximaAba\(grupo\.tabs, grupo\.active/);
+});
+
+test('guarda: só nas páginas IDE e Terminal, sem modal ou menu aberto, sem foco em campo de texto', () => {
+  assert.match(bloco, /'page-devcode' \? activeWs : paginaAtiva\(\) === 'page-terminal' \? terminalPage : null/);
+  assert.match(bloco, /if \(!ws \|\| modalAberto\(\)\) return;/);
+  for (const m of ['#settings-overlay.visible', '#save-overlay.visible', '#setup-overlay.visible', '#novidades-overlay.visible', '.dev-term-menu', '.dev-ctx-menu']) {
+    assert.ok(bloco.includes(m), `modalAberto não cobre ${m}`);
+  }
+  assert.match(bloco, /alvo\.closest\?\.\('input, select'\)/);
+  assert.match(bloco, /alvo\.tagName === 'TEXTAREA' && !alvo\.closest\('\.xterm, \.monaco-editor'\)/);
+});
+
+test('abrir pasta só existe onde há o botão [data-act=open] (a página Terminal não faz nada) e a tecla não é consumida sem ação', () => {
+  const ramo = bloco.slice(bloco.indexOf("acao === 'abrir-pasta'"), bloco.indexOf('} else {'));
+  assert.match(ramo, /if \(!ws\.el\.querySelector\('\[data-act=open\]'\)\) return;/);
+  assert.ok(ramo.indexOf('return;') < ramo.indexOf('ev.preventDefault()'), 'preventDefault antes da checagem do botão');
+});
+
+test('tecla segurada (repeat) é consumida mas não repete a ação', () => {
+  assert.strictEqual((bloco.match(/!ev\.repeat/g) || []).length, 3);
+});
+
+test('Ctrl+Shift+O não existe: o Monaco mantém o "Ir para símbolo"', () => {
+  assert.ok(!/KeyO/.test(bloco));
+  const mod = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'atalhos-ide.js'), 'utf8');
+  assert.match(mod, /ev\.code === 'KeyO' && !shift/);
+});

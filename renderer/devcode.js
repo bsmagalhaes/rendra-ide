@@ -1579,6 +1579,38 @@
     activateWorkspace(workspaces[Math.min(saved.active || 0, workspaces.length - 1)]);
   }
 
+  // ── Atalhos da IDE: Ctrl+Shift+T (novo terminal), Ctrl+O (abrir pasta, só fora do terminal), Ctrl+Tab (aba do editor) ──
+  // A decisão é pura (RendraAtalhosIde, por sistema); aqui ficam a guarda de contexto e a execução. A escuta é na fase de
+  // captura do document: vale com o foco no explorador, no editor ou no terminal (o handler do xterm só não deixa a tecla
+  // virar bytes). Só nas páginas IDE e Terminal, sem janela modal ou menu aberto e sem foco num campo de texto.
+  const paginaAtiva = () => document.querySelector('.page.active')?.id || '';
+  const modalAberto = () => !!document.querySelector('#settings-overlay.visible, #save-overlay.visible, #setup-overlay.visible, #novidades-overlay.visible, .dev-term-menu, .dev-ctx-menu');
+  const wsDaPagina = () => (paginaAtiva() === 'page-devcode' ? activeWs : paginaAtiva() === 'page-terminal' ? terminalPage : null);
+  document.addEventListener('keydown', ev => {
+    const ws = wsDaPagina();
+    if (!ws || modalAberto()) return;
+    const alvo = ev.target;
+    // campos de texto (renomear, novo item, filtros) ficam com a tecla; o xterm e o Monaco têm textarea própria e valem
+    if (alvo.closest?.('input, select') || (alvo.tagName === 'TEXTAREA' && !alvo.closest('.xterm, .monaco-editor'))) return;
+    const acao = RendraAtalhosIde.acaoDeAtalhoIde(ev, window.rendra.platform, { foraDoTerminal: !alvo.closest?.('.xterm') });
+    if (!acao) return;
+    if (acao === 'novo-terminal') {
+      const ancora = [...ws.el.querySelectorAll('[data-act=new-term]')].find(e => e.offsetParent !== null);
+      if (!ancora) return;
+      ev.preventDefault();
+      if (!ev.repeat) pedirNovoTerminal(ws, ancora);
+    } else if (acao === 'abrir-pasta') {
+      if (!ws.el.querySelector('[data-act=open]')) return; // a página Terminal não tem pasta: nada a fazer
+      ev.preventDefault();
+      if (!ev.repeat) pickFolder(ws);
+    } else {
+      ev.preventDefault();
+      const grupo = ws.activeGroup;
+      const proxima = grupo && RendraAtalhosIde.proximaAba(grupo.tabs, grupo.active, acao === 'proxima-aba' ? 1 : -1);
+      if (proxima && !ev.repeat) showInGroup(ws, grupo, proxima);
+    }
+  }, true);
+
   window.devcode = {
     activate() {
       init();

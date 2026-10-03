@@ -463,6 +463,102 @@ caso('T6', async app => {
   afirma(!(await dadosEscritos(app)).includes('\x16'), 'clique direito só com imagem não manda \\x16 (só o Ctrl+V cola imagem)');
 });
 
+caso('T10', async app => {
+  console.log('\n[T10] atalhos da IDE: Ctrl+Shift+T novo terminal, Ctrl+Tab aba do editor, Ctrl+O abrir pasta (só fora do terminal)');
+  await novoTerminal(app);
+  await foco(app);
+  const nTerm = () => app.ev(`document.querySelectorAll('.ws.active .term-pane').length`);
+  const respondeEscolha = async () => { // com WSL instalado o app pergunta onde abrir: escolhe o botão principal (Windows)
+    await sleep(500);
+    if (await app.ev(`document.getElementById('save-overlay').classList.contains('visible')`)) await app.ev(`document.querySelector('#save-actions .btn-primary').click()`);
+    if (await app.ev(`!!document.querySelector('.dev-term-menu')`)) await app.ev(`document.querySelector('.dev-term-menu button[data-i="0"]').click()`);
+    await sleep(500);
+  };
+  // 1) Ctrl+Shift+T com o foco no terminal: abre outro terminal e nada vira bytes
+  const antes = await nTerm();
+  await app.zeraEscritas();
+  await tecla(app, { key: 'T', code: 'KeyT', vk: 84, mods: ['ctrl', 'shift'] });
+  await respondeEscolha();
+  await app.espera(`document.querySelectorAll('.ws.active .term-pane').length === ${antes + 1}`, 20000, 'novo terminal');
+  afirma(await nTerm() === antes + 1, `Ctrl+Shift+T com o foco no terminal abriu um terminal novo (${antes} para ${await nTerm()})`);
+  afirma(!(await app.escritas()).some(x => x.data === '\x14' || x.data === '\x1b[84;6u'), 'a tecla não virou bytes no terminal');
+  await app.espera(PROMPT(ULTIMO), 30000, 'prompt do terminal novo');
+  const painelAberto = await app.espera(`!!(${ULTIMO}).querySelector('.term-agentes')`, 4000).catch(() => false);
+  if (painelAberto) await app.ev(`(${ULTIMO}).querySelector('.term-agentes button[data-nova="terminal"]').click()`);
+  await sleep(400);
+
+  // 2) Ctrl+Shift+T com o foco fora do terminal (explorador)
+  await app.ev(`document.querySelector('.ws.active .dev-tree').focus?.(); document.activeElement.blur?.(); true`);
+  const antes2 = await nTerm();
+  await tecla(app, { key: 'T', code: 'KeyT', vk: 84, mods: ['ctrl', 'shift'] });
+  await respondeEscolha();
+  await app.espera(`document.querySelectorAll('.ws.active .term-pane').length === ${antes2 + 1}`, 20000, 'terminal pelo foco fora');
+  afirma(await nTerm() === antes2 + 1, 'Ctrl+Shift+T com o foco fora do terminal também abre um terminal');
+  await app.espera(PROMPT(ULTIMO), 30000, 'prompt');
+  if (await app.espera(`!!(${ULTIMO}).querySelector('.term-agentes')`, 4000).catch(() => false)) await app.ev(`(${ULTIMO}).querySelector('.term-agentes button[data-nova="terminal"]').click()`);
+
+  // 3) Ctrl+Tab com dois arquivos abertos alterna a aba ativa do editor
+  await app.ev(`[...document.querySelectorAll('.ws.active .dev-node')].find(n => n.querySelector('.dev-node-name')?.textContent === 'a.txt').click()`);
+  await app.espera(`document.querySelectorAll('.ws.active .dev-tab').length === 1`, 30000, 'a.txt aberto (Monaco carregando)');
+  await app.ev(`[...document.querySelectorAll('.ws.active .dev-node')].find(n => n.querySelector('.dev-node-name')?.textContent === 'b.txt').click()`);
+  await app.espera(`document.querySelectorAll('.ws.active .dev-tab').length === 2`, 15000, 'b.txt aberto');
+  const ativa = () => app.ev(`document.querySelector('.ws.active .dev-tab.active .dev-tab-name')?.textContent`);
+  afirma(await ativa() === 'b.txt', `b.txt é a aba ativa (${await ativa()})`);
+  await tecla(app, { key: 'Tab', code: 'Tab', vk: 9, mods: ['ctrl'] });
+  await sleep(300);
+  afirma(await ativa() === 'a.txt', `Ctrl+Tab vai para a próxima aba, em círculo (${await ativa()})`);
+  await tecla(app, { key: 'Tab', code: 'Tab', vk: 9, mods: ['ctrl', 'shift'] });
+  await sleep(300);
+  afirma(await ativa() === 'b.txt', `Ctrl+Shift+Tab volta (${await ativa()})`);
+  // com o foco no terminal o Ctrl+Tab também troca a aba e não escreve no terminal
+  await foco(app);
+  await app.zeraEscritas();
+  await tecla(app, { key: 'Tab', code: 'Tab', vk: 9, mods: ['ctrl'] });
+  await sleep(300);
+  afirma(await ativa() === 'a.txt', 'Ctrl+Tab com o foco no terminal troca a aba do editor');
+  afirma(!(await app.escritas()).some(x => x.data === '\t' || x.data.includes('\x1b[9;5u')), 'o Ctrl+Tab não vira bytes no terminal');
+
+  // 4) Ctrl+O: com o foco no editor abre a pasta; com o foco no terminal vai ao programa
+  const abrir0 = await app.abrirPasta();
+  await app.ev(`document.querySelector('.ws.active .monaco-editor textarea')?.focus(); true`);
+  await tecla(app, { key: 'o', code: 'KeyO', vk: 79, mods: ['ctrl'] });
+  await respondeEscolha();
+  afirma(await app.abrirPasta() === abrir0 + 1, `Ctrl+O com o foco no editor aciona o abrir pasta (${abrir0} para ${await app.abrirPasta()})`);
+  const abrir1 = await app.abrirPasta();
+  await foco(app);
+  await app.zeraEscritas();
+  await tecla(app, { key: 'o', code: 'KeyO', vk: 79, mods: ['ctrl'] });
+  await respondeEscolha();
+  await sleep(300);
+  afirma(await app.abrirPasta() === abrir1, 'Ctrl+O com o foco no terminal não abre pasta');
+  afirma((await app.escritas()).some(x => x.data === '\x0f'), 'Ctrl+O com o foco no terminal entrega \\x0f ao programa');
+  // 5) Ctrl+Shift+O não é da IDE: não abre pasta
+  await app.ev(`document.querySelector('.ws.active .monaco-editor textarea')?.focus(); true`);
+  await tecla(app, { key: 'O', code: 'KeyO', vk: 79, mods: ['ctrl', 'shift'] });
+  await respondeEscolha();
+  afirma(await app.abrirPasta() === abrir1, 'Ctrl+Shift+O não abre pasta (o Monaco mantém o "Ir para símbolo")');
+});
+
+caso('T7', async app => {
+  console.log('\n[T7] Alt+V cola imagem: bytes entregues ao pty por sistema e shell (a prova com o Claude Code real está no relatório)');
+  const altV = { key: 'v', code: 'KeyV', vk: 86, mods: ['alt'] };
+  const bytesDoAltV = async () => { await app.zeraEscritas(); await tecla(app, altV); await sleep(500); return (await app.escritas()).map(x => x.data).filter(d => d === '\x1bv' || d === '\x16'); };
+  await app.areaImagem();
+  for (const shell of ['powershell', 'gitbash']) {
+    try { await novoTerminal(app, { shell }); } catch (e) { pula('T7', `${shell} indisponível (${e.message})`); continue; }
+    await foco(app);
+    afirma(JSON.stringify(await bytesDoAltV()) === JSON.stringify(['\x1bv']), `Alt+V no ${shell} (Windows nativo) entrega ESC v, o Alt+V do Claude Code`);
+  }
+  // WSL: a segunda opção do menu de novo terminal
+  const temWsl = await app.ev(`(() => { const el = [...document.querySelectorAll('.ws.active [data-act="new-term"]')].find(e => e.offsetParent !== null); el.click(); return true; })()`).then(async () => { await sleep(700); return app.ev(`!!document.querySelector('.dev-term-menu button[data-i="1"]')`); });
+  if (!temWsl) { if (await app.ev(`!!document.querySelector('.dev-term-menu')`)) await app.ev(`document.querySelector('.dev-term-menu button[data-i="0"]').click()`); pula('T7', 'WSL indisponível: sem a opção de terminal WSL'); return; }
+  await app.ev(`document.querySelector('.dev-term-menu button[data-i="1"]').click()`);
+  await app.espera(PROMPT(ULTIMO), 40000, 'prompt do WSL');
+  if (await app.espera(`!!(${ULTIMO}).querySelector('.term-agentes')`, 4000).catch(() => false)) await app.ev(`(${ULTIMO}).querySelector('.term-agentes button[data-nova="terminal"]').click()`);
+  await foco(app);
+  afirma(JSON.stringify(await bytesDoAltV()) === JSON.stringify(['\x16']), 'Alt+V no WSL entrega Ctrl+V (\\x16), que o Claude Code liga lá');
+});
+
 // ── Execução ────────────────────────────────────────────────────────────────
 (async () => {
   const sb = sandbox();
