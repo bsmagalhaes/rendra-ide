@@ -11,6 +11,7 @@ const HIDDEN = new Set(['.git']);
 
 const os = require('os');
 const { caminhoNoWsl } = require('../renderer/terminal-escolha');
+const { ambienteDoTerminal } = require('../renderer/sessoes-escolha');
 const { validarNome } = require('../renderer/novo-item');
 const { ambientePty } = require('./terminal-env');
 const { candidatosDoCaminho } = require('./caminho-terminal');
@@ -482,6 +483,42 @@ function registerDevCode({ ipcMain, dialog, store, getWindow, deps = {} }) {
       return { id, shell, shellKey: sh.key, cwd: dir };
     } catch (e) {
       return { error: e.message };
+    }
+  });
+
+  // Seletor de conversas do terminal novo. O pedido traz só { shell, cwd, todas }: o ambiente (Windows, distro)
+  // sai das mesmas peças do pty:create (inside, wslFor e a lista de distros), nunca de um objeto do renderer.
+  // Chamado depois do pty:create resolver: a distro já foi acordada e nada aqui a acorda.
+  ipcMain.handle('dev:agent-sessions', async (_e, { shell, cwd, todas } = {}) => {
+    const vazio = { provedores: { claude: false, codex: false }, sessoes: [], mais: false };
+    try {
+      if (!cwd || typeof cwd !== 'string') return vazio; // terminal avulso: sem pasta, sem lista
+      if (!inside(cwd)) return { ...vazio, error: 'Pasta fora das pastas abertas' };
+      const wsl = wslFor(cwd);
+      let shellKey = typeof shell === 'string' ? shell : '';
+      if (!wsl && shellKey.startsWith('wsl:')) {
+        if (!IS_WIN) shellKey = '';
+        else {
+          const pedido = shellKey.slice(4).trim().toLowerCase();
+          const acha = info => info.distros.find(d => d.name.toLowerCase() === pedido);
+          const distro = acha(await wslInfo()) || acha(await wslInfo(true));
+          if (!distro) return { ...vazio, error: `Distribuição WSL "${shellKey.slice(4)}" não encontrada` };
+          shellKey = `wsl:${distro.name}`;
+        }
+      }
+      if (!wsl && !isDir(cwd)) return vazio;
+      const amb = ambienteDoTerminal({ cwd: path.resolve(cwd), wsl, shell: shellKey });
+      if (!amb) return vazio;
+      let distroRodando = true;
+      if (amb.tipo === 'wsl') {
+        const d = ((await listDistros()) || []).find(x => x.name.toLowerCase() === String(amb.distro).toLowerCase());
+        if (!d) return vazio;
+        amb.distro = d.name;
+        distroRodando = /^running$/i.test(d.state);
+      }
+      return await (deps.sessoesAgentes || require('./sessoes-agentes')).listar({ amb, todas: todas === true, settings: store.get('settings', {}), distroRodando });
+    } catch {
+      return vazio; // o painel não aparece e o terminal segue normal
     }
   });
 

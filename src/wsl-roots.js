@@ -62,4 +62,4 @@ async function wslRoots(deps = {}) {
   return value;
 }
 
-module.exports = { wslRoots, _limpaCache };
+module.exports = { wslRoots, _limpaCache, varre, uncPadrao };

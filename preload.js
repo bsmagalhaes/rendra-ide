@@ -75,6 +75,7 @@ contextBridge.exposeInMainWorld('rendra', {
     createDir: (parent, name) => ipcRenderer.invoke('dev:create-dir', parent, name),
     ptyCreate: (opts) => ipcRenderer.invoke('pty:create', opts),
     ptyShells: () => ipcRenderer.invoke('pty:shells'),
+    agentSessions: (opts) => ipcRenderer.invoke('dev:agent-sessions', opts),
     clipboardHasImage: () => ipcRenderer.invoke('clip:has-image'),
     ptyWrite: (id, data) => ipcRenderer.send('pty:write', { id, data }),
     ptyResize: (id, cols, rows) => ipcRenderer.send('pty:resize', { id, cols, rows }),
