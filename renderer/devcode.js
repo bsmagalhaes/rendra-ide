@@ -1024,6 +1024,77 @@
     menu.querySelector('button').focus();
   }
 
+  // ── Seletor de conversas dentro do terminal novo ───────────────────────────
+  // Depois que o pty abre, a IDE lista as conversas do Claude Code e do Codex da pasta (só título e data) e
+  // oferece iniciar uma nova no provedor instalado. O painel cobre o terminal (que já está vivo por baixo) até
+  // uma escolha; Esc ou "Só o terminal" deixam o shell puro. Nenhum título vai para log.
+  const ICONE_AGENTE = {
+    claude: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9"/></svg>',
+    codex: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l8.2 4.75v9.5L12 21.5l-8.2-4.75v-9.5z"/><path d="M10 9.5L7.5 12l2.5 2.5M14 9.5l2.5 2.5-2.5 2.5"/></svg>',
+  };
+  const NOME_AGENTE = { claude: 'Claude Code', codex: 'Codex' };
+
+  function itensSessoes(sessoes) {
+    const SG = window.RendraSessoesEscolha;
+    return sessoes.map((s, i) => `<li><button type="button" role="menuitem" class="term-agentes-item" data-i="${i}" data-provedor="${esc(s.provedor)}" title="${esc(NOME_AGENTE[s.provedor] || s.provedor)}">`
+      + `<span class="term-agentes-ico ${esc(s.provedor)}">${ICONE_AGENTE[s.provedor] || ''}</span>`
+      + `<span class="term-agentes-tit">${esc(s.titulo)}</span><span class="term-agentes-data">${esc(SG.dataBr(s.quando))}</span></button></li>`).join('');
+  }
+
+  function montarSeletor(ws, t, shell, r) {
+    const SG = window.RendraSessoesEscolha;
+    const opcoes = SG.opcoesNovaSessao(r.provedores);
+    if (!opcoes.length) return; // nenhum provedor instalado: o terminal abre direto, como sempre
+    let sessoes = r.sessoes || [];
+    const el = document.createElement('div');
+    el.className = 'term-agentes';
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-label', 'Conversas do terminal');
+    el.innerHTML = `<div class="term-agentes-box">
+      ${sessoes.length ? `<h4>Continuar uma conversa</h4><ul class="term-agentes-lista" role="menu">${itensSessoes(sessoes)}</ul>${r.mais ? '<button type="button" class="term-agentes-todas" data-act="todas">Ver todas</button>' : ''}` : ''}
+      <h4>Nova conversa</h4>
+      <div class="term-agentes-novas">${opcoes.map(o => `<button type="button" class="term-agentes-nova" data-nova="${o.provedor || 'terminal'}">${esc(o.label)}</button>`).join('')}</div>
+    </div>`;
+    t.pane.appendChild(el);
+    const fechar = () => {
+      el.remove();
+      t.painel = null;
+      if (t.alive) t.term.focus();
+    };
+    t.painel = { el, fechar };
+    el.addEventListener('keydown', e => {
+      e.stopPropagation(); // as teclas ficam no painel, não vão ao shell
+      if (e.key === 'Escape') { e.preventDefault(); fechar(); }
+    });
+    el.addEventListener('click', async e => {
+      const nova = e.target.closest('button[data-nova]');
+      if (nova && nova.dataset.nova === 'terminal') { fechar(); return; }
+      const todas = e.target.closest('button[data-act="todas"]');
+      if (todas) {
+        todas.disabled = true;
+        let rr = null;
+        try { rr = await dev.agentSessions({ shell, cwd: ws.root?.root, todas: true }); } catch { rr = null; }
+        if (!t.painel) return;
+        if (!rr || rr.error || !Array.isArray(rr.sessoes)) { toast('Não foi possível listar todas as conversas'); todas.disabled = false; return; }
+        sessoes = rr.sessoes;
+        const lista = el.querySelector('.term-agentes-lista');
+        lista.innerHTML = itensSessoes(sessoes);
+        lista.classList.add('todas');
+        todas.remove();
+      }
+    });
+    el.querySelector('button').focus();
+  }
+
+  async function abrirSeletor(ws, t, shell) {
+    if (!ws.root?.root || !window.RendraSessoesEscolha) return; // terminal avulso (sem pasta): sem lista
+    let r = null;
+    try { r = await dev.agentSessions({ shell, cwd: ws.root.root }); } catch { r = null; }
+    // quem digitou antes da resposta, ou o pty que já saiu, fica sem painel
+    if (!r || r.error || !t.alive || t.digitou || !t.pane.isConnected) return;
+    montarSeletor(ws, t, shell, r);
+  }
+
   async function newTerminal(ws, shellEscolhido) {
     if (typeof Terminal === 'undefined') { toast('Terminal indisponível'); return; }
     // The terminal's name and controls live as a tab in the "Terminais" header row (one line
@@ -1180,7 +1251,8 @@
     tab.querySelector('[data-act=rename]').addEventListener('click', () => renameTerminal(t));
     tab.querySelector('.term-pane-name').addEventListener('dblclick', () => renameTerminal(t));
 
-    term.onData(data => { if (t.alive) dev.ptyWrite(t.id, data); });
+    term.onData(data => { if (t.alive && !t.painel) dev.ptyWrite(t.id, data); });
+    term.onKey(() => { t.digitou = true; }); // só tecla do usuário (as respostas automáticas do xterm não contam)
     term.onResize(({ cols, rows }) => dev.ptyResize(t.id, cols, rows));
     // Ctrl+Shift+C / Ctrl+Shift+V copy & paste (plain Ctrl+C stays an interrupt, as in VS Code)
     // Image paste for CLIs like Claude Code, which read the clipboard themselves when they get
@@ -1235,6 +1307,7 @@
     });
     new ResizeObserver(() => fitTerm(t)).observe(body);
     term.focus();
+    abrirSeletor(ws, t, shell); // depois do pty:create: a distro já foi acordada
   }
 
   // Inline rename: the name becomes an input with its text selected, ready to type over
@@ -1324,6 +1397,7 @@
     const owner = ptyOwner.get(id);
     if (!owner) return;
     owner.t.alive = false;
+    owner.t.painel?.fechar();
     owner.t.pane.classList.add('dead');
     owner.t.tab.classList.add('dead');
     owner.t.term.write(`\r\n\x1b[90m[processo encerrado com código ${exitCode}]\x1b[0m\r\n`);
