@@ -12,11 +12,12 @@
   const idValido = id => typeof id === 'string' && UUID.test(id);
 
   // Caminho do Windows (unidade ou UNC) e /mnt/<unidade> não diferenciam caixa; Linux nativo diferencia
+  const barras = p => p.replace(/\\/g, '/').replace(/(.)\/+$/, '$1');
+  const semCaixa = p => /^[a-z]:(\/|$)/i.test(p) || p.startsWith('//') || /^\/mnt\/[a-z](\/|$)/i.test(p);
+  const caixaInsensivel = p => typeof p === 'string' && semCaixa(barras(p));
   function mesmaPasta(a, b) {
     if (typeof a !== 'string' || typeof b !== 'string' || !a || !b) return false;
-    const n = p => p.replace(/\\/g, '/').replace(/(.)\/+$/, '$1');
-    const x = n(a), y = n(b);
-    const semCaixa = p => /^[a-z]:(\/|$)/i.test(p) || p.startsWith('//') || /^\/mnt\/[a-z](\/|$)/i.test(p);
+    const x = barras(a), y = barras(b);
     return semCaixa(x) && semCaixa(y) ? x.toLowerCase() === y.toLowerCase() : x === y;
   }
 
@@ -97,7 +98,7 @@
     return !!ultima && TERMINADOR.test(ultima);
   }
 
-  const api = { idValido, mesmaPasta, tituloCurto, dataBr, ordenarRecentes, visiveis, escolherTitulo, ambienteDoTerminal, opcoesNovaSessao, comandoRetomar, comandoNovo, fimDePrompt, SEM_TITULO };
+  const api = { idValido, mesmaPasta, caixaInsensivel, tituloCurto, dataBr, ordenarRecentes, visiveis, escolherTitulo, ambienteDoTerminal, opcoesNovaSessao, comandoRetomar, comandoNovo, fimDePrompt, SEM_TITULO };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RendraSessoesEscolha = api;
 })(typeof window !== 'undefined' ? window : this);
