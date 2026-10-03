@@ -107,11 +107,13 @@ Leia o AGENTS.md e adicione ao painel do Claude um gráfico de custo por modelo 
 
 Baixe o arquivo do seu sistema na [última versão](https://github.com/bsmagalhaes/rendra-ui-ide/releases/latest):
 
+<!-- Para reativar: quando a release tiver Rendra-IDE-mac-arm64.dmg e Rendra-IDE-mac-x64.dmg, troque "Em breve" pelos links ...releases/latest/download/Rendra-IDE-mac-arm64.dmg e ...-mac-x64.dmg -->
+
 | Sistema | Arquivo |
 |---|---|
 | Windows | [`Rendra-IDE-Setup.exe`](https://github.com/bsmagalhaes/rendra-ui-ide/releases/latest/download/Rendra-IDE-Setup.exe) |
-| macOS, Apple Silicon (M1 ou mais novo) | [`Rendra-IDE-mac-arm64.dmg`](https://github.com/bsmagalhaes/rendra-ui-ide/releases/latest/download/Rendra-IDE-mac-arm64.dmg) |
-| macOS, Intel | [`Rendra-IDE-mac-x64.dmg`](https://github.com/bsmagalhaes/rendra-ui-ide/releases/latest/download/Rendra-IDE-mac-x64.dmg) |
+| macOS, Apple Silicon (M1 ou mais novo) | Em breve |
+| macOS, Intel | Em breve |
 | Linux | [`Rendra-IDE.AppImage`](https://github.com/bsmagalhaes/rendra-ui-ide/releases/latest/download/Rendra-IDE.AppImage) ou [`Rendra-IDE.deb`](https://github.com/bsmagalhaes/rendra-ui-ide/releases/latest/download/Rendra-IDE.deb) |
 
 O instalador se atualiza sozinho: o botão **Nova versão** aparece na barra lateral. No Windows, cada atualização baixa o instalador completo. No Linux, o `.deb` também se atualiza sozinho e o sistema pede a sua senha para instalar.
@@ -207,7 +209,7 @@ Não necessariamente. É o custo equivalente pelo preço de tabela da API (token
 Não. A IDE e a página Terminal funcionam sozinhas. As páginas de consumo aparecem preenchidas assim que houver sessões dessas CLIs na máquina.
 
 **Funciona no macOS e no Linux?**
-Sim. Os terminais se adaptam ao sistema (zsh, bash e fish no macOS e Linux; PowerShell, Git Bash, CMD e WSL no Windows).
+Sim. Os terminais se adaptam ao sistema (zsh, bash e fish no macOS e Linux; PowerShell, Git Bash, CMD e WSL no Windows). O instalador do macOS chega em breve; o do Linux já está disponível.
 
 **Como o app lê os limites do plano sem a minha senha?**
 O Claude Code envia os limites de uso ao comando da statusline. O Rendra IDE registra esses dados num arquivo local e repassa tudo para a statusline que você já usava.
