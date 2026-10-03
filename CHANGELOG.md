@@ -6,6 +6,13 @@
 - De brinde, no WSL colar um texto grande agora chega inteiro, e a saída longa (listas, logs, diffs) aparece de 2 a 4 vezes mais rápido.
 - No Git Bash a cor continua não sendo detectada: é uma limitação do próprio Git Bash, que consome a consulta antes de ela chegar ao terminal.
 - Se notar algo estranho, desligue a opção "Terminal moderno do Windows (ConPTY embarcado)" nas Configurações; ela vale para terminais abertos depois. No Linux e no macOS nada muda.
+### Barra de título com provedor, conta e e-mail
+- A barra de título ganhou um seletor de provedor e ambiente (por exemplo "Claude (Windows)", "Claude (Ubuntu-24.04)", "Codex (Ubuntu-24.04)"). Ele lista cada combinação que tem conta ou limites e só aparece quando há duas ou mais opções; com uma só, a barra mostra apenas a conta. A escolha fica lembrada entre as aberturas (na primeira vez vale o Claude). Se o ambiente escolhido sumir por um momento, por exemplo uma distro parada, a barra usa o padrão sem apagar a escolha.
+- Antes dos limites aparecem o nome da organização (sem organização, o nome da pessoa) e o e-mail da conta, com o e-mail completo no tooltip. Isso substitui a regra antiga de nunca mostrar o e-mail na barra.
+- O limite semanal do Codex aparece na barra, lido a cada 60 segundos por um canal leve que olha só os rollouts mais recentes (não o histórico todo) e não toca em nenhum token. Hoje o Codex informa só a janela semanal; uma janela de 5 horas, se vier, entra no mesmo lugar do Claude. O Codex também fica em cinza quando o dado tem mais de 15 minutos.
+- Quando falta largura, a barra tira primeiro o e-mail (antes, ele ganha reticências), depois o nome da organização, e por fim o seletor passa a mostrar só "Claude" ou "Codex" (o ambiente vai para o tooltip), com a barra de progresso mais curta. Os limites nunca somem.
+- Com conta e sem limites a barra agora fica visível, com a conta e o texto "sem dados"; antes ela sumia. Sem conta e sem limites ela continua escondida.
+- Limites conhecidos: o Claude em uma distro WSL mostra só a identidade da conta ("sem dados" nos limites), porque a ponte da statusline só é instalada no Windows. Uma distro só aparece se tiver `.claude/projects` ou `.codex/sessions`.
 
 ## 1.3.1 · 03/10/2026
 ### Instalador do Mac
