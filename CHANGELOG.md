@@ -1,6 +1,6 @@
 # Novidades
 
-## Próxima versão
+## 1.4.0 · 03/10/2026
 ### Terminal
 - No Windows, o terminal passa a usar o ConPTY embarcado (o que acompanha o node-pty), no lugar do que vem no sistema. Com ele, programas de terminal como o Codex conseguem detectar as cores do terminal (consulta OSC 10 e 11), e o campo de digitação e as mensagens enviadas voltam a ser pintados. Vale para PowerShell e para o WSL; a resposta chega em poucos milissegundos.
 - De brinde, no WSL colar um texto grande agora chega inteiro, e a saída longa (listas, logs, diffs) aparece de 2 a 4 vezes mais rápido.
