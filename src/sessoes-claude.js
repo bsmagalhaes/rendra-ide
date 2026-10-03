@@ -48,7 +48,7 @@ async function lerHistorico(file, ids, fsp) {
 
 // raizes: [{ projects }] do ambiente do terminal (a pasta do histórico é a irmã de `projects`).
 // -> { itens: [{ provedor, id, titulo, quando }], total }
-async function listarClaude({ cwd, raizes = [], limite = 10, todas = false, tempoMs = 6000, bytes = 16384, deps = {} } = {}) {
+async function listarClaude({ cwd, raizes = [], limite = E.VISIVEIS, todas = false, tempoMs = 6000, bytes = 16384, deps = {} } = {}) {
   if (!cwd || !raizes.length) return { itens: [], total: 0 };
   const fsp = deps.fsp || fs.promises;
   const fim = Date.now() + tempoMs;

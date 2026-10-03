@@ -124,6 +124,19 @@ test('distro parada ou ausente da lista: o orquestrador recebe distroRodando fal
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
+test('a lista de distros vem do cache do wslInfo: distro rodando não gera um `wsl -l -v` por terminal', win, async () => {
+  const dir = temp();
+  try {
+    const t = montar({ workspaces: [{ root: dir, wsl: { distro: 'Ubuntu-24.04', linuxPath: '/mnt/c/x' } }] });
+    await t.pedir({ shell: 'powershell', cwd: dir });
+    await t.pedir({ shell: 'powershell', cwd: dir });
+    await t.pedir({ shell: 'powershell', cwd: dir });
+    assert.strictEqual(t.listagens(), 1);
+    assert.strictEqual(t.chamadas.length, 3);
+    assert.strictEqual(t.chamadas[2].distroRodando, true);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
 test('falha no orquestrador vira lista vazia, sem lançar', async () => {
   const dir = temp();
   try {

@@ -88,7 +88,11 @@ test('provedor não instalado no ambiente some da lista e dos provedores', async
     assert.deepStrictEqual(r.provedores, { claude: true, codex: false });
     assert.deepStrictEqual(r.sessoes.map(s => s.id), [idC]);
     const nenhum = await listar({ amb: { tipo: 'windows', distro: null, cwd }, deps: { detectar: async () => ({ claude: false, codex: false }), env: { RENDRA_HOME: home, CODEX_HOME: path.join(sb.dir, 'ch') } } });
-    assert.deepStrictEqual(nenhum, { provedores: { claude: false, codex: false }, sessoes: [], mais: false });
+    // há conversas gravadas mas nenhum provedor respondeu: a detecção provavelmente falhou, e o painel avisa
+    assert.deepStrictEqual(nenhum, { provedores: { claude: false, codex: false }, sessoes: [], mais: false, aviso: 'deteccao' });
+    // sem conversa nenhuma, nenhum provedor é só "nada instalado": sem aviso
+    const vazio = await listar({ amb: { tipo: 'windows', distro: null, cwd: 'D:\\SOEs\\Outra' }, deps: { detectar: async () => ({ claude: false, codex: false }), env: { RENDRA_HOME: home, CODEX_HOME: path.join(sb.dir, 'ch') } } });
+    assert.deepStrictEqual(vazio, { provedores: { claude: false, codex: false }, sessoes: [], mais: false });
   } finally { sb.limpa(); }
 });
 

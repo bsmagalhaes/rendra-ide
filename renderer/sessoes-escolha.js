@@ -7,6 +7,8 @@
   const PROVEDORES = { claude: 'Claude', codex: 'Codex' };
   const SEM_TITULO = 'Conversa sem título';
   const MAX_TITULO = 80;
+  const VISIVEIS = 10; // conversas mostradas antes de "Ver todas"
+  const TE = typeof module !== 'undefined' && module.exports ? require('./terminal-escolha') : root.RendraTermEscolha;
 
   // Só um uuid (minúsculo, com hífens nos lugares certos) pode chegar ao shell
   const idValido = id => typeof id === 'string' && UUID.test(id);
@@ -36,7 +38,7 @@
   }
 
   const ordenarRecentes = sessoes => [...sessoes].sort((a, b) => (b.quando || 0) - (a.quando || 0));
-  const visiveis = (sessoes, todas) => (todas ? sessoes : sessoes.slice(0, 10));
+  const visiveis = (sessoes, todas) => (todas ? sessoes : sessoes.slice(0, VISIVEIS));
 
   // Título salvo pelo usuário, depois o início da conversa, depois o histórico do CLI
   function escolherTitulo({ customTitle, primeiraMensagem, historico } = {}) {
@@ -52,10 +54,8 @@
     if (!cwd || typeof cwd !== 'string') return null;
     if (wsl && wsl.distro && wsl.linuxPath) return { tipo: 'wsl', distro: wsl.distro, cwd: wsl.linuxPath };
     if (typeof shell === 'string' && shell.startsWith('wsl:')) {
-      const m = /^([A-Za-z]):[\\/]*(.*)$/.exec(cwd);
-      if (!m) return null;
-      const resto = m[2].replace(/[\\/]+/g, '/').replace(/\/$/, '');
-      return { tipo: 'wsl', distro: shell.slice(4), cwd: `/mnt/${m[1].toLowerCase()}${resto ? '/' + resto : ''}` };
+      const linux = TE.caminhoNoWsl(cwd);
+      return linux ? { tipo: 'wsl', distro: shell.slice(4), cwd: linux } : null;
     }
     return { tipo: 'windows', distro: null, cwd };
   }
@@ -98,7 +98,7 @@
     return !!ultima && TERMINADOR.test(ultima);
   }
 
-  const api = { idValido, mesmaPasta, caixaInsensivel, tituloCurto, dataBr, ordenarRecentes, visiveis, escolherTitulo, ambienteDoTerminal, opcoesNovaSessao, comandoRetomar, comandoNovo, fimDePrompt, SEM_TITULO };
+  const api = { idValido, mesmaPasta, caixaInsensivel, tituloCurto, dataBr, ordenarRecentes, visiveis, escolherTitulo, ambienteDoTerminal, opcoesNovaSessao, comandoRetomar, comandoNovo, fimDePrompt, VISIVEIS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RendraSessoesEscolha = api;
 })(typeof window !== 'undefined' ? window : this);

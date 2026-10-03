@@ -4,7 +4,7 @@
 // Nunca mistura ambientes: Windows lê as pastas do Windows (RENDRA_HOME, CODEX_HOME e settings.claudePath
 // valem como no scanner) e a distro lê só a raiz UNC dela, montada na hora (a distro acabou de ser acordada
 // pelo pty:create; o cache de 60 s do wslRoots poderia ter sido tirado com ela parada).
-// A resposta tem só { provedores, sessoes: [{ provedor, id, titulo, quando }], mais }.
+// A resposta tem só { provedores, sessoes: [{ provedor, id, titulo, quando }], mais }, mais `aviso: 'deteccao'` quando a detecção falhou.
 
 const os = require('os');
 const path = require('path');
@@ -58,13 +58,16 @@ async function listar({ amb, todas = false, settings = {}, distroRodando = true,
     (deps.listarCodex || listarCodex)({ cwd: amb.cwd, raizes: raizes.codex, todas }),
   ]);
   const prov = { claude: !!provedores.claude, codex: !!provedores.codex };
+  // nenhum provedor respondeu, mas há conversas gravadas aqui: a detecção provavelmente falhou (PATH do app
+  // diferente do shell, distro lenta). Não some com a lista em silêncio: avisa, e o painel ainda oferece o terminal.
+  if (!prov.claude && !prov.codex && (c.total || 0) + (x.total || 0) > 0) return { provedores: prov, sessoes: [], mais: false, aviso: 'deteccao' };
   const itens = [...(prov.claude ? c.itens : []), ...(prov.codex ? x.itens : [])];
   const total = (prov.claude ? c.total : 0) + (prov.codex ? x.total : 0);
   const ordenadas = E.ordenarRecentes(itens);
   return {
     provedores: prov,
     sessoes: E.visiveis(ordenadas, todas).map(({ provedor, id, titulo, quando }) => ({ provedor, id, titulo, quando })),
-    mais: !todas && total > 10,
+    mais: !todas && total > E.VISIVEIS,
   };
 }
 

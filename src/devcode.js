@@ -511,7 +511,10 @@ function registerDevCode({ ipcMain, dialog, store, getWindow, deps = {} }) {
       if (!amb) return vazio;
       let distroRodando = true;
       if (amb.tipo === 'wsl') {
-        const d = ((await listDistros()) || []).find(x => x.name.toLowerCase() === String(amb.distro).toLowerCase());
+        // o cache do wslInfo serve; só uma distro ainda não "Running" nele pede a lista nova (acabou de ser acordada)
+        const acha = info => info.distros.find(x => x.name.toLowerCase() === String(amb.distro).toLowerCase());
+        let d = acha(await wslInfo());
+        if (!d || !/^running$/i.test(d.state)) d = acha(await wslInfo(true)) || d;
         if (!d) return vazio;
         amb.distro = d.name;
         distroRodando = /^running$/i.test(d.state);

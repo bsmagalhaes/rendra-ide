@@ -88,7 +88,7 @@ async function titulos(home, ids, fsp) {
 
 // raizes: [{ sessions }] do ambiente do terminal (history.jsonl e session_index.jsonl ficam ao lado de sessions)
 // -> { itens: [{ provedor, id, titulo, quando }], total }
-async function listarCodex({ cwd, raizes = [], limite = 10, todas = false, tempoMs = 6000, deps = {} } = {}) {
+async function listarCodex({ cwd, raizes = [], limite = E.VISIVEIS, todas = false, tempoMs = 6000, deps = {} } = {}) {
   if (!cwd || !raizes.length) return { itens: [], total: 0 };
   const fsp = deps.fsp || fs.promises;
   const fim = Date.now() + tempoMs;

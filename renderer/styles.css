@@ -1042,6 +1042,7 @@ body.dev-mode #page-terminal.active { display: flex; flex-direction: column; hei
 .term-agentes-data { flex-shrink: 0; font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .term-agentes-todas, .term-agentes-nova { background: transparent; border: 1px solid var(--border); color: var(--text); border-radius: var(--radius); padding: 6px 12px; font-size: 12px; cursor: pointer; }
 .term-agentes-todas { align-self: flex-start; color: var(--text-muted); }
+.term-agentes-aviso { margin: 8px 0 0; font-size: 12px; color: var(--text-muted); line-height: 1.5; }
 .term-agentes-novas { display: flex; flex-wrap: wrap; gap: 8px; }
 .term-agentes-todas:hover, .term-agentes-nova:hover, .term-agentes-todas:focus-visible, .term-agentes-nova:focus-visible { border-color: var(--orange); color: var(--orange); outline: none; }
 .term-agentes button:disabled { opacity: 0.5; cursor: default; }

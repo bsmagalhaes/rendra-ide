@@ -42,6 +42,11 @@ and in the About page credits.
 | `src/statusline.sh` | Claude Code statusline bridge: saves `rate_limits` to `~/.rendra-ide/`, chains the user's statusline |
 | `src/rendra-browser.js`, `src/rendra-browser-preload.js`, `renderer/rendra-browser-barra.html` | Rendra Browser: janela isolada (página sem preload, sandbox, sessão `rendra-browser` em memória, só http(s), permissões e downloads negados) com barra mínima; o `main.js` nega `window.open`/navegação não pedidos em todo `webContents` |
 | `src/devcode.js` | IDE backend: folders (incl. WSL), file I/O confined to open folders, git status, watchers, PTYs |
+| `renderer/sessoes-escolha.js` | Pure model of the terminal conversation picker (UMD, node-testable): id validation (uuid only), same-folder rule, short title, date, ordering, fixed `claude --resume`/`codex resume` commands, `fimDePrompt`, `VISIVEIS` (10) |
+| `src/sessoes-agentes.js` | Orchestrator of the `dev:agent-sessions` channel: terminal environment (Windows or one distro, never mixed), roots, provider detection, both listings; answer is only `{ provedores, sessoes, mais }` (plus `aviso: 'deteccao'` when no provider answered but conversations exist) |
+| `src/sessoes-claude.js`, `src/sessoes-codex.js`, `src/sessoes-io.js` | Claude Code and Codex conversation listings for one folder (title and date only, bounded reads and time) and the shared bounded readers |
+| `src/provedores-instalados.js` | Which providers are installed in the terminal environment: `--version` exits 0 (never the `.claude`/`.codex` folder), no shell with external data, 60 s cache |
+| `scripts/e2e-seletor-sessoes.js` | e2e of the terminal conversation picker (`RENDRA_E2E_HIDDEN=1`, home, data and CODEX_HOME in sandbox, fake `claude`/`codex`); runs by hand, not in `npm test` |
 | `src/rtk-paths.js`, `rtk-config.js`, `rtk-env.js`, `rtk-status.js`, `rtk-install.js`, `rtk-enable.js`, `rtk-ipc.js` | RTK por agente e por sistema (host e WSL): caminhos e versões, edição dos hooks (Claude Code e Codex), execução no host/distro, leitura do estado, instalação, ativação com cópia e rollback, canais IPC |
 | `renderer/rtk-agents.js` | Visão da página RTK por agente e por sistema (UMD, sem DOM, testável no node) |
 | `scripts/e2e-rtk*.js` | e2e da página RTK (`RENDRA_E2E_HIDDEN=1`, home e dados em sandbox) |

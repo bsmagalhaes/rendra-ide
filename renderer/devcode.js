@@ -1064,7 +1064,8 @@
   function montarSeletor(ws, t, shell, r) {
     const SG = window.RendraSessoesEscolha;
     const opcoes = SG.opcoesNovaSessao(r.provedores);
-    if (!opcoes.length) return; // nenhum provedor instalado: o terminal abre direto, como sempre
+    const aviso = r.aviso === 'deteccao';
+    if (!opcoes.length && !aviso) return; // nenhum provedor instalado: o terminal abre direto, como sempre
     let sessoes = r.sessoes || [];
     const el = document.createElement('div');
     el.className = 'term-agentes';
@@ -1072,8 +1073,8 @@
     el.setAttribute('aria-label', 'Conversas do terminal');
     el.innerHTML = `<div class="term-agentes-box">
       ${sessoes.length ? `<h4>Continuar uma conversa</h4><ul class="term-agentes-lista" role="menu">${itensSessoes(sessoes)}</ul>${r.mais ? '<button type="button" class="term-agentes-todas" data-act="todas">Ver todas</button>' : ''}` : ''}
-      <h4>Nova conversa</h4>
-      <div class="term-agentes-novas">${opcoes.map(o => `<button type="button" class="term-agentes-nova" data-nova="${o.provedor || 'terminal'}">${esc(o.label)}</button>`).join('')}</div>
+      ${aviso ? '<p class="term-agentes-aviso" role="status">Não deu para conferir se o Claude Code ou o Codex estão instalados aqui, então as conversas não aparecem. Você pode usar o terminal normalmente.</p>' : '<h4>Nova conversa</h4>'}
+      <div class="term-agentes-novas">${(aviso ? [{ provedor: null, label: 'Só o terminal' }] : opcoes).map(o => `<button type="button" class="term-agentes-nova" data-nova="${o.provedor || 'terminal'}">${esc(o.label)}</button>`).join('')}</div>
     </div>`;
     t.pane.appendChild(el);
     const fechar = () => {
@@ -1293,7 +1294,13 @@
     tab.querySelector('[data-act=rename]').addEventListener('click', () => renameTerminal(t));
     tab.querySelector('.term-pane-name').addEventListener('dblclick', () => renameTerminal(t));
 
-    term.onData(data => { if (t.alive && !t.painel) dev.ptyWrite(t.id, data); });
+    // com o painel aberto só a digitação do usuário fica retida; as respostas automáticas do xterm (DA, cursor) seguem
+    let teclaDoUsuario = false;
+    term.onKey(() => { teclaDoUsuario = true; }); // o onKey dispara antes do onData da mesma tecla
+    term.onData(data => {
+      const usuario = teclaDoUsuario; teclaDoUsuario = false;
+      if (t.alive && !(t.painel && (usuario || !data.startsWith('\x1b')))) dev.ptyWrite(t.id, data);
+    });
     term.onKey(() => { t.digitou = true; }); // só tecla do usuário (as respostas automáticas do xterm não contam)
     term.onResize(({ cols, rows }) => dev.ptyResize(t.id, cols, rows));
     // Ctrl+Shift+C / Ctrl+Shift+V copy & paste (plain Ctrl+C stays an interrupt, as in VS Code)

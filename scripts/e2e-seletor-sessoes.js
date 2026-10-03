@@ -332,8 +332,8 @@ async function soClaude() {
 }
 
 async function nenhum() {
-  console.log('\n[3] nenhum provedor instalado: o terminal abre direto');
-  const sb = sandbox({ bins: { claude: false, codex: false } });
+  console.log('\n[3] nenhum provedor instalado e nenhuma conversa gravada: o terminal abre direto');
+  const sb = sandbox({ bins: { claude: false, codex: false }, sessoes: false });
   let app;
   try {
     app = await abrir(sb);
@@ -346,11 +346,30 @@ async function nenhum() {
   finally { if (app) await app.fechar(); sb.limpa(); }
 }
 
+async function deteccaoFalha() {
+  console.log('\n[4] conversas gravadas mas nenhum provedor responde (PATH do app diferente do shell): aviso e só o terminal');
+  const sb = sandbox({ bins: { claude: false, codex: false } });
+  let app;
+  try {
+    app = await abrir(sb);
+    const alvo = await novoTerminal(app);
+    await esperaPainel(app, alvo);
+    afirma(JSON.stringify(await botoes(app, alvo)) === JSON.stringify(['Só o terminal']), 'só o botão "Só o terminal"');
+    afirma((await itens(app, alvo)).length === 0, 'sem lista de conversas');
+    afirma(await app.ev(`/Não deu para conferir/.test((${alvo}).querySelector('.term-agentes-aviso')?.textContent || '')`), 'aviso curto para leigo no painel');
+    await app.ev(`(${alvo}).querySelector('[data-nova="terminal"]').click()`);
+    await sleep(300);
+    afirma(!(await painel(app, alvo)) && (await app.escritas()).length === 0, 'o painel fecha e nada é escrito no pty');
+  } catch (e) { afirma(false, `cenário 4 abortou: ${e.message}`); }
+  finally { if (app) await app.fechar(); sb.limpa(); }
+}
+
 (async () => {
-  const so = process.env.E2E_SO || '123';
+  const so = process.env.E2E_SO || '1234';
   if (so.includes('1')) await dois();
   if (so.includes('2')) await soClaude();
   if (so.includes('3')) await nenhum();
+  if (so.includes('4')) await deteccaoFalha();
   console.log(falhas.length ? `\n✗ ${falhas.length} falha(s):\n  - ${falhas.join('\n  - ')}` : '\n✓ tudo certo');
   process.exit(falhas.length ? 1 : 0);
 })();
