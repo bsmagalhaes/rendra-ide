@@ -16,13 +16,27 @@ const CACHE_MAX = 64;
 let cache = new Map(); // `${caminho}|${mtimeMs}|${size}` -> { limits, at }
 const _limpaCache = () => { cache = new Map(); };
 
-async function recentes(dir, corte, out = []) {
+// As sessões ficam em AAAA/MM/DD (data de INÍCIO). Antes de qualquer stat, descarta as pastas de
+// ano, mês e dia cujo fim já passou do corte (com 2 dias de folga: fuso e sessão que atravessa a
+// meia-noite). Nome fora do padrão numérico é percorrido, por segurança.
+const FOLGA = 2 * 86400000;
+function dentroDoCorte(nome, nivel, partes, corte) {
+  if (!/^d+$/.test(nome) || nivel > 2) return true;
+  const n = Number(nome);
+  const fim = nivel === 0 ? Date.UTC(n + 1, 0, 1)
+    : nivel === 1 ? Date.UTC(partes[0], n, 1)
+    : Date.UTC(partes[0], partes[1] - 1, n + 1);
+  return fim + FOLGA >= corte;
+}
+
+async function recentes(dir, corte, out = [], nivel = 0, partes = []) {
   let entradas;
   try { entradas = await fs.promises.readdir(dir, { withFileTypes: true }); } catch { return out; }
   for (const e of entradas) {
     const p = path.join(dir, e.name);
-    if (e.isDirectory()) await recentes(p, corte, out);
-    else if (e.name.endsWith('.jsonl')) {
+    if (e.isDirectory()) {
+      if (dentroDoCorte(e.name, nivel, partes, corte)) await recentes(p, corte, out, nivel + 1, [...partes, Number(e.name)]);
+    } else if (e.name.endsWith('.jsonl')) {
       try {
         const st = await fs.promises.stat(p);
         if (st.mtimeMs >= corte) out.push({ p, mtimeMs: st.mtimeMs, size: st.size });

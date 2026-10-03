@@ -115,3 +115,26 @@ test('lê só o final do arquivo grande, e a linha cortada no início é ignorad
   const r = await limitesLeves(dir, { cauda: 64 * 1024 });
   assert.strictEqual(r.limits[0].percent, 77);
 });
+
+test('pastas AAAA/MM/DD fora do corte nem são listadas nem têm stat (poda antes de qualquer stat)', async () => {
+  const dir = sessions();
+  const velha = path.join(dir, '2025', '01', '15');
+  const velhoMes = path.join(dir, '2026', '07', '04');
+  fs.mkdirSync(velha, { recursive: true });
+  fs.mkdirSync(velhoMes, { recursive: true });
+  for (const d of [velha, velhoMes]) fs.writeFileSync(path.join(d, 'rollout-x.jsonl'), '{}
+');
+  const recente = rollout(dir, 'rollout-a.jsonl', [evento(AGORA, { primary: janela(12, 10080, resetSeg), secondary: null })], AGORA);
+  const stats = [], lists = [];
+  const stat = fs.promises.stat, readdir = fs.promises.readdir;
+  fs.promises.stat = async (p, ...r) => { stats.push(String(p)); return stat(p, ...r); };
+  fs.promises.readdir = async (p, ...r) => { lists.push(String(p)); return readdir(p, ...r); };
+  let r;
+  try {
+    r = await limitesLeves(dir, { agora: Date.UTC(2026, 9, 3, 12) });
+  } finally { fs.promises.stat = stat; fs.promises.readdir = readdir; }
+  assert.strictEqual(r.limits[0].percent, 12);
+  assert.ok(stats.includes(recente), 'a pasta do dia dentro do corte é lida');
+  assert.ok(!stats.some(p => p.includes(path.join('2025', '01')) || p.includes(path.join('2026', '07'))), 'nenhum stat nas pastas antigas');
+  assert.ok(!lists.some(p => p.includes(path.join('2025', '01')) || p.includes(path.join('2026', '07'))), 'pastas antigas nem listadas');
+});

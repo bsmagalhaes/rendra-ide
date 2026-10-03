@@ -255,10 +255,20 @@ function rotulosDoSeletor(opcoes) {
   sel.title = atual ? atual.tooltipAmbiente : '';
 }
 
+// Opções do seletor: só recalcula quando as entradas ou a escolha lembrada mudam (ajustar a largura não muda nada)
+let opcoesMemo = null;
+function opcoesAtuais() {
+  const m = opcoesMemo;
+  if (m && m.local === provEntradas.local && m.wsl === provEntradas.wsl && m.lembrada === provLembrada) return m.valor;
+  const valor = RendraConsumo.opcoesSeletor([...provEntradas.local, ...provEntradas.wsl], provLembrada);
+  opcoesMemo = { local: provEntradas.local, wsl: provEntradas.wsl, lembrada: provLembrada, valor };
+  return valor;
+}
+
 function desenharBarraConsumo() {
   const barra = document.getElementById('consumo-bar');
   const sel = document.getElementById('consumo-provedor');
-  const escolha = RendraConsumo.opcoesSeletor([...provEntradas.local, ...provEntradas.wsl], provLembrada);
+  const escolha = opcoesAtuais();
   const entrada = [...provEntradas.local, ...provEntradas.wsl].find(e => e.id === escolha.selecionada) || null;
   const estado = RendraConsumo.estadoConsumo(entrada && { limits: entrada.limits, fetchedAt: entrada.fetchedAt }, Date.now(), {
     conta: entrada?.conta, plano: planoDaEntrada(entrada), ambiente: entrada?.ambiente, provedor: entrada?.provedor,
@@ -317,7 +327,7 @@ function ajustarBarraConsumo() {
   const tb = document.getElementById('title-bar');
   const nomeEl = document.getElementById('consumo-nome');
   const emailEl = document.getElementById('consumo-email');
-  const opcoes = RendraConsumo.opcoesSeletor([...provEntradas.local, ...provEntradas.wsl], provLembrada).opcoes;
+  const opcoes = opcoesAtuais().opcoes;
 
   // espaço = largura útil do título menos tudo o que não é a barra (botões, nome do app), os espaços
   // entre os itens do título e a margem de 12 px que .title-bar-right ganha quando a barra aparece
