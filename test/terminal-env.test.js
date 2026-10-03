@@ -10,7 +10,7 @@ test('urlWebSegura aceita só http e https', () => {
   assert.strictEqual(urlWebSegura('http://localhost:3000/cb'), 'http://localhost:3000/cb');
   for (const ruim of ['file:///C:/Windows/System32/calc.exe', 'javascript:alert(1)', 'data:text/html,<b>x</b>', 'ms-settings:privacy',
     'vscode://file/x', 'ftp://exemplo.com/a', 'smb://host/share', 'https://', '//exemplo.com', 'exemplo.com', '', null, undefined, 42,
-    'https://a.com/\r\ncalc', 'https://a.com/' + 'x'.repeat(9000)]) {
+    'https://a.com/\r\ncalc', 'https://banco.com@mal.com/', 'https://user:senha@exemplo.com/', 'https://a.com/' + 'x'.repeat(9000)]) {
     assert.strictEqual(urlWebSegura(ruim), null, String(ruim).slice(0, 40));
   }
 });

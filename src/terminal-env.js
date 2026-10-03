@@ -8,7 +8,8 @@ function urlWebSegura(valor) {
   let u;
   try { u = new URL(valor.trim()); } catch { return null; }
   if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
-  if (!u.hostname) return null;
+  // user:senha@host é o disfarce clássico de link enganoso (https://banco.com@mal.com): recusa
+  if (u.username || u.password) return null;
   return u.href;
 }
 
@@ -32,4 +33,4 @@ function ambientePty(base, { wsl } = {}) {
   return env;
 }
 
-module.exports = { urlWebSegura, ambientePty, BROWSER_NO_WSL };
+module.exports = { urlWebSegura, ambientePty };

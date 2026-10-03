@@ -12,9 +12,9 @@ const HIDDEN = new Set(['.git']);
 const os = require('os');
 const { caminhoNoWsl } = require('../renderer/terminal-escolha');
 const { validarNome } = require('../renderer/novo-item');
+const { ambientePty } = require('./terminal-env');
 
 const IS_WIN = process.platform === 'win32';
-const { ambientePty } = require('./terminal-env');
 const IS_MAC = process.platform === 'darwin';
 const HOME = os.homedir();
 const PROGRAM_FILES = process.env.ProgramFiles || 'C:\\Program Files';

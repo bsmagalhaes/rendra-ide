@@ -1044,6 +1044,12 @@
     if (window.WebLinksAddon) {
       term.loadAddon(new WebLinksAddon.WebLinksAddon(abrirLink, { hover: dicaLink, leave: limpaDica }));
     }
+    // OSC 8 com esquema que não seja http(s) (file:, etc.) é descartado: sem hyperlink, sem sublinhado
+    // tracejado; o texto continua aparecendo. O fim do link (URI vazia) e http(s) seguem para o xterm.
+    term.parser.registerOscHandler(8, dados => {
+      const uri = dados.slice(dados.indexOf(';') + 1);
+      return uri !== '' && !/^https?:\/\//i.test(uri);
+    });
     term.options.linkHandler = { activate: abrirLink, hover: dicaLink, leave: limpaDica, allowNonHttpProtocols: false };
     term.open(body);
     const t = { id: null, term, fit, pane, tab, body, alive: false, name: '' };
