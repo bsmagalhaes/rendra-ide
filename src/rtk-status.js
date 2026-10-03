@@ -102,7 +102,8 @@ function createRtkStatus(deps) {
     const claudeDb = P.claudeDbPath(o);
     const codexDb = P.codexDbPath(o);
     const [cg, xg] = await Promise.all([readGain(e, rtk, claudeDb), readGain(e, rtk, codexDb)]);
-    const trust = C.codexHookTrust(hooksText, tomlText, hooksPath);
+    const keyPath = p.join(await env.codexKeyDir(e, dirs), 'hooks.json');
+    const trust = C.codexHookTrust(hooksText, tomlText, keyPath);
     out.agents = {
       claude: {
         installed: claudeHere,
@@ -117,7 +118,8 @@ function createRtkStatus(deps) {
         hook: C.hasRtkHook(hooksText, 'codex'),
         hookAbsolute: C.isAbsoluteHook(hooksText, 'codex'),
         dbEnvConfigured: C.codexDbEnv(tomlText) === codexDb,
-        trust: trust.state === 'no-hook' ? null : trust.state, trustMessage: TRUST_MSG,
+        trust: trust.state === 'no-hook' ? null : trust.state,
+        trustMessage: trust.state === 'modified' || trust.state === 'untrusted' ? TRUST_MSG : null,
         dbPath: codexDb, gain: xg.gain, error: xg.error,
         writableRootsSnippet: P.writableRootsSnippet(P.codexDbDir(o)),
         files: plannedFiles('codex', dirs, pathEnv),

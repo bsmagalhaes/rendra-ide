@@ -10,6 +10,7 @@ const { createRtkEnv } = require('../src/rtk-env');
 const { createRtkEnable } = require('../src/rtk-enable');
 const { createRtkStatus } = require('../src/rtk-status');
 const P = require('../src/rtk-paths');
+const C = require('../src/rtk-config');
 
 const LF = s => s.replace(/\r\n/g, '\n');
 const fx = n => LF(fs.readFileSync(path.join(__dirname, 'fixtures', 'rtk', n), 'utf8'));
@@ -169,8 +170,8 @@ test('Codex no host: oito eventos do Orca iguais, RTK no índice 1 com caminho a
     assert.ok(tomlDepois.startsWith(tomlAntes), 'chaves [hooks.state] (inclui pre_tool_use:0:0 do Orca), trust_level e [tui] intactos');
     assert.strictEqual(tomlDepois.slice(tomlAntes.length), `\n[shell_environment_policy]\nset = { RTK_DB_PATH = '${t.d.codexDb}' }\n`);
     assert.ok(fs.existsSync(t.d.codexDb), 'banco do Codex criado');
-    assert.strictEqual(r.trust, 'pending');
-    assert.match(r.trustMessage, /Abra o Codex e aprove o hook em \/hooks/);
+    assert.strictEqual(r.trust, 'untrusted');
+    assert.match(r.trustMessage, /PreToolUse/);
     const toml = r.changes.find(c => c.file.endsWith('config.toml'));
     assert.match(toml.added, /\[shell_environment_policy\]/);
     assert.ok(ler(toml.backup) === tomlAntes);
@@ -195,13 +196,14 @@ test('idempotência: duas ativações deixam os arquivos iguais e um só hook do
     assert.deepStrictEqual(['hooks.json', 'config.toml', 'AGENTS.md', 'RTK.md'].map(n => ler(path.join(t.d.codex, n))), snap);
     assert.strictEqual(JSON.parse(snap[0]).hooks.PreToolUse.length, 2);
     assert.deepStrictEqual(r2.changes, []);
-    assert.strictEqual(r1.trust, 'pending');
-    assert.strictEqual(r2.trust, 'pending', 'sem entrada de confiança continua pendente');
-    // com a confiança registrada e nada alterado, vira trusted-unverified
+    assert.strictEqual(r1.trust, 'untrusted');
+    assert.strictEqual(r2.trust, 'untrusted', 'sem entrada de confiança continua pendente');
+    // com a confiança registrada e nada alterado, vira trusted
     const hj = path.join(t.d.codex, 'hooks.json');
-    escrever(path.join(t.d.codex, 'config.toml'), snap[1] + `\n[hooks.state."${hj}:pre_tool_use:1:0"]\nenabled = true\ntrusted_hash = "sha256:abc"\n`);
+    const alv = C.rtkTrustTargets(ler(hj), hj)[0];
+    escrever(path.join(t.d.codex, "config.toml"), C.upsertHookTrust(snap[1], alv.key, alv.hash).text);
     const r3 = await a.enable(e, 'codex');
-    assert.strictEqual(r3.trust, 'trusted-unverified');
+    assert.strictEqual(r3.trust, 'trusted');
     assert.deepStrictEqual(baks(), baksR1, 'ativação sem alteração não deixa cópia nova');
   } finally { limpar(t); }
 });

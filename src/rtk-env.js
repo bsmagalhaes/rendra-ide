@@ -113,6 +113,17 @@ function createRtkEnv(deps = {}) {
     return { platform: 'linux', home, claudeDir: `${home}/.claude`, codexDir: `${home}/.codex` };
   }
 
+  // Pasta que o Codex põe na chave de hooks.state: com CODEX_HOME ele canoniza o caminho (junção, link,
+  // caixa real do disco, barras; sem o prefixo de caminho longo); sem CODEX_HOME usa <home>/.codex como está.
+  // Distro WSL: a IDE não conhece o CODEX_HOME de lá, então vale a pasta padrão.
+  async function codexKeyDir(e, dirs) {
+    if (e.kind !== 'host' || !procEnv.CODEX_HOME) return dirs.codexDir;
+    try {
+      const real = (fsx.realpathSync.native || fsx.realpathSync)(dirs.codexDir);
+      return platform === 'win32' ? real.replace(/^\\\\\?\\UNC\\/, '\\\\').replace(/^\\\\\?\\/, '') : real;
+    } catch { return dirs.codexDir; }
+  }
+
   // O `rtk` do ambiente: <home>/.local/bin/rtk; se faltar, o que o PATH da distro achar
   async function findRtk(e) {
     if (e.kind === 'host') return (await hostRtkPath()) || null;
@@ -179,7 +190,7 @@ function createRtkEnv(deps = {}) {
   }
 
   return {
-    HOST, listEnvironments, resolveEnvironment, run, homeOf, agentDirs, findRtk,
+    HOST, listEnvironments, resolveEnvironment, run, homeOf, agentDirs, codexKeyDir, findRtk,
     exists, readFile, stat, mkdirp, rename, remove, writeFile, fsPath,
   };
 }

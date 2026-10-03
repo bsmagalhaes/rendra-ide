@@ -151,40 +151,6 @@ test('config.toml com CRLF mantém CRLF no bloco novo', () => {
   assert.strictEqual(r.text, "a = 1\r\n\r\n[shell_environment_policy]\r\nset = { RTK_DB_PATH = '/d/h.db' }\r\n");
 });
 
-const HJ = '/home/ana/.codex/hooks.json';
-const withKey = (key, body = 'trusted_hash = "sha256:abc"') => `${TOML}\n[hooks.state."${key}"]\nenabled = true\n${body}\n`;
-
-test('confiança: chave ausente é pending', () => {
-  assert.deepStrictEqual(C.codexHookTrust(AFTER_INIT, TOML, HJ), { state: 'pending', key: `${HJ}:pre_tool_use:1:0` });
-});
-test('confiança: chave do RTK presente é trusted-unverified; a do Orca (0:0) não conta', () => {
-  assert.strictEqual(C.codexHookTrust(AFTER_INIT, withKey(`${HJ}:pre_tool_use:1:0`), HJ).state, 'trusted-unverified');
-  assert.strictEqual(C.codexHookTrust(AFTER_INIT, TOML, HJ).state, 'pending');
-});
-test('confiança: changedNow força pending mesmo com a chave', () => {
-  assert.strictEqual(C.codexHookTrust(AFTER_INIT, withKey(`${HJ}:pre_tool_use:1:0`), HJ, { changedNow: true }).state, 'pending');
-});
-test('confiança: entrada sem trusted_hash é pending', () => {
-  assert.strictEqual(C.codexHookTrust(AFTER_INIT, withKey(`${HJ}:pre_tool_use:1:0`, ''), HJ).state, 'pending');
-});
-test('confiança: hook do RTK em índice diferente de zero acompanha o índice', () => {
-  const o = JSON.parse(AFTER_INIT);
-  o.hooks.PreToolUse.unshift({ hooks: [{ type: 'command', command: 'echo x' }] });
-  const t = JSON.stringify(o, null, 2);
-  assert.strictEqual(C.codexHookTrust(t, TOML, HJ).key, `${HJ}:pre_tool_use:2:0`);
-  assert.strictEqual(C.codexHookTrust(t, withKey(`${HJ}:pre_tool_use:1:0`), HJ).state, 'pending', 'a confiança do índice 1 não vale para o 2');
-});
-test('confiança: caixa e separador do caminho são tolerados (Windows)', () => {
-  const w = 'C:\\Users\\Ana\\.codex\\hooks.json';
-  const t1 = '[hooks.state."c:/users/ana/.codex/hooks.json:pre_tool_use:1:0"]\ntrusted_hash = "sha256:abc"\n';
-  assert.strictEqual(C.codexHookTrust(AFTER_INIT, t1, w).state, 'trusted-unverified');
-  const t2 = '[hooks.state."C:\\\\Users\\\\Ana\\\\.codex\\\\hooks.json:pre_tool_use:1:0"]\ntrusted_hash = "sha256:abc"\n';
-  assert.strictEqual(C.codexHookTrust(AFTER_INIT, t2, w).state, 'trusted-unverified');
-});
-test('confiança: sem hook do RTK é no-hook', () => {
-  assert.strictEqual(C.codexHookTrust(ORCA_HOOKS, TOML, HJ).state, 'no-hook');
-});
-
 // ── T1: hash de confiança (mesmo algoritmo do Codex; vetores calculados pelo Codex real) ──
 const CMD_WIN = 'C:/Users/ana/.local/bin/rtk.exe hook codex';
 const CMD_LIN = '/home/ana/.local/bin/rtk hook codex';
@@ -229,4 +195,163 @@ test('hash: async, statusMessage e additionalContextLimit (só se diferente de 2
   assert.match(j, /"async":true/);
   assert.match(j, /"statusMessage":"oi"/);
   assert.ok(!jsonOf('Bash', CMD_WIN, { additionalContextLimit: 2500 }).includes('additionalContextLimit'));
+});
+
+// ── T2 e T4: gravação de hooks.state e estado por comparação de hash ─────────
+const HJ = '/home/ana/.codex/hooks.json';
+const RTK_KEY = `${HJ}:pre_tool_use:1:0`;
+const rtkEntry = text => { const e = C.rtkHookEntries(JSON.parse(text), 'codex')[0]; return { group: e.group, handler: e.hook }; };
+const RTK_HASH = (() => { const e = rtkEntry(AFTER_INIT); return C.codexHookHash(e.group, e.handler); })();
+const tabela = (key, hash, extra = '') => `[hooks.state.${key.includes("'") ? JSON.stringify(key) : `'${key}'`}]\n${extra}trusted_hash = "${hash}"\n`;
+const sem = (re, t) => t.split('\n').filter(l => !re.test(l)).join('\n');
+
+test('upsert: config vazio ganha só a tabela da chave com trusted_hash, sem enabled', () => {
+  const r = C.upsertHookTrust('', RTK_KEY, RTK_HASH);
+  assert.strictEqual(r.changed, true);
+  assert.strictEqual(r.text, `[hooks.state.'${RTK_KEY}']\ntrusted_hash = "${RTK_HASH}"\n`);
+  assert.ok(!r.text.includes('enabled'));
+});
+
+test('upsert: hash antigo na mesma chave é trocado e não nasce segunda tabela; as outras linhas ficam', () => {
+  const antes = `a = 1\n\n[hooks.state.'${RTK_KEY}']\nenabled = true\ntrusted_hash = "sha256:velho"\n\n[tui]\ntheme = "dark"\n`;
+  const r = C.upsertHookTrust(antes, RTK_KEY, RTK_HASH);
+  assert.strictEqual(r.text, antes.replace('sha256:velho', RTK_HASH));
+  assert.strictEqual(r.text.split('[hooks.state.').length - 1, 1);
+  assert.strictEqual(C.upsertHookTrust(r.text, RTK_KEY, RTK_HASH).changed, false, 'mesmo hash não regrava');
+  const semHash = `[hooks.state.'${RTK_KEY}']\nenabled = true\n`;
+  assert.strictEqual(C.upsertHookTrust(semHash, RTK_KEY, RTK_HASH).text, `[hooks.state.'${RTK_KEY}']\ntrusted_hash = "${RTK_HASH}"\nenabled = true\n`);
+});
+
+test('upsert: chave do Windows (barra invertida) e chave com aspa simples saem em grafia que o leitor devolve igual (ida e volta)', () => {
+  const win = 'C:\\Users\\ana\\.codex\\hooks.json:pre_tool_use:1:0';
+  const asp = "C:\\Users\\o'neil\\.codex\\hooks.json:pre_tool_use:1:0";
+  for (const key of [win, asp]) {
+    const r = C.upsertHookTrust('', key, RTK_HASH);
+    assert.ok(r.changed);
+    assert.strictEqual(C.readHookState(r.text).entries.get(key).hash, RTK_HASH, key);
+  }
+  assert.match(C.upsertHookTrust('', win, RTK_HASH).text, /^\[hooks\.state\.'C:\\Users\\ana\\\.codex\\hooks\.json:pre_tool_use:1:0'\]/);
+  assert.match(C.upsertHookTrust('', asp, RTK_HASH).text, /^\[hooks\.state\."C:\\\\Users\\\\o'neil\\\\\.codex\\\\hooks\.json:pre_tool_use:1:0"\]/);
+});
+
+test('upsert: chaves que só diferem na caixa são distintas (Linux)', () => {
+  const baixa = '/home/ana/.codex/hooks.json:pre_tool_use:1:0';
+  const alta = '/home/Ana/.codex/hooks.json:pre_tool_use:1:0';
+  const t1 = C.upsertHookTrust('', baixa, 'sha256:1').text;
+  const t2 = C.upsertHookTrust(t1, alta, 'sha256:2');
+  assert.ok(t2.changed);
+  const s = C.readHookState(t2.text);
+  assert.strictEqual(s.entries.get(baixa).hash, 'sha256:1');
+  assert.strictEqual(s.entries.get(alta).hash, 'sha256:2');
+});
+
+test('upsert: conteúdo alheio preservado byte a byte (fixture com os oito hooks do Orca) e a tabela nova vai ao fim', () => {
+  const r = C.upsertHookTrust(TOML, RTK_KEY, RTK_HASH);
+  assert.ok(r.text.startsWith(TOML));
+  assert.strictEqual(r.text.slice(TOML.length), `\n[hooks.state.'${RTK_KEY}']\ntrusted_hash = "${RTK_HASH}"\n`);
+  const semFim = C.upsertHookTrust('a = 1', RTK_KEY, RTK_HASH).text;
+  assert.strictEqual(semFim, `a = 1\n\n[hooks.state.'${RTK_KEY}']\ntrusted_hash = "${RTK_HASH}"\n`);
+});
+
+test('upsert: CRLF continua CRLF', () => {
+  const r = C.upsertHookTrust('a = 1\r\n', RTK_KEY, RTK_HASH);
+  assert.strictEqual(r.text, `a = 1\r\n\r\n[hooks.state.'${RTK_KEY}']\r\ntrusted_hash = "${RTK_HASH}"\r\n`);
+  const troca = C.upsertHookTrust(r.text, RTK_KEY, 'sha256:novo');
+  assert.strictEqual(troca.text, r.text.replace(RTK_HASH, 'sha256:novo'));
+  assert.ok(!/[^\r]\n/.test(troca.text));
+});
+
+test('upsert: forma de hooks.state que a IDE não lê não é editada (texto idêntico, changed false), nunca TOML duplicado', () => {
+  const formas = {
+    'tabela inline em [hooks]': `[hooks]\nstate = { '${RTK_KEY}' = { trusted_hash = "sha256:x" } }\n`,
+    'chave pontilhada na raiz': `hooks.state."${RTK_KEY}".trusted_hash = "sha256:x"\n`,
+    'hooks inline na raiz': 'hooks = { state = {} }\n',
+    'cabeçalho com espaços': `[ hooks.state.'${RTK_KEY}' ]\ntrusted_hash = "sha256:x"\n`,
+    'cabeçalho com aspas em hooks': `["hooks".state.'${RTK_KEY}']\ntrusted_hash = "sha256:x"\n`,
+    'escape além de \\\\ e \\"': '[hooks.state."C:\\u0041\\\\x.json:pre_tool_use:1:0"]\ntrusted_hash = "sha256:x"\n',
+    'subtabela de uma chave': `[hooks.state.'${RTK_KEY}'.extra]\nx = 1\n`,
+    'chave repetida': `${tabela(RTK_KEY, 'sha256:1')}\n${tabela(RTK_KEY, 'sha256:2')}`,
+    'conteúdo sob [hooks.state]': `[hooks.state]\n'${RTK_KEY}' = { trusted_hash = "sha256:x" }\n`,
+    'trusted_hash em forma estranha': `[hooks.state.'${RTK_KEY}']\ntrusted_hash = """sha256:x"""\n`,
+  };
+  for (const [nome, t] of Object.entries(formas)) {
+    const r = C.upsertHookTrust(t, RTK_KEY, RTK_HASH);
+    assert.strictEqual(r.changed, false, nome);
+    assert.strictEqual(r.recognized, false, nome);
+    assert.strictEqual(r.text, t, nome);
+    assert.strictEqual(C.applyCodexTrust(t, [{ key: RTK_KEY, hash: RTK_HASH }]).changed, false, nome);
+  }
+});
+
+test('leitura: string multilinha e [hooks] sem state não confundem o leitor; [hooks.state] vazio é aceito', () => {
+  const t = `msg = """\n[hooks.state.'x']\ntrusted_hash = "sha256:no"\n"""\n[hooks]\nPreToolUse = 1\n\n[hooks.state]\n\n${tabela(RTK_KEY, 'sha256:ok')}`;
+  const s = C.readHookState(t);
+  assert.strictEqual(s.recognized, true);
+  assert.deepStrictEqual([...s.entries.keys()], [RTK_KEY]);
+  assert.strictEqual(C.upsertHookTrust(t, RTK_KEY, RTK_HASH).changed, true);
+});
+
+test('upsert só edita a chave pedida: as outras tabelas hooks.state ficam intactas', () => {
+  const orca = `/home/ana/.codex/hooks.json:pre_tool_use:0:0`;
+  const base = `${tabela(orca, 'sha256:orca', 'enabled = true\n')}`;
+  const r = C.applyCodexTrust(base, [{ key: RTK_KEY, hash: RTK_HASH }]);
+  assert.ok(r.text.startsWith(base));
+  assert.strictEqual(C.readHookState(r.text).entries.get(orca).hash, 'sha256:orca');
+});
+
+// T4: trusted, modified, untrusted por comparação do hash real
+const comTabela = (hash, key = RTK_KEY) => `${TOML}\n${tabela(key, hash, 'enabled = true\n')}`;
+const trustOf = (hooks, toml, path = HJ) => C.codexHookTrust(hooks, toml, path);
+const setRtk = (fn) => { const o = JSON.parse(AFTER_INIT); fn(o.hooks.PreToolUse[1]); return JSON.stringify(o, null, 2); };
+
+test('confiança: trusted quando o hash gravado é o do comando atual; a chave do Orca (0:0) não conta', () => {
+  assert.deepStrictEqual(trustOf(AFTER_INIT, comTabela(RTK_HASH)), { state: 'trusted', key: RTK_KEY, entries: [{ key: RTK_KEY, state: 'trusted' }] });
+  assert.strictEqual(trustOf(AFTER_INIT, TOML).state, 'untrusted');
+});
+test('confiança: modified com hash antigo, timeout alterado e matcher removido', () => {
+  assert.strictEqual(trustOf(AFTER_INIT, comTabela('sha256:velho')).state, 'modified');
+  assert.strictEqual(trustOf(setRtk(g => { g.hooks[0].timeout = 30; }), comTabela(RTK_HASH)).state, 'modified');
+  assert.strictEqual(trustOf(setRtk(g => { delete g.matcher; }), comTabela(RTK_HASH)).state, 'modified');
+  assert.strictEqual(trustOf(setRtk(g => { g.hooks[0].command = '/home/ana/.local/bin/rtk hook codex'; }), comTabela(RTK_HASH)).state, 'modified');
+});
+test('confiança: untrusted sem tabela, com tabela sem hash e com grupo inserido antes (a chave muda)', () => {
+  assert.strictEqual(trustOf(AFTER_INIT, TOML).state, 'untrusted');
+  assert.strictEqual(trustOf(AFTER_INIT, `${TOML}\n[hooks.state.'${RTK_KEY}']\nenabled = true\n`).state, 'untrusted');
+  const o = JSON.parse(AFTER_INIT);
+  o.hooks.PreToolUse.unshift({ hooks: [{ type: 'command', command: 'echo x' }] });
+  const t = JSON.stringify(o, null, 2);
+  const r = trustOf(t, comTabela(RTK_HASH));
+  assert.strictEqual(r.key, `${HJ}:pre_tool_use:2:0`);
+  assert.strictEqual(r.state, 'untrusted', 'a confiança do índice 1 não vale para o 2');
+});
+test('confiança: chave só com caixa diferente no Linux não conta como trusted; no Windows a chave também é exata', () => {
+  assert.strictEqual(trustOf(AFTER_INIT, comTabela(RTK_HASH, `/home/Ana/.codex/hooks.json:pre_tool_use:1:0`)).state, 'untrusted');
+  const w = 'C:\\Users\\Ana\\.codex\\hooks.json';
+  const kw = `${w}:pre_tool_use:1:0`;
+  assert.strictEqual(trustOf(AFTER_INIT, C.upsertHookTrust('', kw, RTK_HASH).text, w).state, 'trusted');
+  assert.strictEqual(trustOf(AFTER_INIT, C.upsertHookTrust('', kw.toLowerCase(), RTK_HASH).text, w).state, 'untrusted');
+  const dupla = `"C:\\\\Users\\\\Ana\\\\.codex\\\\hooks.json:pre_tool_use:1:0"`;
+  assert.strictEqual(trustOf(AFTER_INIT, `[hooks.state.${dupla}]\ntrusted_hash = "${RTK_HASH}"\n`, w).state, 'trusted', 'grafia básica escapada também vale');
+});
+test('confiança: config.toml em forma que a IDE não lê vira untrusted (nunca "trusted" por palpite)', () => {
+  assert.strictEqual(trustOf(AFTER_INIT, `hooks.state."${RTK_KEY}".trusted_hash = "${RTK_HASH}"\n`).state, 'untrusted');
+});
+test('confiança: mais de uma entrada do RTK recebe uma chave cada e vale o pior estado; outro handler do mesmo grupo não recebe', () => {
+  const o = JSON.parse(AFTER_INIT);
+  o.hooks.PreToolUse[1].hooks.unshift({ type: 'command', command: 'echo outro' }); // RTK vira 1:1
+  o.hooks.PreToolUse.push({ matcher: 'Bash', hooks: [{ type: 'command', command: 'rtk hook codex' }] }); // RTK 2:0
+  const t = JSON.stringify(o, null, 2);
+  const alvos = C.rtkTrustTargets(t, HJ);
+  assert.deepStrictEqual(alvos.map(a => a.key), [`${HJ}:pre_tool_use:1:1`, `${HJ}:pre_tool_use:2:0`]);
+  const r = C.applyCodexTrust(TOML, alvos);
+  assert.strictEqual(r.recognized, true);
+  assert.ok(!r.text.includes(':pre_tool_use:1:0'), 'o handler "echo outro" (1:0) não é aprovado');
+  assert.strictEqual(trustOf(t, r.text).state, 'trusted');
+  const meio = C.upsertHookTrust(TOML, alvos[0].key, alvos[0].hash).text;
+  assert.strictEqual(trustOf(t, meio).state, 'untrusted');
+  const velho = C.upsertHookTrust(r.text, alvos[1].key, 'sha256:velho').text;
+  assert.strictEqual(trustOf(t, velho).state, 'modified');
+});
+test('confiança: sem hook do RTK é no-hook', () => {
+  assert.strictEqual(trustOf(ORCA_HOOKS, TOML).state, 'no-hook');
 });

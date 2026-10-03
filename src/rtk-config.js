@@ -166,35 +166,145 @@ function codexHookHash(group, handler, event) {
 }
 
 // ── Confiança do hook no Codex ───────────────────────────────────────────────
-const normKey = k => String(k).replace(/\\/g, '/').toLowerCase();
+// A IDE não tem parser TOML: só lê e edita as formas que o próprio Codex grava
+// (`[hooks.state.'<chave>']` ou `[hooks.state."<chave>"]`). Qualquer outra forma de `hooks.state`
+// (inline, pontilhada, com espaços, escape raro, string multilinha) conta como não reconhecida:
+// nada é editado, para nunca gerar tabela duplicada nem TOML inválido (o Codex deixaria de
+// carregar o config.toml inteiro).
+const splitLines = text => String(text || '').split(/(\r?\n)/); // linha, separador, linha, ...
 
-// Chaves de [hooks.state."<chave>"] que têm trusted_hash
-function trustedKeys(tomlText) {
-  const keys = new Set();
-  const re = /^\s*\[hooks\.state\.(["'])(.+?)\1\]\s*$/gm;
-  const text = String(tomlText || '');
-  let m;
-  while ((m = re.exec(text))) {
-    const rest = text.slice(re.lastIndex);
-    const next = rest.search(/^\s*\[/m);
-    const body = next < 0 ? rest : rest.slice(0, next);
-    if (/^\s*trusted_hash\s*=/m.test(body)) keys.add(normKey(untoml(m[1], m[2])));
+// Marca as linhas que estão dentro de string multilinha (não são lidas como cabeçalho nem chave)
+function lineInfo(parts) {
+  const out = [];
+  let delim = null;
+  for (let k = 0; k < parts.length; k += 2) {
+    const s = parts[k];
+    let skip = false;
+    let start = false;
+    if (delim) { skip = true; if (s.includes(delim)) delim = null; }
+    else {
+      const m = /"""|'''/.exec(s);
+      if (m) { skip = true; start = true; if (s.indexOf(m[0], m.index + 3) < 0) delim = m[0]; }
+    }
+    out.push({ idx: k, s, skip, start });
   }
-  return keys;
+  return out;
 }
 
-// pending: o Codex vai pedir confirmação em /hooks (hook novo ou alterado); trusted-unverified:
-// há confiança registrada para o índice e a IDE não mexeu, mas o algoritmo do hash não está nos fatos.
-function codexHookTrust(hooksJsonText, tomlText, hooksJsonPath, { changedNow = false } = {}) {
+// Valor de uma string TOML básica só com os escapes \\ e \" (outro escape: null)
+function decodeBasic(body) {
+  let out = '';
+  for (let i = 0; i < body.length; i++) {
+    if (body[i] !== '\\') { out += body[i]; continue; }
+    const n = body[++i];
+    if (n !== '\\' && n !== '"') return null;
+    out += n;
+  }
+  return out;
+}
+const STATE_HDR = /^\[hooks\.state\.(?:'([^']*)'|"((?:[^"\\]|\\.)*)")\]\s*(?:#.*)?$/;
+const STATE_HDR_LOOSE = /^\[\[?\s*["']?hooks["']?\s*\.\s*["']?state/;
+const HASH_LINE = /^trusted_hash\s*=\s*(?:"([^"\\]*)"|'([^']*)')\s*(?:#.*)?$/;
+
+// { recognized, entries: Map(chave decodificada -> { hash|null, header, hashLine }) }
+function readHookState(text) {
+  const info = lineInfo(splitLines(text));
+  const entries = new Map();
+  let recognized = true;
+  let sec = { kind: 'root' };
+  info.forEach((ln, n) => {
+    if (ln.skip) { if (ln.start && /^\s*["']?(?:hooks|state|trusted_hash)["']?\s*[=.]/.test(ln.s)) recognized = false; return; }
+    const t = ln.s.trim();
+    if (!t || t.startsWith('#')) return;
+    if (t.startsWith('[')) {
+      const m = STATE_HDR.exec(t);
+      if (m) {
+        const key = m[1] != null ? m[1] : decodeBasic(m[2]);
+        if (key == null || entries.has(key)) { recognized = false; sec = { kind: 'bad' }; return; }
+        entries.set(key, { hash: null, header: n, hashLine: -1 });
+        sec = { kind: 'entry', key };
+      } else if (/^\[hooks\.state\]\s*(?:#.*)?$/.test(t)) sec = { kind: 'statehdr' };
+      else if (/^\[\s*["']?hooks["']?\s*\]\s*(?:#.*)?$/.test(t)) sec = { kind: 'hooks' };
+      else if (STATE_HDR_LOOSE.test(t)) { recognized = false; sec = { kind: 'bad' }; }
+      else sec = { kind: 'other' };
+      return;
+    }
+    if (sec.kind === 'root' && /^["']?hooks["']?\s*(?:=|\.\s*["']?state)/.test(t)) recognized = false;
+    else if (sec.kind === 'statehdr') recognized = false;
+    else if (sec.kind === 'hooks' && /^["']?state["']?\s*[=.]/.test(t)) recognized = false;
+    else if (sec.kind === 'entry') {
+      const h = HASH_LINE.exec(t);
+      if (h) { const e = entries.get(sec.key); e.hash = h[1] != null ? h[1] : h[2]; e.hashLine = n; }
+      else if (/^trusted_hash\b/.test(t)) recognized = false;
+    }
+  });
+  return { recognized, entries };
+}
+
+// Grava `trusted_hash` (só ele; `enabled` ausente conta como ligado) para a chave. Troca o hash na
+// tabela da chave, se existir; senão acrescenta a tabela ao fim. Forma não reconhecida: não edita.
+function upsertHookTrust(tomlText, key, hash) {
+  const text = String(tomlText || '');
+  const st = readHookState(text);
+  if (!st.recognized || /[\u0000-\u001f\u007f]/.test(key)) return { text, changed: false, recognized: false };
+  const e = st.entries.get(key);
+  const eol = /\r\n/.test(text) ? '\r\n' : '\n';
+  const line = `trusted_hash = "${hash}"`;
+  if (e) {
+    if (e.hash === hash) return { text, changed: false, recognized: true };
+    const parts = splitLines(text);
+    const info = lineInfo(parts);
+    if (e.hashLine >= 0) {
+      const at = info[e.hashLine].idx;
+      parts[at] = /^\s*/.exec(parts[at])[0] + line;
+    } else parts.splice(info[e.header].idx + 1, 0, eol, line);
+    return { text: parts.join(''), changed: true, recognized: true };
+  }
+  let sep = '';
+  if (text.length) sep = text.endsWith('\n') ? eol : eol + eol;
+  const block = `[hooks.state.${tomlString(key)}]${eol}${line}${eol}`;
+  return { text: text + sep + block, changed: true, recognized: true };
+}
+
+// Entradas do RTK no hooks.json: chave exata do Codex (caminho, evento, grupo, índice) e hash do handler
+function rtkTrustTargets(hooksJsonText, hooksJsonPath) {
   const obj = parseJson(hooksJsonText);
-  const e = obj ? rtkHookEntries(obj, 'codex')[0] : null;
-  if (!e) return { state: 'no-hook', key: null };
-  const key = `${hooksJsonPath}:pre_tool_use:${e.g}:${e.i}`;
-  if (changedNow) return { state: 'pending', key };
-  return { state: trustedKeys(tomlText).has(normKey(key)) ? 'trusted-unverified' : 'pending', key };
+  if (!obj) return [];
+  return rtkHookEntries(obj, 'codex').map(e => ({
+    key: `${hooksJsonPath}:pre_tool_use:${e.g}:${e.i}`, hash: codexHookHash(e.group, e.hook), g: e.g, i: e.i,
+  }));
+}
+
+// Aprova só as entradas do RTK (nunca outro handler, nunca "trust all"). recognized:false = nada editado.
+function applyCodexTrust(tomlText, targets) {
+  let text = String(tomlText || '');
+  let changed = false;
+  for (const t of targets) {
+    const r = upsertHookTrust(text, t.key, t.hash);
+    if (!r.recognized) return { text: String(tomlText || ''), changed: false, recognized: false };
+    if (r.changed) { text = r.text; changed = true; }
+  }
+  return { text, changed, recognized: true };
+}
+
+const WORST = ['trusted', 'modified', 'untrusted'];
+// trusted: o hash gravado é o do comando atual; modified: há chave e o hash difere (ou o hook mudou);
+// untrusted: sem entrada (ou config.toml em forma que a IDE não lê). Vale o pior entre as entradas do RTK.
+function codexHookTrust(hooksJsonText, tomlText, hooksJsonPath) {
+  const targets = rtkTrustTargets(hooksJsonText, hooksJsonPath);
+  if (!targets.length) return { state: 'no-hook', key: null, entries: [] };
+  const st = readHookState(tomlText);
+  const entries = targets.map(t => {
+    const e = st.recognized ? st.entries.get(t.key) : null;
+    const state = !e || e.hash == null ? 'untrusted' : e.hash === t.hash ? 'trusted' : 'modified';
+    return { key: t.key, state };
+  });
+  const state = WORST[Math.max(...entries.map(x => WORST.indexOf(x.state)))];
+  return { state, key: targets[0].key, entries };
 }
 
 module.exports = {
   hasRtkHook, isAbsoluteHook, patchClaudeSettings, claudeDbEnv, patchCodexHooks,
   patchCodexConfigToml, codexDbEnv, codexHookTrust, detectIndent, codexHookHash, codexHookIdentityJson,
+  readHookState, upsertHookTrust, applyCodexTrust, rtkTrustTargets, rtkHookEntries,
 };

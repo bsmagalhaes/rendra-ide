@@ -16,7 +16,7 @@ const stampOf = ms => {
   return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
 };
 const sameStat = (a, b) => (!a && !b) || (!!a && !!b && a.size === b.size && a.mtimeMs === b.mtimeMs);
-const TRUST_MSG = 'Abra o Codex e aprove o hook em /hooks. Sem isso o RTK não reescreve nenhum comando.';
+const TRUST_MSG = 'O Codex ainda precisa da sua aprovação para usar o RTK: abra o Codex, digite /hooks, entre em PreToolUse com Enter, deixe o hook do RTK selecionado e aperte t.';
 
 class EnableError extends Error {}
 
@@ -135,14 +135,6 @@ function createRtkEnable(deps) {
       if (!init.ok) throw new EnableError(`rtk init falhou: ${(init.stderr || init.stdout || '').trim().split('\n').pop() || 'sem mensagem'}`);
 
       const gb = e.kind === 'host' && dirs.platform === 'win32' ? await gitBash() : false;
-      const hookBefore = (txt, kind) => {
-        try {
-          for (const g of JSON.parse(txt).hooks.PreToolUse) for (const h of g.hooks || []) if (P.isRtkHookCommand(h.command, kind)) return h.command;
-        } catch { /* sem hook */ }
-        return null;
-      };
-      const cmdBefore = agent === 'claude' ? hookBefore(pre.get(settingsPath) || '', 'claude') : hookBefore(pre.get(hooksPath) || '', 'codex');
-
       // 3. ajustes da IDE
       let trust = null;
       let tomlBlock = null;
@@ -175,8 +167,7 @@ function createRtkEnable(deps) {
       if (!dbExisted) notes.push(`Banco do ${agent === 'claude' ? 'Claude Code' : 'Codex'} criado em ${dbPath}.`);
       if (!C.isAbsoluteHook(hookText, kind)) notes.push('O hook ficou como o rtk init o gravou (sem caminho absoluto); veja a nota acima.');
       if (agent === 'codex') {
-        const hookAfter = hookBefore(hooksNow, 'codex');
-        trust = C.codexHookTrust(hooksNow, (await env.readFile(e, tomlPath)).text || '', hooksPath, { changedNow: cmdBefore !== hookAfter });
+        trust = C.codexHookTrust(hooksNow, (await env.readFile(e, tomlPath)).text || '', p.join(await env.codexKeyDir(e, dirs), 'hooks.json'));
       }
 
       // 5. fecha: o que não mudou perde a cópia; o que mudou entra em changes[]
@@ -191,8 +182,8 @@ function createRtkEnable(deps) {
         if (f === tomlPath && tomlBlock) ch.added = tomlBlock;
         changes.push(ch);
       }
-      const base = { ok: true, agent, env: e.id, changes, notes, trustMessage: agent === 'codex' ? TRUST_MSG : null };
-      if (agent === 'codex') base.trust = trust.state;
+      const base = { ok: true, agent, env: e.id, changes, notes, trustMessage: null };
+      if (agent === 'codex') { base.trust = trust.state; base.trustMessage = trust.state === 'trusted' ? null : TRUST_MSG; }
       return base;
     } catch (err) {
       const skipped = await rollback().catch(() => []);

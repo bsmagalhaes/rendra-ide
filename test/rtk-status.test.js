@@ -5,6 +5,9 @@ const assert = require('node:assert');
 const { createRtkEnv } = require('../src/rtk-env');
 const { createRtkStatus } = require('../src/rtk-status');
 const P = require('../src/rtk-paths');
+const C = require('../src/rtk-config');
+
+const RTK_HASH = C.codexHookHash({ matcher: 'Bash' }, { type: 'command', command: 'rtk hook codex' });
 
 const unc = (d, p) => `\\\\wsl.localhost\\${d}${p.replace(/\//g, '\\')}`;
 const gainJson = saved => JSON.stringify({
@@ -179,11 +182,11 @@ test('estado do hook por agente: ausente, presente, absoluto, banco no env e con
     [LIN.claude]: 'db',
     '/home/ana/.claude/settings.json': JSON.stringify({ env: { RTK_DB_PATH: LIN.claude }, hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: '/home/ana/.local/bin/rtk hook claude' }] }] } }),
     [hj]: JSON.stringify({ hooks: { PreToolUse: [{ hooks: [{ type: 'command', command: 'echo orca' }] }, { matcher: 'Bash', hooks: [{ type: 'command', command: 'rtk hook codex' }] }] } }),
-    '/home/ana/.codex/config.toml': `[hooks.state."${hj}:pre_tool_use:1:0"]\nenabled = true\ntrusted_hash = "sha256:x"\n\n[shell_environment_policy]\nset = { RTK_DB_PATH = '${LIN.codex}' }\n`,
+    '/home/ana/.codex/config.toml': `[hooks.state."${hj}:pre_tool_use:1:0"]\nenabled = true\ntrusted_hash = "${RTK_HASH}"\n\n[shell_environment_policy]\nset = { RTK_DB_PATH = '${LIN.codex}' }\n`,
   };
   const a = (await montar({ files: base }).st.status()).environments[0].agents;
   assert.deepStrictEqual([a.claude.hook, a.claude.hookAbsolute, a.claude.dbEnvConfigured], [true, true, true]);
-  assert.deepStrictEqual([a.codex.hook, a.codex.hookAbsolute, a.codex.dbEnvConfigured, a.codex.trust], [true, false, true, 'trusted-unverified']);
+  assert.deepStrictEqual([a.codex.hook, a.codex.hookAbsolute, a.codex.dbEnvConfigured, a.codex.trust], [true, false, true, 'trusted']);
   assert.match(a.codex.writableRootsSnippet, /writable_roots = \["\/home\/ana\/\.local\/share\/rtk\/codex"\]/);
   assert.ok(!a.codex.writableRootsSnippet.includes('rtk"]'));
 
@@ -214,8 +217,40 @@ test('installed por agente: a pasta do agente existe no ambiente', async () => {
   assert.deepStrictEqual([a.claude.installed, a.codex.installed], [true, false]);
 });
 
-test('o estado do Codex leva o texto do /hooks (fonte única em src/rtk-enable.js)', async () => {
-  const { st } = montar({});
-  const a = (await st.status()).environments[0].agents;
-  assert.strictEqual(a.codex.trustMessage, require('../src/rtk-enable').TRUST_MSG);
+test('estado do Codex: trusted sem texto de aviso; modified e untrusted com o texto do /hooks (fonte única em src/rtk-enable.js)', async () => {
+  const hj = '/home/ana/.codex/hooks.json';
+  const hooks = JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'rtk hook codex' }] }] } });
+  const tom = h => (h ? `[hooks.state.'${hj}:pre_tool_use:0:0']\ntrusted_hash = "${h}"\n` : '');
+  const estado = async toml => (await montar({ files: { [hj]: hooks, '/home/ana/.codex/config.toml': toml } }).st.status()).environments[0].agents.codex;
+  const { TRUST_MSG } = require('../src/rtk-enable');
+  const t = await estado(tom(RTK_HASH));
+  assert.deepStrictEqual([t.trust, t.trustMessage], ['trusted', null]);
+  const m = await estado(tom('sha256:velho'));
+  assert.deepStrictEqual([m.trust, m.trustMessage], ['modified', TRUST_MSG]);
+  const u = await estado('');
+  assert.deepStrictEqual([u.trust, u.trustMessage], ['untrusted', TRUST_MSG]);
+  const semHook = (await montar({}).st.status()).environments[0].agents.codex;
+  assert.deepStrictEqual([semHook.trust, semHook.trustMessage], [null, null]);
+});
+
+test('com CODEX_HOME a chave usa o caminho canônico (junção ou link): o destino, não o apelido', async () => {
+  const real = '/dados/codex-real';
+  const hooks = JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'rtk hook codex' }] }] } });
+  const files = {
+    '/home/ana/apelido/hooks.json': hooks,
+    '/home/ana/apelido/config.toml': `[hooks.state.'${real}/hooks.json:pre_tool_use:0:0']\ntrusted_hash = "${RTK_HASH}"\n`,
+  };
+  const resolve = p => (p === '/home/ana/apelido' ? real : p);
+  const fsx = {
+    existsSync: p => p in files, readFileSync: p => files[p], statSync: () => ({ size: 1, mtimeMs: 1 }),
+    realpathSync: Object.assign(resolve, { native: resolve }),
+  };
+  const procEnv = { CODEX_HOME: '/home/ana/apelido' };
+  const env = createRtkEnv({ platform: 'linux', env: procEnv, fs: fsx, homedir: () => '/home/ana', rtkPath: async () => '/home/ana/.local/bin/rtk', execFile: (f, a, o, cb) => cb(null, 'rtk 0.50.0\n', '') });
+  const st = createRtkStatus({ env, processEnv: procEnv, runRtk: async () => ({ ok: true, output: '' }) });
+  assert.strictEqual((await st.status()).environments[0].agents.codex.trust, 'trusted');
+  // sem CODEX_HOME a pasta padrão é usada como está, sem canonizar
+  const env2 = createRtkEnv({ platform: 'linux', env: {}, fs: fsx, homedir: () => '/home/ana', rtkPath: async () => '/x', execFile: (f, a, o, cb) => cb(null, '', '') });
+  assert.strictEqual(await env2.codexKeyDir(env2.HOST, { codexDir: '/home/ana/apelido' }), '/home/ana/apelido');
+  assert.strictEqual(await env.codexKeyDir(env.HOST, { codexDir: '/home/ana/apelido' }), real);
 });
