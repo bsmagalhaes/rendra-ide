@@ -140,6 +140,17 @@ test('tecla sem relação devolve deixar', () => {
 });
 
 // ── bytesColarImagem ────────────────────────────────────────────────────────
+// Prova (03/10/2026, Claude Code 2.1.288 dentro da IDE, imagem do Windows na área de transferência):
+// PowerShell e Git Bash reagem a ESC v e não a \x16; o WSL reage a \x16 (Alt+V e Ctrl+V). O Codex não pôde ser
+// provado (sem login nesta máquina); a doc dele só cita Ctrl+V.
+test('bytesColarImagem: Windows nativo (PowerShell, Git Bash, cmd) envia ESC v, o Alt+V do Claude Code', () => {
+  for (const shell of ['powershell', 'gitbash', 'cmd']) assert.strictEqual(bytesColarImagem('win32', shell), '\x1bv');
+});
+
+test('bytesColarImagem: WSL no Windows envia Ctrl+V, como o Linux', () => {
+  assert.strictEqual(bytesColarImagem('win32', 'wsl'), '\x16');
+});
+
 test('bytesColarImagem: Linux e macOS enviam Ctrl+V; WSL também (o Claude liga os dois lá)', () => {
   for (const shell of ['zsh', 'bash', 'fish']) {
     assert.strictEqual(bytesColarImagem('linux', shell), '\x16');
