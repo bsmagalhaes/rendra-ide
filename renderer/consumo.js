@@ -23,20 +23,27 @@
     return `${Math.round(limitar(percent))}%`;
   }
 
-  // res: resposta de limits (forma de claude-account): { limits, fetchedAt, error, needsBridge }.
-  // deps: { conta, plano, fmtResetIn(ts), fmtHora(ts) }.
+  // res: { limits, fetchedAt } do provedor escolhido (a lista já vem normalizada: kind session ou
+  // weekly_all). O Codex hoje só traz o semanal; um item ausente continua oculto.
+  // deps: { conta: { organization, name, email }, plano, ambiente, provedor, fmtResetIn(ts), fmtHora(ts) }.
+  // Nome exibido = organização; sem organização, o nome da pessoa. A barra aparece com limites OU
+  // com conta (sem limites mostra a conta e "sem dados"); sem nenhum dos dois, some.
   function estadoConsumo(res, agora, deps = {}) {
-    const vazio = { visivel: false, itens: [], tooltip: '' };
-    if (!res || !Array.isArray(res.limits) || !res.limits.length) return vazio;
+    const c = deps.conta || {};
+    const nome = c.organization || c.name || '';
+    const email = c.email || '';
+    const provedor = deps.provedor === 'codex' ? 'codex' : 'claude';
+    const ariaGrupo = provedor === 'codex' ? 'Consumo do plano do Codex' : 'Consumo do plano do Claude Code';
+    const limites = res && Array.isArray(res.limits) ? res.limits : [];
 
-    const velho = !numeroValido(res.fetchedAt) || agora - res.fetchedAt > LIMITE_ANTIGO_MS;
-    const hora = numeroValido(res.fetchedAt) && deps.fmtHora ? deps.fmtHora(res.fetchedAt) : '';
+    const velho = !res || !numeroValido(res.fetchedAt) || agora - res.fetchedAt > LIMITE_ANTIGO_MS;
+    const hora = res && numeroValido(res.fetchedAt) && deps.fmtHora ? deps.fmtHora(res.fetchedAt) : '';
     const lido = hora ? `lido às ${hora}` : '';
 
     const itens = [];
     const reinicios = [];
     for (const def of ITENS) {
-      const limite = res.limits.find(l => l && l.kind === def.chave && numeroValido(l.percent));
+      const limite = limites.find(l => l && l.kind === def.chave && numeroValido(l.percent));
       if (!limite) continue;
       const percent = Math.round(limitar(limite.percent));
       const nivel = nivelDe(percent);
@@ -49,14 +56,20 @@
       const reinicio = deps.fmtResetIn ? deps.fmtResetIn(limite.resetsAt) : '';
       if (reinicio) reinicios.push(`${def.rotulo}: ${reinicio}`);
     }
-    if (!itens.length) return vazio;
+    if (!itens.length && !nome && !email) return { visivel: false, itens: [], tooltip: '', nome: '', email: '', semDados: false, provedor, ariaGrupo };
 
     const linhas = [];
-    const quem = [deps.conta, deps.plano].filter(Boolean).join(' · ');
+    const quem = [nome, deps.plano].filter(Boolean).join(' · ');
     if (quem) linhas.push(quem);
-    linhas.push(...reinicios);
-    if (velho) linhas.push(lido ? `Dado antigo, ${lido}` : 'Dado antigo');
-    return { visivel: true, itens, tooltip: linhas.join('\n') };
+    if (email) linhas.push(email);
+    if (deps.ambiente) linhas.push(`Ambiente: ${deps.ambiente}`);
+    if (itens.length) {
+      linhas.push(...reinicios);
+      if (velho) linhas.push(lido ? `Dado antigo, ${lido}` : 'Dado antigo');
+    } else {
+      linhas.push('Sem dados de limite');
+    }
+    return { visivel: true, itens, tooltip: linhas.join('\n'), nome, email, semDados: !itens.length, provedor, ariaGrupo };
   }
 
   // ── Seletor de provedor + ambiente ────────────────────────────────────────

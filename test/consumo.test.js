@@ -7,14 +7,15 @@ const { nivelDe, formatarPercentual, estadoConsumo } = require('../renderer/cons
 const AGORA = Date.UTC(2026, 8, 30, 12, 0, 0);
 const MIN = 60 * 1000;
 const RESET = AGORA + 3 * 3600 * 1000;
-const deps = { conta: 'Empresa Demo', plano: 'Max 5x', fmtResetIn: ts => (ts ? `Reinicia em ${ts}` : ''), fmtHora: () => '09:30' };
+const CONTA = { organization: 'Empresa Demo', name: 'Ana Demo', email: 'ana@exemplo.test' };
+const deps = { conta: CONTA, plano: 'Max 5x', ambiente: 'Windows', fmtResetIn: ts => (ts ? `Reinicia em ${ts}` : ''), fmtHora: () => '09:30' };
 const limites = (session, weekly) => [
   { kind: 'session', percent: session, resetsAt: RESET },
   { kind: 'weekly_all', percent: weekly, resetsAt: RESET + 1000 },
 ];
 const res = (session, weekly, fetchedAt = AGORA - MIN) => ({ limits: limites(session, weekly), fetchedAt, error: null });
 
-test('sem dado nenhum a barra fica escondida (sem Claude Code, conta sem plano, ponte não instalada)', () => {
+test('sem conta e sem dado nenhum a barra fica escondida (sem Claude Code, conta sem plano, ponte não instalada)', () => {
   const casos = [
     { limits: null, error: 'Ative a leitura de limites para ver os limites do seu plano', needsBridge: true },
     { limits: null, error: 'Aguardando o Claude Code: os limites aparecem assim que uma sessão do Claude Code atualizar a statusline' },
@@ -24,7 +25,7 @@ test('sem dado nenhum a barra fica escondida (sem Claude Code, conta sem plano, 
     { limits: [{ kind: 'spend', percent: 50, label: 'Limite de gasto' }], fetchedAt: AGORA },
   ];
   for (const c of casos) {
-    const e = estadoConsumo(c, AGORA, deps);
+    const e = estadoConsumo(c, AGORA, { ...deps, conta: null }); // sem conta e sem limites a barra some (com conta, ver "conta sem limites")
     assert.strictEqual(e.visivel, false);
     assert.deepStrictEqual(e.itens, []);
   }
@@ -62,7 +63,7 @@ test('percentual fora de 0..100 é limitado e valor não numérico descarta o it
   assert.deepStrictEqual(nan.itens.map(i => i.rotulo), ['Semanal']);
   const texto = estadoConsumo(res('abc', 20), AGORA, deps);
   assert.deepStrictEqual(texto.itens.map(i => i.rotulo), ['Semanal']);
-  assert.strictEqual(estadoConsumo(res(NaN, 'abc'), AGORA, deps).visivel, false);
+  assert.strictEqual(estadoConsumo(res(NaN, 'abc'), AGORA, { ...deps, conta: null }).visivel, false);
 });
 
 test('dado antigo: mais de 15 minutos fica em cinza e o tooltip diz a hora da leitura', () => {
@@ -85,24 +86,68 @@ test('sem prova de frescor (fetchedAt ausente ou inválido) conta como dado anti
   }
 });
 
-test('tooltip: conta e plano, depois o reinício de cada limite, uma linha cada', () => {
+test('tooltip: conta e plano, o e-mail inteiro, o ambiente, depois o reinício de cada limite, uma linha cada', () => {
   const e = estadoConsumo(res(42, 27), AGORA, deps);
-  assert.strictEqual(e.tooltip, ['Empresa Demo · Max 5x', `5 Horas: Reinicia em ${RESET}`, `Semanal: Reinicia em ${RESET + 1000}`].join('\n'));
+  assert.strictEqual(e.tooltip, ['Empresa Demo · Max 5x', 'ana@exemplo.test', 'Ambiente: Windows', `5 Horas: Reinicia em ${RESET}`, `Semanal: Reinicia em ${RESET + 1000}`].join('\n'));
 });
 
-test('tooltip: sem conta nem plano a primeira linha some; sem reinício a linha do limite some', () => {
-  const semConta = estadoConsumo(res(42, 27), AGORA, { ...deps, conta: '', plano: '' });
-  assert.strictEqual(semConta.tooltip.split('\n')[0], `5 Horas: Reinicia em ${RESET}`);
-  assert.ok(!/undefined/.test(semConta.tooltip));
-  const soPlano = estadoConsumo(res(42, 27), AGORA, { ...deps, conta: '' });
-  assert.strictEqual(soPlano.tooltip.split('\n')[0], 'Max 5x');
+test('tooltip: sem plano, sem e-mail ou sem ambiente a linha some; sem reinício a linha do limite some', () => {
+  const semPlano = estadoConsumo(res(42, 27), AGORA, { ...deps, plano: '' });
+  assert.strictEqual(semPlano.tooltip.split('\n')[0], 'Empresa Demo');
+  const soEmail = estadoConsumo(res(42, 27), AGORA, { ...deps, conta: { email: 'ana@exemplo.test' }, plano: '', ambiente: '' });
+  assert.strictEqual(soEmail.tooltip.split('\n').slice(0, 2).join('|'), `ana@exemplo.test|5 Horas: Reinicia em ${RESET}`);
+  assert.ok(!/undefined|null/.test(soEmail.tooltip));
   const semReset = estadoConsumo({ limits: [{ kind: 'session', percent: 42 }, { kind: 'weekly_all', percent: 27, resetsAt: RESET }], fetchedAt: AGORA }, AGORA, deps);
-  assert.strictEqual(semReset.tooltip, ['Empresa Demo · Max 5x', `Semanal: Reinicia em ${RESET}`].join('\n'));
+  assert.strictEqual(semReset.tooltip, ['Empresa Demo · Max 5x', 'ana@exemplo.test', 'Ambiente: Windows', `Semanal: Reinicia em ${RESET}`].join('\n'));
 });
 
-test('o tooltip nunca carrega o e-mail: só existe o que o chamador passa em conta e plano', () => {
-  const e = estadoConsumo(res(42, 27), AGORA, { ...deps, conta: 'Empresa Demo' });
-  assert.ok(!e.tooltip.includes('@'));
+test('o tooltip carrega o e-mail completo da conta (a regra antiga de nunca mostrar o e-mail foi revogada de propósito)', () => {
+  const e = estadoConsumo(res(42, 27), AGORA, deps);
+  assert.ok(e.tooltip.includes('ana@exemplo.test'), e.tooltip);
+  assert.strictEqual(e.email, 'ana@exemplo.test');
+});
+
+test('nome exibido: a organização; sem organização, o nome da pessoa; sem os dois, vazio', () => {
+  assert.strictEqual(estadoConsumo(res(1, 1), AGORA, deps).nome, 'Empresa Demo');
+  assert.strictEqual(estadoConsumo(res(1, 1), AGORA, { ...deps, conta: { name: 'Ana Demo', email: 'a@b.c' } }).nome, 'Ana Demo');
+  assert.strictEqual(estadoConsumo(res(1, 1), AGORA, { ...deps, conta: { email: 'a@b.c' } }).nome, '');
+  assert.strictEqual(estadoConsumo(res(1, 1), AGORA, { ...deps, conta: null }).email, '');
+});
+
+test('Codex só com o semanal mostra um item; o de 5 horas fica oculto', () => {
+  const e = estadoConsumo({ limits: [{ kind: 'weekly_all', percent: 9, resetsAt: RESET }], fetchedAt: AGORA - MIN }, AGORA, { ...deps, provedor: 'codex', ambiente: 'Ubuntu-24.04' });
+  assert.deepStrictEqual(e.itens.map(i => i.rotulo), ['Semanal']);
+  assert.strictEqual(e.ariaGrupo, 'Consumo do plano do Codex');
+  assert.strictEqual(e.provedor, 'codex');
+  assert.ok(e.tooltip.includes('Ambiente: Ubuntu-24.04'));
+});
+
+test('o aria-label do grupo segue o provedor', () => {
+  assert.strictEqual(estadoConsumo(res(1, 1), AGORA, deps).ariaGrupo, 'Consumo do plano do Claude Code');
+  assert.strictEqual(estadoConsumo(res(1, 1), AGORA, { ...deps, provedor: 'codex' }).ariaGrupo, 'Consumo do plano do Codex');
+});
+
+test('dado de 16 minutos fica cinza para o Claude e para o Codex (mesma regra de 15 minutos)', () => {
+  const velho = AGORA - 16 * MIN;
+  for (const provedor of ['claude', 'codex']) {
+    const e = estadoConsumo({ limits: [{ kind: 'weekly_all', percent: 40, resetsAt: RESET }], fetchedAt: velho }, AGORA, { ...deps, provedor });
+    assert.strictEqual(e.itens[0].classe, 'stale', provedor);
+    assert.ok(e.tooltip.includes('Dado antigo, lido às 09:30'), e.tooltip);
+  }
+});
+
+test('conta sem limites: a barra fica visível com a conta e semDados; sem conta e sem limites, some', () => {
+  for (const r of [null, undefined, { limits: null, error: 'x' }, { limits: [] }]) {
+    const e = estadoConsumo(r, AGORA, deps);
+    assert.strictEqual(e.visivel, true);
+    assert.strictEqual(e.semDados, true);
+    assert.deepStrictEqual(e.itens, []);
+    assert.strictEqual(e.nome, 'Empresa Demo');
+    assert.ok(e.tooltip.includes('ana@exemplo.test') && e.tooltip.includes('Sem dados de limite'), e.tooltip);
+    assert.ok(!/Dado antigo/.test(e.tooltip));
+    assert.strictEqual(estadoConsumo(r, AGORA, { ...deps, conta: null }).visivel, false);
+  }
+  assert.strictEqual(estadoConsumo({ limits: [{ kind: 'spend', percent: 5 }] }, AGORA, { ...deps, conta: {} }).visivel, false);
 });
 
 test('só um dos dois limites: mostra só o presente', () => {
