@@ -111,6 +111,13 @@ async function abrir(sb) {
   const tMain = await alvo(portaMain);
   if (!tMain) throw new Error('inspector do main inacessível');
   app.main = cliente(tMain.webSocketDebuggerUrl); await app.main.pronto;
+  // o main só registra os canais quando termina de subir: espera os dois existirem antes de embrulhar
+  const req = `((process.mainModule && process.mainModule.require) || (typeof require === 'function' ? require : null))('electron').ipcMain`;
+  for (let i = 0; i < 100; i++) {
+    const pronto = await app.main.ev(`(() => { const m = ${req}; return m.listeners('pty:write').length > 0 && !!(m._invokeHandlers && m._invokeHandlers.get && m._invokeHandlers.get('dev:agent-sessions')); })()`, { includeCommandLineAPI: true }).catch(() => false);
+    if (pronto) break;
+    await sleep(300);
+  }
   // espia pty:write e deixa o dev:agent-sessions com atraso ajustável (para provar "digitou antes da resposta")
   const r = await app.main.ev(`(() => {
     const req = (process.mainModule && process.mainModule.require) || (typeof require === 'function' ? require : null);
