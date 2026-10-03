@@ -981,6 +981,41 @@ body.dev-mode #page-terminal.active { display: flex; flex-direction: column; hei
 .nav-update svg { width: 18px; height: 18px; stroke-width: 2; }
 .nav-update:not([hidden]) + .nav-tab-bottom { margin-top: 0; }
 
+/* ── PÁGINA COMANDOS ── */
+/* só o primeiro item do rodapé da barra leva o margin-top: auto (Comandos); Novidades e Sobre vêm logo abaixo, sem flutuar */
+.nav-tab-bottom ~ .nav-tab-bottom { margin-top: 0; }
+.cmd-body { width: 100%; padding-bottom: 24px; font-family: var(--ui-font); }
+.cmd-controles { display: flex; flex-wrap: wrap; gap: 10px 24px; margin-bottom: 4px; }
+.cmd-grupo { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.cmd-grupo-rotulo { font-size: 11px; color: var(--text-muted); margin-right: 2px; }
+.cmd-chip {
+  font-family: var(--ui-font); font-size: 12px; color: var(--text-muted); background: var(--surface);
+  border: 1px solid var(--border-hi); border-radius: var(--radius); padding: 6px 12px; cursor: pointer;
+}
+.cmd-chip:hover { color: var(--text); border-color: var(--text-muted); }
+.cmd-chip:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
+.cmd-chip.active { color: var(--text); background: var(--surface2); border-color: var(--orange); }
+.cmd-secao { margin-top: 6px; }
+.cmd-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 8px; }
+.cmd-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0;
+}
+.cmd-card h3 { font-size: 13px; font-weight: 600; color: var(--text); }
+.cmd-teclas { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.cmd-combo { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.kbd {
+  font-family: var(--font); font-size: 11px; color: var(--text); background: var(--surface2);
+  border: 1px solid var(--border-hi); border-bottom-width: 2px; border-radius: 4px;
+  padding: 2px 6px; line-height: 1.4; white-space: nowrap;
+}
+.cmd-mais, .cmd-ou, .cmd-sufixo { font-size: 11px; color: var(--text-muted); }
+.cmd-texto, .cmd-detalhes li { font-size: 12px; color: var(--text-muted); line-height: 1.6; }
+.cmd-detalhes { margin: 0 0 0 16px; }
+.cmd-nota { font-size: 11.5px; color: var(--text-muted); line-height: 1.55; border-left: 2px solid var(--border-hi); padding-left: 8px; }
+.cmd-nota-bloco { margin-bottom: 8px; }
+.cmd-code { font-family: var(--font); font-size: 11.5px; color: var(--text); overflow-wrap: anywhere; }
+
 /* Novidades da versão (modal que só fecha pelo botão) */
 #novidades-overlay {
   position: fixed; inset: 0; background: rgba(22,22,22,0.9);

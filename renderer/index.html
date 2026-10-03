@@ -80,6 +80,10 @@
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>
     <span>Nova versão</span>
   </button>
+  <button class="nav-tab nav-tab-bottom" data-page="comandos" title="Comandos: atalhos do terminal, do Claude Code, do Codex e da IDE">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg>
+    <span>Comandos</span>
+  </button>
   <button class="nav-tab nav-tab-bottom" data-page="novidades" title="Novidades de cada versão">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>
     <span>Novidades</span>
@@ -311,6 +315,15 @@
     </div>
     <div class="about-md" id="changelog-body"></div>
   </div><!-- /page-novidades -->
+
+  <!-- PAGE: Comandos (atalhos do terminal, comandos do Claude Code e do Codex e atalhos da IDE; built by comandos.js) -->
+  <div class="page" id="page-comandos">
+    <div class="page-header">
+      <h1 class="page-title">Comandos</h1>
+      <div class="page-subtitle" id="comandos-versoes"></div>
+    </div>
+    <div class="cmd-body" id="comandos-body"></div>
+  </div><!-- /page-comandos -->
 
   <!-- PAGE: Sobre (product, then credits and licenses at the end; built by about.js) -->
   <div class="page" id="page-sobre">
@@ -639,5 +652,7 @@
 <script src="setup.js"></script>
 <script src="pricing.js"></script>
 <script src="about.js"></script>
+<script src="comandos-conteudo.js"></script>
+<script src="comandos.js"></script>
 </body>
 </html>

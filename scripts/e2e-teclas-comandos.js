@@ -612,6 +612,69 @@ caso('T8', async app => {
   afirma(j >= 0 && l.slice(j, j + 3).join(',') === 'alfa,beta,gama', `PowerShell 5.1: o Alt+Backspace NÃO apaga a palavra (saída: ${JSON.stringify(l.slice(j, j + 3))}); por isso a página indica Ctrl+Backspace`);
 });
 
+caso('T12', async app => {
+  console.log('\n[T12] página Comandos: botão acima de Novidades sem flutuar, troca de sistema e de agente, capturas');
+  await app.espera(`!!document.querySelector('.nav-tab[data-page="comandos"]')`, 10000, 'botão Comandos');
+  await app.ev(`document.querySelector('.nav-tab[data-page="comandos"]').click()`);
+  await app.espera(`document.getElementById('page-comandos').classList.contains('active')`, 5000, 'página aberta');
+  const ativa = await app.ev(`({ pagina: document.querySelector('.page.active')?.id, botao: document.querySelector('.nav-tab.active')?.dataset.page, devMode: document.body.classList.contains('dev-mode') })`);
+  afirma(ativa.pagina === 'page-comandos' && ativa.botao === 'comandos' && !ativa.devMode, `clicar no botão abre a página Comandos (${JSON.stringify(ativa)})`);
+  const sistemaPadrao = await app.ev(`document.querySelector('.cmd-chip.active[data-sistema]')?.dataset.sistema`);
+  afirma(sistemaPadrao === 'windows', `abre no sistema do computador (${sistemaPadrao})`);
+  const v = await app.ev(`document.getElementById('comandos-versoes').textContent`);
+  afirma(v === 'Conferido nas versões Claude Code 2.1.287 e Codex 0.157.1', `subtítulo com as versões conferidas (${v})`);
+
+  // rodapé da barra: Comandos, Novidades e Sobre juntos, no fundo, sem flutuar no meio; com e sem o botão Nova versão
+  const rodape = () => app.ev(`(() => { const r = s => { const b = document.querySelector(s).getBoundingClientRect(); return { top: Math.round(b.top), bottom: Math.round(b.bottom) }; }; const nav = document.getElementById('activity-bar').getBoundingClientRect(); const u = document.getElementById('nav-update'); return { cmd: r('.nav-tab[data-page="comandos"]'), nov: r('.nav-tab[data-page="novidades"]'), sobre: r('.nav-tab[data-page="sobre"]'), precos: r('.nav-tab[data-page="precos"]'), navBottom: Math.round(nav.bottom), update: u.hidden ? null : { top: Math.round(u.getBoundingClientRect().top), bottom: Math.round(u.getBoundingClientRect().bottom) } }; })()`);
+  let g = await rodape();
+  afirma(g.cmd.bottom <= g.nov.top && g.nov.top - g.cmd.bottom <= 10 && g.sobre.top - g.nov.bottom <= 10, `Comandos, Novidades e Sobre ficam juntos (folgas ${g.nov.top - g.cmd.bottom} e ${g.sobre.top - g.nov.bottom} px)`);
+  afirma(g.navBottom - g.sobre.bottom <= 12, `o grupo fica no fundo da barra (Sobre a ${g.navBottom - g.sobre.bottom} px do fim)`);
+  afirma(g.cmd.top - g.precos.bottom > 60, `Comandos não fica colado nos itens de cima: sobra espaço livre acima (${g.cmd.top - g.precos.bottom} px)`);
+  await fotografa(app, 'comandos-barra-sem-update');
+  await app.ev(`document.getElementById('nav-update').hidden = false`);
+  await sleep(200);
+  g = await rodape();
+  afirma(!!g.update && g.update.bottom <= g.cmd.top && g.cmd.top - g.update.bottom <= 12, `com "Nova versão" visível, ela vem logo acima do Comandos (folga ${g.cmd.top - g.update.bottom} px) e nada flutua no meio`);
+  afirma(g.cmd.bottom <= g.nov.top && g.nov.top - g.cmd.bottom <= 10 && g.sobre.top - g.nov.bottom <= 10, 'com "Nova versão" visível, o grupo do rodapé continua junto');
+  await fotografa(app, 'comandos-barra-com-update');
+  await app.ev(`document.getElementById('nav-update').hidden = true`);
+
+  // conteúdo por sistema e por agente
+  const kbds = id => app.ev(`[...document.querySelectorAll('.cmd-card[data-id="${id}"] .cmd-teclas')].map(e => [...e.querySelectorAll('.cmd-combo')].map(c => [...c.querySelectorAll('kbd')].map(k => k.textContent).join('+')).join(' | ')).join('')`);
+  const titulos = () => app.ev(`[...document.querySelectorAll('#comandos-body .section-heading')].map(h => h.textContent)`);
+  const troca = async (grupo, valor) => { await app.ev(`document.querySelector('.cmd-chip[data-${grupo}="${valor}"]').click()`); await sleep(150); };
+  await app.send('Emulation.setDeviceMetricsOverride', { width: 1600, height: 2300, deviceScaleFactor: 1, mobile: false });
+  await sleep(400);
+  afirma(JSON.stringify(await titulos()) === JSON.stringify(['Atalhos do terminal', 'Comandos do Claude Code', 'Atalhos da IDE']), 'três seções: terminal, comandos do Claude Code, IDE');
+  afirma(await kbds('colar-texto') === 'Ctrl+V | Ctrl+Shift+V | Clique direito', `Windows: colar texto = ${await kbds('colar-texto')}`);
+  afirma(await kbds('colar-imagem') === 'Alt+V', `Windows com Claude Code: colar imagem = ${await kbds('colar-imagem')}`);
+  afirma(await kbds('novo-terminal') === 'Ctrl+Shift+T' && await kbds('abrir-pasta') === 'Ctrl+O', 'Windows: novo terminal Ctrl+Shift+T e abrir pasta Ctrl+O');
+  afirma(await app.ev(`document.getElementById('comandos-body').textContent.includes('WSL')`), 'Windows: a nota do terminal WSL aparece');
+  await fotografa(app, 'comandos-windows-claude');
+  await troca('sistema', 'macos');
+  afirma(await kbds('colar-texto') === 'Cmd+V | Clique direito' && await kbds('interromper') === 'Control+C', `macOS: colar texto = ${await kbds('colar-texto')}, interromper = ${await kbds('interromper')}`);
+  afirma(await kbds('novo-terminal') === 'Cmd+Shift+T' && await kbds('proxima-aba') === 'Control+Tab' && await kbds('abrir-pasta') === 'Cmd+O', 'macOS: Cmd+Shift+T, Control+Tab e Cmd+O');
+  afirma(!(await app.ev(`document.getElementById('comandos-body').textContent.includes('WSL')`)), 'macOS: sem a nota do WSL');
+  await fotografa(app, 'comandos-macos-claude');
+  await troca('sistema', 'linux');
+  afirma(await kbds('colar-imagem') === 'Ctrl+V | Alt+V' && await kbds('copiar-teclado') === 'Ctrl+Shift+C', `Linux: colar imagem = ${await kbds('colar-imagem')}, copiar = ${await kbds('copiar-teclado')}`);
+  await fotografa(app, 'comandos-linux-claude');
+  await troca('agente', 'codex');
+  afirma(JSON.stringify(await titulos()) === JSON.stringify(['Atalhos do terminal', 'Comandos do Codex', 'Atalhos da IDE']), 'trocar o agente muda a seção de comandos');
+  afirma(await app.ev(`document.getElementById('comandos-body').textContent.includes('codex resume --last')`), 'Codex: mostra codex resume --last');
+  afirma(await kbds('colar-imagem') === 'Ctrl+V', `Codex: colar imagem = ${await kbds('colar-imagem')}`);
+  afirma(await app.ev(`document.querySelector('.cmd-chip.active[data-sistema]').dataset.sistema === 'linux' && document.querySelector('.cmd-chip.active[data-agente]').dataset.agente === 'codex'`), 'os dois seletores guardam a escolha');
+  await fotografa(app, 'comandos-linux-codex');
+  // teclado: o botão ganha foco visível e o Enter aciona (botões nativos)
+  await app.ev(`document.querySelector('.cmd-chip[data-sistema="windows"]').focus()`);
+  const foc = await app.ev(`(() => { const b = document.activeElement; return { pressed: b.getAttribute('aria-pressed'), outline: getComputedStyle(b).outlineStyle }; })()`);
+  await tecla(app, { key: 'Enter', code: 'Enter', vk: 13, text: '\r' });
+  await sleep(200);
+  afirma(foc.pressed === 'false' && await app.ev(`document.querySelector('.cmd-chip.active[data-sistema]').dataset.sistema`) === 'windows', 'Enter no botão do sistema o ativa (aria-pressed muda) e o foco volta a ele');
+  afirma(await app.ev(`document.activeElement?.dataset?.sistema`) === 'windows', 'o foco continua no botão acionado depois do novo desenho');
+  await app.send('Emulation.setDeviceMetricsOverride', { width: 1600, height: 900, deviceScaleFactor: 1, mobile: false });
+});
+
 // ── Execução ────────────────────────────────────────────────────────────────
 (async () => {
   const sb = sandbox();

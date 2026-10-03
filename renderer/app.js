@@ -80,6 +80,7 @@ function navigate(pageId) {
   if (pageId === 'precos') window.pricingPage?.open();
   if (pageId === 'sobre') window.aboutPage?.open();
   if (pageId === 'novidades') window.changelogPage?.open();
+  if (pageId === 'comandos') window.comandosPage?.open();
 }
 
 // ── Filters (projects + period) ────────────────────────────────────────────
