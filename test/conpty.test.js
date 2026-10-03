@@ -59,3 +59,19 @@ test('a configuração conptyDll tem padrão ligado e controle nas Configuraçõ
   assert.match(fs.readFileSync(path.join(raiz, 'renderer', 'index.html'), 'utf8'), /id="s-conpty"/);
   assert.match(fs.readFileSync(path.join(raiz, 'renderer', 'app.js'), 'utf8'), /conptyDll:\s+document\.getElementById\('s-conpty'\)\.checked/);
 });
+
+// Fiação da abertura das Configurações: a caixa vem marcada, e só um false gravado a desmarca.
+test('conptyMarcado: padrão marcado, só false desmarca', () => {
+  const { conptyMarcado } = require('../renderer/conpty-ui');
+  assert.strictEqual(conptyMarcado({}), true);
+  assert.strictEqual(conptyMarcado(undefined), true);
+  assert.strictEqual(conptyMarcado({ conptyDll: true }), true);
+  assert.strictEqual(conptyMarcado({ conptyDll: false }), false);
+});
+
+test('openSettings usa conptyMarcado, e o index.html carrega o módulo antes do app.js', () => {
+  const app = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'app.js'), 'utf8');
+  const html = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'index.html'), 'utf8');
+  assert.match(app, /s-conpty'\)\.checked = window\.RendraConptyUi\.conptyMarcado\(settings\)/);
+  assert.ok(html.indexOf('conpty-ui.js') > -1 && html.indexOf('conpty-ui.js') < html.indexOf('src="app.js"'));
+});

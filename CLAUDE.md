@@ -92,6 +92,7 @@ Se algo der errado:
   `-c.publish.repo=<repo>`, ou a primeira versão real seguinte.
 - Prova do app empacotado nesta máquina: sempre com `RENDRA_DATA_DIR` temporário; clone e instalado
   usam a mesma `%APPDATA%\Rendra IDE`.
+- O electron-builder só gera pacote completo com `node_modules` real. Numa worktree com `node_modules` em junção (link para outra pasta) o asar sai incompleto: empacote no clone principal ou numa pasta com `npm ci` próprio.
 - Origem da atualização: `src/update-source.js` (clone usa git; empacotado usa o electron-updater;
   pacote da Store e pasta sem `.git` não atualizam).
 

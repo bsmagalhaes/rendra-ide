@@ -851,7 +851,7 @@ async function openSettings() {
   document.getElementById('s-claude-path').value  = settings.claudePath || '';
   document.getElementById('s-cost-alert').value   = settings.dailyCostAlert || 0;
   document.getElementById('s-limits-source').value = settings.limitsSource || 'statusline';
-  document.getElementById('s-conpty').checked = settings.conptyDll !== false;
+  document.getElementById('s-conpty').checked = window.RendraConptyUi.conptyMarcado(settings);
   document.getElementById('settings-overlay').classList.add('visible');
 }
 
