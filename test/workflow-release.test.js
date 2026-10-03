@@ -67,6 +67,11 @@ test('o job mac recusa assinatura ou notarização pulada, e confere node-pty e 
   assert.match(texto, /skipped macOS \(notarization\|application code signing\)/);
   assert.match(texto, /node-pty-darwin-\$\{\{ matrix\.arch \}\}/);
   assert.match(texto, /lipo -archs/);
+  // o lipo diz x86_64 (não x64) no Intel; arm64 continua arm64
+  assert.match(texto, /x64\) lipo_arch=x86_64/);
+  assert.match(texto, /arm64\) lipo_arch=arm64/);
+  assert.match(texto, /lipo -archs "\$pty\/pty\.node" \| grep -qx "\$lipo_arch"/);
+  assert.doesNotMatch(texto, /grep -qw "\$\{\{ matrix\.arch \}\}"/);
   assert.match(texto, /codesign --verify --deep --strict/);
   assert.match(jobs['build-mac'].strategy.matrix.include.find(i => i.arch === 'x64').os, /intel/);
 });

@@ -229,7 +229,12 @@ jobs:
           pty="$app/Contents/Resources/app.asar.unpacked/node_modules/@lydell/node-pty-darwin-${{ matrix.arch }}/prebuilds/darwin-${{ matrix.arch }}"
           test -f "$pty/pty.node"
           test -f "$pty/spawn-helper"
-          lipo -archs "$pty/pty.node" | grep -qw "${{ matrix.arch }}"
+          case "${{ matrix.arch }}" in
+            x64) lipo_arch=x86_64 ;;
+            arm64) lipo_arch=arm64 ;;
+            *) echo "arquitetura desconhecida: ${{ matrix.arch }}"; exit 1 ;;
+          esac
+          lipo -archs "$pty/pty.node" | grep -qx "$lipo_arch"
           codesign --verify --deep --strict --verbose=2 "$app"
           xcrun stapler validate "$app" || echo "::warning::stapler validate não passou neste runner"
           spctl -a -vv -t exec "$app" || echo "::warning::spctl não aceitou neste runner (confirmar num Mac real)"
