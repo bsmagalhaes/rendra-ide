@@ -114,6 +114,8 @@
   .aviso { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 20px 24px; margin-bottom: 40px; }
   .aviso h3 { font-size: 18px; margin-bottom: 10px; }
   .aviso p, .aviso li { color: var(--text-2); }
+  .prints { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 12px; }
+  .prints figure { margin: 0; }
   .aviso img { max-width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--line); margin-top: 8px; }
   .steps h3 { font-size: 18px; margin-bottom: 10px; }
   .steps p { color: var(--text-2); margin: 0 0 14px; }
@@ -136,7 +138,7 @@
   .lb-close { top: 12px; right: 12px; } .lb-prev { left: 12px; top: 50%; } .lb-next { right: 12px; top: 50%; }
 
   @media (max-width: 900px) {
-    .hero-grid, .steps, .downloads, footer .cols { grid-template-columns: minmax(0, 1fr); }
+    .hero-grid, .steps, .prints, .downloads, footer .cols { grid-template-columns: minmax(0, 1fr); }
     .features { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
   @media (max-width: 600px) {
@@ -223,17 +225,15 @@
     </div>
     <div class="aviso" id="aviso-windows">
       <h3>Aviso do Windows (SmartScreen)</h3>
-      <p>O instalador do Windows ainda não tem assinatura digital paga, por isso o Windows mostra a tela azul "O Windows protegeu seu computador" na primeira execução de cada versão. O aplicativo é o mesmo que está no GitHub, e a atualização automática confere a integridade do arquivo baixado pelo código de verificação (sha512) publicado junto da versão.</p>
+      <p>O instalador do Windows ainda não tem assinatura digital paga, por isso o Windows mostra a tela "O Windows protegeu o computador" na primeira execução de cada versão. O aplicativo é o mesmo que está no GitHub, e a atualização automática confere a integridade do arquivo baixado pelo código de verificação (sha512) publicado junto da versão.</p>
       <ol>
-        <li>Na tela azul, clique em <b>Mais informações</b>.</li>
+        <li>Na tela do aviso, clique em <b>Mais informações</b>.</li>
         <li>Clique em <b>Executar assim mesmo</b>.</li>
       </ol>
-      <!-- LUGAR DO PRINT DO SMARTSCREEN (fazer depois da primeira release de teste, ver o relatório dos instaladores):
-           baixar Rendra-IDE-Setup.exe da release pelo navegador (para o Windows marcar o arquivo como baixado da internet),
-           executar, capturar a tela "O Windows protegeu seu computador" com "Mais informações" e depois "Executar assim mesmo",
-           cancelar sem instalar. Salvar em docs/images/smartscreen.png (legível em 320 px) e descomentar a linha abaixo:
-      <img src="images/smartscreen.png" alt="Tela azul do SmartScreen com os botões Mais informações e Executar assim mesmo" loading="lazy" width="1280" height="720">
-      -->
+      <div class="prints">
+        <figure><img src="images/smartscreen-1.png" alt="Tela do SmartScreen, O Windows protegeu o computador, com o link Mais informações sob o texto do aviso" loading="lazy" width="523" height="484"></figure>
+        <figure><img src="images/smartscreen-2.png" alt="Tela do SmartScreen após Mais informações: aplicativo Rendra-IDE-Setup.exe, fornecedor desconhecido, com os botões Executar assim mesmo e Não executar" loading="lazy" width="527" height="495"></figure>
+      </div>
     </div>
     <h2>Ou instale pelo código</h2>
     <p class="lead">Para quem quer o código-fonte. Pré-requisitos: <a href="https://nodejs.org">Node.js</a> 22.12 ou mais recente e <a href="https://git-scm.com">Git</a>. Cada jeito se atualiza pelo próprio caminho, e os dois usam a mesma pasta de dados do usuário (configurações, workspaces e preços), então não instale os dois ao mesmo tempo.</p>
