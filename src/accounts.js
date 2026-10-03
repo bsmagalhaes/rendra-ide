@@ -31,6 +31,19 @@ function describe(oauthAccount, cred) {
   };
 }
 
+// Identidade de um home qualquer (o da IDE ou o de uma distro WSL, lido pelo UNC). Assíncrona
+// (fs.promises): um UNC lento não congela o processo principal. Devolve só campos da lista
+// branca; o token das credenciais nunca sai daqui (só subscriptionType e rateLimitTier).
+const readJsonAsync = async file => { try { return JSON.parse(await fs.promises.readFile(file, 'utf8')); } catch { return null; } };
+
+async function contaClaudeDoHome(home) {
+  const oauth = (await readJsonAsync(path.join(home, '.claude.json')))?.oauthAccount;
+  if (!oauth) return null;
+  const cred = (await readJsonAsync(path.join(home, '.claude', '.credentials.json')))?.claudeAiOauth || null;
+  const { email, name, organization, plan, tier } = describe(oauth, cred);
+  return { email, name, organization, plan, tier };
+}
+
 // The usage endpoint is rate limited (HTTP 429). Keep the last good answer per account and
 // serve it when a request is too soon, refused or fails, instead of blanking the card.
 const MIN_INTERVAL_MS = 60 * 1000;
@@ -183,4 +196,4 @@ async function currentAccount(mode = 'statusline') {
   return { account, ...(await fetchLimits(cred, accountKey)), source: 'api' };
 }
 
-module.exports = { currentAccount, statuslineLimits, statuslineStatus, installStatusline, uninstallStatusline };
+module.exports = { currentAccount, contaClaudeDoHome, HOME, statuslineLimits, statuslineStatus, installStatusline, uninstallStatusline };
