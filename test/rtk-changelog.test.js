@@ -37,8 +37,10 @@ test('sem travessão e sem citar o processo interno', () => {
 
 // ── "Próxima versão": as entradas do RTK e do Codex ─────────────────────────
 const { secao: secaoApp } = require('../renderer/novidades');
+// A seção do topo é "Próxima versão" ou, depois do `npm run release`, a versão recém-gerada ("## 1.4.0 · DD/MM/AAAA").
+const tituloTopo = (/^## (Próxima versão|\d+\.\d+\.\d+ · \d{2}\/\d{2}\/\d{4})\s*$/m.exec(texto) || [])[1];
 const proxima = (() => {
-  const m = /^## Próxima versão\s*$/m.exec(texto);
+  const m = /^## (Próxima versão|\d+\.\d+\.\d+ · \d{2}\/\d{2}\/\d{4})\s*$/m.exec(texto);
   if (!m) return null;
   const resto = texto.slice(m.index + m[0].length);
   const fim = resto.search(/^## /m);
@@ -46,7 +48,7 @@ const proxima = (() => {
 })();
 
 test('Próxima versão tem a seção "RTK e Codex" com as cinco entradas, em português do usuário e sem travessão', () => {
-  assert.ok(proxima, 'faltou "## Próxima versão" logo abaixo de "# Novidades"');
+  assert.ok(proxima, 'faltou "## Próxima versão" (ou a versão recém-gerada) logo abaixo de "# Novidades"');
   const i = proxima.indexOf('### RTK e Codex');
   assert.ok(i >= 0, 'faltou "### RTK e Codex"');
   const rtk = proxima.slice(i).split(/^### /m)[1];
@@ -58,8 +60,8 @@ test('Próxima versão tem a seção "RTK e Codex" com as cinco entradas, em por
   assert.ok(!/hash|sandbox|writable_roots|trusted_hash/i.test(rtk), 'jargão na seção');
 });
 
-test('a página Novidades corta "Próxima versão" no próximo "## " e traz a seção do RTK', () => {
-  const corte = secaoApp(texto, 'Próxima versão');
+test('a página Novidades corta a seção do topo (Próxima versão ou a recém-gerada) no próximo "## " e traz a seção do RTK', () => {
+  const corte = secaoApp(texto, tituloTopo.split(' ')[0] === 'Próxima' ? 'Próxima versão' : tituloTopo.split(' ')[0]);
   assert.match(corte, /### RTK e Codex/);
   assert.ok(!/^## /m.test(corte), 'não passa do próximo título de versão');
   assert.ok(!corte.includes('Instalador do Mac'), 'não invade a 1.3.1');

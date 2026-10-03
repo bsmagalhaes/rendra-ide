@@ -605,17 +605,12 @@ test('guarda: nenhum arquivo do repositório cita o ~/.codex do dono (o reposit�
   const proibidos = [new RegExp(['Users', 'Tia' + 'go'].join('[\\\\/]+')), new RegExp(['home', 'bru' + 'no', '\\.codex'].join('/'))];
   const raiz = path.join(__dirname, '..');
   const achados = [];
-  const anda = dir => {
-    for (const d of fs.readdirSync(dir, { withFileTypes: true })) {
-      if (['node_modules', '.git', '.wt', '.claude', '.superpowers'].includes(d.name)) continue;
-      const p = path.join(dir, d.name);
-      if (d.isDirectory()) anda(p);
-      else if (/\.(js|json|md|html|css|toml|yml|yaml|txt)$/.test(d.name) && fs.statSync(p).size < 2e6) {
-        const txt = fs.readFileSync(p, 'utf8');
-        if (proibidos.some(re => re.test(txt))) achados.push(path.relative(raiz, p));
-      }
-    }
-  };
-  anda(raiz);
+  // só os arquivos versionados: artefatos locais ignorados pelo git (dist/, builder-debug.yml) não contam
+  const lista = require('child_process').execFileSync('git', ['ls-files', '-z'], { cwd: raiz, encoding: 'utf8', maxBuffer: 64e6 }).split('\0').filter(Boolean);
+  for (const rel of lista) {
+    const p = path.join(raiz, rel);
+    if (!/\.(js|json|md|html|css|toml|yml|yaml|txt)$/.test(rel) || !fs.existsSync(p) || fs.statSync(p).size >= 2e6) continue;
+    if (proibidos.some(re => re.test(fs.readFileSync(p, 'utf8')))) achados.push(rel);
+  }
   assert.deepStrictEqual(achados, []);
 });
