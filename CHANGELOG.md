@@ -1,6 +1,6 @@
 # Novidades
 
-## Próxima versão
+## 1.6.0 · 03/10/2026
 ### Terminal
 - O Ctrl+V voltava a não colar (nem texto nem imagem). Foi corrigido.
 - Marcar texto com o mouse copia sozinho: o realce continua e aparece "Copiado".
