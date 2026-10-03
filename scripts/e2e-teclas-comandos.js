@@ -559,6 +559,59 @@ caso('T7', async app => {
   afirma(JSON.stringify(await bytesDoAltV()) === JSON.stringify(['\x16']), 'Alt+V no WSL entrega Ctrl+V (\\x16), que o Claude Code liga lá');
 });
 
+// linhas do terminal (sem espaços nas pontas), do prompt para baixo
+const linhasDoTerminal = async app => (await textoTerm(app)).split('\n').map(l => l.trim()).filter(Boolean);
+
+caso('T8', async app => {
+  console.log('\n[T8] apagar a palavra: Alt+Backspace (Git Bash, WSL) e Ctrl+Backspace (PowerShell), com as teclas reais da IDE');
+  const BACK = { key: 'Backspace', code: 'Backspace', vk: 8 };
+  // 1) Git Bash: "echo alfa beta", Alt+Backspace, " gama", Enter: a saída do comando é "alfa gama"
+  const rodaBash = async (rotulo, abrir) => {
+    try { await abrir(); } catch (e) { pula('T8', `${rotulo} indisponível (${e.message})`); return; }
+    await foco(app);
+    await digita(app, 'echo alfa beta'); await sleep(200);
+    await app.zeraEscritas();
+    await tecla(app, { ...BACK, mods: ['alt'] });
+    await sleep(300);
+    afirma((await app.escritas()).some(x => x.data === '\x1b\x7f'), `${rotulo}: Alt+Backspace entrega ESC DEL ao programa`);
+    await digita(app, ' gama'); await enter(app);
+    await sleep(900);
+    const l = await linhasDoTerminal(app);
+    afirma(l.includes('alfa gama'), `${rotulo}: a saída do comando é "alfa gama" (a palavra anterior foi apagada)`);
+  };
+  await rodaBash('Git Bash', () => novoTerminal(app, { shell: 'gitbash' }));
+  await rodaBash('WSL', async () => {
+    await app.ev(`(() => { const el = [...document.querySelectorAll('.ws.active [data-act="new-term"]')].find(e => e.offsetParent !== null); el.click(); return true; })()`);
+    await sleep(700);
+    if (!(await app.ev(`!!document.querySelector('.dev-term-menu button[data-i="1"]')`))) { if (await app.ev(`!!document.querySelector('.dev-term-menu')`)) await app.ev(`document.querySelector('.dev-term-menu button[data-i="0"]').click()`); throw new Error('sem a opção WSL'); }
+    await app.ev(`document.querySelector('.dev-term-menu button[data-i="1"]').click()`);
+    await app.espera(PROMPT(ULTIMO), 40000, 'prompt do WSL');
+    if (await app.espera(`!!(${ULTIMO}).querySelector('.term-agentes')`, 4000).catch(() => false)) await app.ev(`(${ULTIMO}).querySelector('.term-agentes button[data-nova="terminal"]').click()`);
+    await sleep(400);
+  });
+  // 2) PowerShell 5.1: Ctrl+Backspace apaga a palavra; Alt+Backspace não (insere um ^H e nada é apagado)
+  await novoTerminal(app, { shell: 'powershell' });
+  await foco(app);
+  await digita(app, 'Write-Output alfa beta'); await sleep(200);
+  await app.zeraEscritas();
+  await tecla(app, { ...BACK, mods: ['ctrl'] });
+  await sleep(300);
+  afirma((await app.escritas()).some(x => x.data === '\x08'), 'PowerShell: Ctrl+Backspace entrega BS (0x08) ao programa');
+  await digita(app, ' gama'); await enter(app);
+  await sleep(1200);
+  let l = await linhasDoTerminal(app);
+  const iSaida = l.lastIndexOf('alfa');
+  afirma(iSaida >= 0 && l[iSaida + 1] === 'gama' && !l.slice(iSaida).includes('beta'), `PowerShell: Ctrl+Backspace apagou "beta" (saída: ${JSON.stringify(l.slice(Math.max(iSaida, 0), iSaida + 3))})`);
+  await digita(app, 'Write-Output alfa beta'); await sleep(200);
+  await tecla(app, { ...BACK, mods: ['alt'] });
+  await sleep(300);
+  await digita(app, ' gama'); await enter(app);
+  await sleep(1200);
+  l = await linhasDoTerminal(app);
+  const j = l.lastIndexOf('alfa');
+  afirma(j >= 0 && l.slice(j, j + 3).join(',') === 'alfa,beta,gama', `PowerShell 5.1: o Alt+Backspace NÃO apaga a palavra (saída: ${JSON.stringify(l.slice(j, j + 3))}); por isso a página indica Ctrl+Backspace`);
+});
+
 // ── Execução ────────────────────────────────────────────────────────────────
 (async () => {
   const sb = sandbox();
