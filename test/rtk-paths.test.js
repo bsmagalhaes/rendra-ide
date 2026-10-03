@@ -35,9 +35,9 @@ test('versão: comparação numérica, não de texto', () => {
 });
 
 test('hook no Windows: sem aspas quando o caminho é simples (correção 3)', () => {
-  const r = P.hookCommand('C:\\Users\\Tiago\\.local\\bin\\rtk.exe', 'claude', 'win32');
-  assert.strictEqual(r.command, 'C:/Users/Tiago/.local/bin/rtk.exe hook claude');
-  assert.strictEqual(P.hookCommand('C:/Users/Tiago/.local/bin/rtk.exe', 'codex', 'win32').command, 'C:/Users/Tiago/.local/bin/rtk.exe hook codex');
+  const r = P.hookCommand('C:\\Users\\ana\\.local\\bin\\rtk.exe', 'claude', 'win32');
+  assert.strictEqual(r.command, 'C:/Users/ana/.local/bin/rtk.exe hook claude');
+  assert.strictEqual(P.hookCommand('C:/Users/ana/.local/bin/rtk.exe', 'codex', 'win32').command, 'C:/Users/ana/.local/bin/rtk.exe hook codex');
 });
 
 test('hook no Windows com espaço: aspas só se o Git Bash existe; senão recusa com nota', () => {

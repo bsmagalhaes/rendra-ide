@@ -1,5 +1,6 @@
 // Prova de ponta a ponta da página RTK: total por agente (Claude laranja, Codex azul), detalhe por
-// sistema no hover, aviso do /hooks e gráfico com duas séries, com o app real em sandbox.
+// sistema no hover, chips de status, aviso do /hooks (só quando o hash gravado não bate com o do
+// comando do hook) e gráfico com duas séries, com o app real em sandbox.
 // Nada do usuário é lido nem gravado: home falso (RENDRA_HOME), dados falsos (RENDRA_DATA_DIR),
 // pasta de dados do RTK, CLAUDE_CONFIG_DIR e CODEX_HOME em pasta temporária, e um `rtk` falso
 // (scripts/e2e-rtk-fake.js, via RENDRA_E2E_RTK_BIN) que devolve dados fictícios e registra cada
@@ -14,6 +15,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawn, execFileSync } = require('child_process');
+const RC = require('../src/rtk-config');
 
 const ROOT = path.join(__dirname, '..');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -168,6 +170,11 @@ async function abrir(sb) {
 
 // ── Cenário ─────────────────────────────────────────────────────────────────
 async function cenario(app, sb) {
+  console.log('Isolamento');
+  const dentroDe = (p, base) => { const r = path.relative(path.resolve(base).toLowerCase(), path.resolve(p).toLowerCase()); return !r.startsWith('..') && !path.isAbsolute(r); };
+  const codexReal = path.join(os.homedir(), '.codex');
+  afirma([sb.codex, sb.hooks, sb.toml, sb.claude, sb.codexDb].every(p => dentroDe(p, sb.dir)), 'todo caminho do Codex e do Claude do teste fica na pasta temporária');
+  afirma([sb.codex, sb.hooks, sb.toml].every(p => !dentroDe(p, codexReal)), 'nenhum caminho do teste aponta para o ~/.codex real');
   const rotuloHost = { win32: 'Windows', darwin: 'macOS', linux: 'Linux' }[process.platform];
   await app.clica('[data-page=rtk]');
   await app.espera(`document.getElementById('rtk-claude-total').textContent.includes('economizados')`, 30000, 'página RTK carregada');
@@ -208,18 +215,38 @@ async function cenario(app, sb) {
   afirma((await app.estilo('#rtk-codex-tip', 'display')) === 'block', 'o foco por teclado também mostra o detalhe');
   await app.ev(`document.getElementById('rtk-codex-total').blur()`);
 
-  console.log('Aviso do /hooks');
+  console.log('Aviso do /hooks e chips');
   const aviso = () => app.ev(`[...document.querySelectorAll('.rtk-warn.trust')].map(e => e.textContent)`);
-  const comAviso = await aviso();
-  afirma(comAviso.length === 1 && comAviso[0].includes('Abra o Codex e aprove o hook em /hooks. Sem isso o RTK não reescreve nenhum comando.'), `aviso do /hooks aparece com a confiança pendente (${JSON.stringify(comAviso)})`);
+  const chips = () => app.ev(`[...document.querySelectorAll('#rtk-checks .rtk-check')].map(e => e.textContent)`);
+  const recarrega = async () => { await app.ev('loadRtk()'); await sleep(800); };
+  // a chave do Codex com CODEX_HOME é o caminho canônico; o hash vem do comando que o hooks.json traz
+  const hooksReal = path.join(fs.realpathSync.native(sb.codex), 'hooks.json');
+  const alvo = RC.rtkTrustTargets(fs.readFileSync(sb.hooks, 'utf8'), hooksReal)[0];
+  const textoOk = t => t.includes('/hooks') && t.includes('PreToolUse') && /aperte t\b/.test(t);
+
+  const pendente = await aviso();
+  afirma(pendente.length === 1 && textoOk(pendente[0]), `sem aprovação gravada o aviso aparece com /hooks, PreToolUse e a tecla t (${JSON.stringify(pendente)})`);
+  const chipsPend = await chips();
+  afirma(chipsPend.includes(`Claude Code (${rotuloHost}): RTK ativo`) && chipsPend.includes(`Codex (${rotuloHost}): falta aprovar o hook`), `chips: Claude Code ativo e Codex pendente (${JSON.stringify(chipsPend)})`);
+  afirma(chipsPend.every(c => !/opencode|cursor|local|claude\.md/i.test(c)), 'nenhum chip de OpenCode, Cursor ou CLAUDE.md local');
   await app.foto('rtk-aviso-hooks');
-  // confiança registrada para o grupo do RTK (índice 1): o aviso some
-  const hj = sb.hooks.split(path.sep).join('/');
-  fs.appendFileSync(sb.toml, `\n[hooks.state."${hj}:pre_tool_use:1:0"]\nenabled = true\ntrusted_hash = "sha256:abc"\n`);
-  await app.ev('loadRtk()');
-  await sleep(800);
+
+  // hash falso na chave certa: o Codex diria "modificado", o aviso continua
+  fs.writeFileSync(sb.toml, RC.upsertHookTrust(fs.readFileSync(sb.toml, 'utf8'), alvo.key, 'sha256:abc').text);
+  await recarrega();
+  const falso = await aviso();
+  afirma(falso.length === 1 && textoOk(falso[0]), 'com hash falso o aviso continua (hash que não bate não conta como aprovado)');
+  afirma((await chips()).includes(`Codex (${rotuloHost}): hook alterado, falta aprovar`), 'chip do Codex mostra hook alterado');
+
+  // hash real do comando do hooks.json: o aviso some e o chip fica aprovado
+  fs.writeFileSync(sb.toml, RC.upsertHookTrust(fs.readFileSync(sb.toml, 'utf8'), alvo.key, alvo.hash).text);
+  await recarrega();
   const semAviso = await aviso();
-  afirma(semAviso.length === 0, 'com a confiança registrada o aviso do /hooks some');
+  afirma(semAviso.length === 0, 'com o hash real do comando o aviso do /hooks some');
+  afirma((await chips()).includes(`Codex (${rotuloHost}): RTK ativo e aprovado`), 'chip do Codex mostra ativo e aprovado');
+  const pagina = await app.ev('document.body.innerText');
+  afirma(!/writable_roots|sandbox/i.test(pagina), 'a página não cita writable_roots nem sandbox');
+  await app.foto('rtk-tudo-pronto');
 
   console.log('Gráfico e textos');
   const series = await app.ev(`(() => { const c = Chart.getChart('chart-rtk-daily'); return c ? c.data.datasets.map(d => ({ label: d.label, cor: d.backgroundColor, n: d.data.length })) : null; })()`);
@@ -242,6 +269,7 @@ async function cenario(app, sb) {
   const real = process.env.LOCALAPPDATA_REAL;
   afirma(!real || gains.every(g => !path.resolve(g.db).toLowerCase().startsWith(path.resolve(real, 'rtk').toLowerCase())), 'nenhuma leitura sob a pasta de dados real do RTK');
   afirma(!linhas.some(l => l.args[0] === 'init' && l.args[1] === '-g'), 'nenhum rtk init -g foi executado (o teste não ativa nada)');
+  afirma(!linhas.some(l => l.args[0] === 'init'), 'nenhum rtk init (nem --show) foi chamado: os chips vêm dos dados por sistema');
 }
 
 async function main() {

@@ -28,7 +28,6 @@ const gain = {
 
 const j = args.join(' ');
 if (j === '--version') console.log('rtk 0.50.0');
-else if (j === 'init --show') console.log('[ok] Hook: rtk hook claude (native binary command)\n[ok] settings.json: RTK hook configured');
 else if (j === 'gain --all --format json') console.log(JSON.stringify(gain));
 else if (j === 'gain') {
   console.log(['RTK Token Savings (Global Scope)', '', 'By Command', '  #  Command            Count  Saved  Avg%  Time  Impact',

@@ -483,7 +483,7 @@ test('distro WSL: a aprovação usa a chave e o hash do comando da distro (/home
     const r = await ativador(t).enable(await alvo(t), 'codex');
     assert.strictEqual(r.ok, true, r.error);
     const toml = ler(path.join(t.d.codex, 'config.toml'));
-    assert.ok(toml.includes(`[hooks.state.'/home/bruno/.codex/hooks.json:pre_tool_use:1:0']\ntrusted_hash = "${hashDe(`${wslHome}/.local/bin/rtk hook codex`)}"\n`), toml);
+    assert.ok(toml.includes(`[hooks.state.'${wslHome}/.codex/hooks.json:pre_tool_use:1:0']\ntrusted_hash = "${hashDe(`${wslHome}/.local/bin/rtk hook codex`)}"\n`), toml);
     assert.strictEqual(r.trust, 'trusted');
     const r2 = await ativador(t).enable(await alvo(t), 'codex');
     assert.deepStrictEqual(r2.changes, [], 'reativar não regrava');
@@ -577,4 +577,45 @@ test('textos devolvidos pela ativação (notas e aviso) sem jargão nem travess�
     assert.match(pend.trustMessage, /PreToolUse/);
     assert.match(pend.trustMessage, /aperte t\b/);
   } finally { limpar(t2); }
+});
+
+// ── T10: guarda de isolamento (nada do dono, nada do ~/.codex real) ─────────
+test('guarda: todo caminho do teste fica sob a pasta temporária e nunca sob o ~/.codex real', async () => {
+  const sob = (p, base) => { const r = path.relative(path.resolve(base).toLowerCase(), path.resolve(p).toLowerCase()); return !r.startsWith('..') && !path.isAbsolute(r); };
+  const real = path.join(os.homedir(), '.codex');
+  for (const distro of [false, true]) {
+    const t = ambiente({ distro });
+    try {
+      codexBase(t);
+      const r = await ativador(t).enable(await alvo(t), 'codex');
+      assert.strictEqual(r.ok, true, r.error);
+      const fsDe = p => (distro ? path.join(t.tmp, 'wsl', 'Ubuntu', ...p.split('/').filter(Boolean)) : p); // caminho dentro da distro vira pasta temporária
+      const tocados = [t.d.codex, t.d.codexDb, t.d.claude, ...r.changes.map(c => fsDe(c.file)), ...r.changes.map(c => c.backup).filter(Boolean).map(fsDe)];
+      for (const p of tocados) {
+        assert.ok(sob(p, t.tmp), `${p} fora da pasta temporária`);
+        assert.ok(!sob(p, real), `${p} aponta para o ~/.codex real`);
+      }
+      assert.ok(t.chamadas.filter(c => c.vars && c.vars.CODEX_HOME).every(c => sob(toFsPath(t, c), t.tmp)), 'CODEX_HOME passado ao rtk falso está no sandbox');
+    } finally { limpar(t); }
+  }
+});
+const toFsPath = (t, c) => (c.naDistro ? path.join(t.tmp, 'wsl', 'Ubuntu', ...c.vars.CODEX_HOME.split('/').filter(Boolean)) : c.vars.CODEX_HOME);
+
+test('guarda: nenhum arquivo do repositório cita o ~/.codex do dono (o repositório é público)', () => {
+  const proibidos = [new RegExp(['Users', 'Tia' + 'go'].join('[\\\\/]+')), new RegExp(['home', 'bru' + 'no', '\\.codex'].join('/'))];
+  const raiz = path.join(__dirname, '..');
+  const achados = [];
+  const anda = dir => {
+    for (const d of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (['node_modules', '.git', '.wt', '.claude', '.superpowers'].includes(d.name)) continue;
+      const p = path.join(dir, d.name);
+      if (d.isDirectory()) anda(p);
+      else if (/\.(js|json|md|html|css|toml|yml|yaml|txt)$/.test(d.name) && fs.statSync(p).size < 2e6) {
+        const txt = fs.readFileSync(p, 'utf8');
+        if (proibidos.some(re => re.test(txt))) achados.push(path.relative(raiz, p));
+      }
+    }
+  };
+  anda(raiz);
+  assert.deepStrictEqual(achados, []);
 });

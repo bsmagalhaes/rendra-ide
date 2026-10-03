@@ -179,7 +179,7 @@ test('escrita na distro por UNC é relida e comparada', async () => {
     readFileSync: () => 'conteúdo diferente do gravado',
   };
   const { e } = montar({ distros: [DISTRO('Ubuntu')], fsFalso });
-  const r = await e.writeFile((await e.listEnvironments())[1], '/home/bruno/.codex/config.toml', 'abc');
+  const r = await e.writeFile((await e.listEnvironments())[1], '/home/ana/.codex/config.toml', 'abc');
   assert.strictEqual(gravado, 'abc');
   assert.strictEqual(r.ok, false);
   assert.match(r.error, /não confere/);
