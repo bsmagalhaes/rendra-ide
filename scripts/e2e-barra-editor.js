@@ -55,7 +55,40 @@ function contraste(css1, css2) {
 const DIA = 86400000;
 const escreve = (arquivo, texto) => { fs.mkdirSync(path.dirname(arquivo), { recursive: true }); fs.writeFileSync(arquivo, texto); };
 
-// opts: status ({ five, seven } | null), idadeMs, semRateLimits, conta (padrão true), settings, workspaces
+// Dados fictícios do Codex: JWT fabricado com tokens sentinela (nenhum deles pode aparecer na tela)
+const SENT = ['SENT-E2E-ACESSO-7781', 'SENT-E2E-RENOVA-4420', 'SENT-E2E-CONTA-9035', 'SENT-E2E-OPENAI-1188'];
+const CODEX_DEMO = { email: 'codex.demo@exemplo.com', nome: 'Pessoa Codex', org: 'Org Codex Demo', plano: 'pro' };
+const HOST = { win32: 'Windows', darwin: 'macOS' }[process.platform] || 'Linux';
+const b64url = o => Buffer.from(JSON.stringify(o)).toString('base64url');
+function escreverAuthCodex(sb) {
+  const payload = {
+    email: CODEX_DEMO.email, name: CODEX_DEMO.nome,
+    'https://api.openai.com/auth': {
+      chatgpt_plan_type: CODEX_DEMO.plano,
+      organizations: [{ id: 'o1', is_default: false, role: 'member', title: 'Outra Org Demo' }, { id: 'o2', is_default: true, role: 'owner', title: CODEX_DEMO.org }],
+    },
+  };
+  escreve(path.join(sb.home, '.codex', 'auth.json'), JSON.stringify({
+    auth_mode: 'chatgpt', OPENAI_API_KEY: SENT[3],
+    tokens: { id_token: `${b64url({ alg: 'none' })}.${b64url(payload)}.assinatura-falsa`, access_token: SENT[0], refresh_token: SENT[1], account_id: SENT[2] },
+    last_refresh: new Date().toISOString(),
+  }));
+}
+// Um rollout fictício com só a janela semanal (10080 min), como o Codex deste usuário; `idadeMs` é a
+// idade do evento (o fetchedAt da barra) e do arquivo
+function escreverCodexLimites(sb, { pct = 9, idadeMs = 60000 } = {}) {
+  const agora = Date.now();
+  const quando = new Date(agora - idadeMs);
+  const arquivo = path.join(sb.home, '.codex', 'sessions', '2026', '10', '03', 'rollout-e2e-demo.jsonl');
+  escreve(arquivo, JSON.stringify({
+    timestamp: quando.toISOString(), type: 'event_msg',
+    payload: { type: 'token_count', info: null, rate_limits: { primary: { used_percent: pct, window_minutes: 10080, resets_at: Math.floor((agora + 3.2 * DIA) / 1000) }, secondary: null, plan_type: CODEX_DEMO.plano } },
+  }) + '\n');
+  fs.utimesSync(arquivo, quando, quando);
+}
+
+// opts: status ({ five, seven } | null), idadeMs, semRateLimits, conta (padrão true), contaClaude ({ email, org, nome }),
+// semCodex, codexPct, codexIdadeMs, settings, workspaces
 function criarSandbox(opts = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rendra-e2e-'));
   const home = path.join(dir, 'home');
@@ -69,7 +102,10 @@ function criarSandbox(opts = {}) {
 
   if (opts.conta !== false) {
     escreve(path.join(home, '.claude.json'), JSON.stringify({
-      oauthAccount: { emailAddress: 'voce@exemplo.com', displayName: 'Você', organizationName: 'Empresa Demo' },
+      oauthAccount: {
+        emailAddress: opts.contaClaude?.email || 'voce@exemplo.com', displayName: opts.contaClaude?.nome || 'Você',
+        organizationName: opts.contaClaude?.org || 'Empresa Demo',
+      },
     }));
     if (!opts.semCredenciais) {
       escreve(path.join(home, '.claude', '.credentials.json'), JSON.stringify({
@@ -79,6 +115,10 @@ function criarSandbox(opts = {}) {
     escreve(path.join(home, '.claude', 'settings.json'), JSON.stringify({
       statusLine: { type: 'command', command: 'sh "$HOME/.rendra-ide/statusline.sh"' },
     }, null, 2));
+  }
+  if (!opts.semCodex) {
+    escreverAuthCodex(sb);
+    escreverCodexLimites(sb, { pct: opts.codexPct ?? 9, idadeMs: opts.codexIdadeMs ?? 60000 });
   }
   if (opts.semRateLimits) escreve(sb.statusFile, JSON.stringify({ model: { display_name: 'Demo' } }));
   else if (opts.status) escreverStatus(sb, opts.status, opts.idadeMs || 0);
@@ -267,15 +307,27 @@ async function estruturaEscondida(app) {
   afirma(info.display === 'none' && info.largura === 0, `não está visível (display ${info.display}, largura ${info.largura})`);
 }
 
+// Reescrito de propósito (antes: "sem dado, a barra some"): com conta e sem limites a barra mostra a
+// conta e "sem dados"; só some quando não há conta nem limites
 CENARIOS['sem-dado'] = async () => {
-  // 1) nunca houve Claude Code: nenhum claude-status.json
-  await comApp({ status: null }, async app => {
-    await sleep(1500);
-    await estruturaEscondida(app);
-  });
+  const contaSemDados = async (app, nome) => {
+    await barraVisivel(app);
+    await sleep(500);
+    const b = await lerBarra(app);
+    afirma(b.visivel && b.itens.length === 0, `${nome}: a barra fica visível, sem item de limite`);
+    afirma(b.semDados, `${nome}: mostra "sem dados"`);
+    afirma(b.nome.visivel && b.nome.texto === 'Empresa Demo', `${nome}: organização "${b.nome.texto}"`);
+    afirma(b.email.visivel && b.email.texto === 'voce@exemplo.com', `${nome}: e-mail "${b.email.texto}"`);
+    afirma(b.title.includes('Sem dados de limite'), `${nome}: tooltip ${JSON.stringify(b.title)}`);
+    afirma(!b.select.visivel, `${nome}: uma opção só, sem seletor`);
+  };
+  // 1) nunca houve Claude Code: nenhum claude-status.json (a conta existe)
+  await comApp({ status: null, semCodex: true }, app => contaSemDados(app, 'sem claude-status.json'));
   // 2) conta sem plano: o arquivo existe mas sem rate_limits
-  await comApp({ semRateLimits: true }, async app => {
-    await sleep(1500);
+  await comApp({ semRateLimits: true, semCodex: true }, app => contaSemDados(app, 'sem rate_limits'));
+  // 3) sem conta e sem limites: a barra continua escondida
+  await comApp({ conta: false, status: null, semCodex: true }, async app => {
+    await sleep(1800);
     await estruturaEscondida(app);
   });
 };
@@ -287,11 +339,20 @@ const LER_BARRA = `(() => {
   if (!b) return null;
   const cs = e => getComputedStyle(e);
   const r = b.getBoundingClientRect();
+  const vis = e => !!e && !e.hidden && cs(e).display !== 'none' && e.getBoundingClientRect().width > 0;
+  const caixa = e => { const x = e.getBoundingClientRect(); return { x: x.x, r: x.right, w: x.width, h: x.height }; };
+  const sel = document.getElementById('consumo-provedor'), nome = document.getElementById('consumo-nome');
+  const email = document.getElementById('consumo-email'), sd = document.getElementById('consumo-semdados');
   return {
     visivel: !b.hidden && cs(b).display !== 'none' && r.width > 0,
-    title: b.title, texto: b.textContent,
+    title: b.title, texto: b.textContent, aria: b.getAttribute('aria-label'), compacto: b.classList.contains('compacto'),
     rect: { x: r.x, y: r.y, w: r.width, h: r.height, r: r.right },
     fundo: cs(document.getElementById('title-bar')).backgroundColor,
+    select: { visivel: vis(sel), opcoes: [...sel.options].map(o => o.textContent), ids: [...sel.options].map(o => o.value), valor: sel.value,
+      cor: cs(sel).color, fundo: cs(sel).backgroundColor, rect: caixa(sel), title: sel.title },
+    nome: { visivel: vis(nome), texto: nome.textContent, cor: cs(nome).color, rect: caixa(nome), cortado: nome.scrollWidth > nome.clientWidth, reticencias: cs(nome).textOverflow === 'ellipsis' },
+    email: { visivel: vis(email), texto: email.textContent, cor: cs(email).color, rect: caixa(email), cortado: email.scrollWidth > email.clientWidth, reticencias: cs(email).textOverflow === 'ellipsis' },
+    semDados: vis(sd), semDadosCor: cs(sd).color,
     itens: [...b.querySelectorAll('.consumo-item')].filter(i => !i.hidden).map(i => {
       const pb = i.querySelector('[role=progressbar]'), fill = i.querySelector('.consumo-fill');
       const rot = i.querySelector('.consumo-rotulo'), pct = i.querySelector('.consumo-pct');
@@ -310,6 +371,11 @@ const barraVisivel = app => app.espera(`(() => { const b = document.getElementBy
 const barraEscondida = (app, ms = 20000) => app.espera(`(() => { const b = document.getElementById('consumo-bar'); return !!b && (b.hidden || b.getBoundingClientRect().width === 0); })()`, ms, 'barra de consumo escondida');
 const barraTem = (app, pcts, ms = 20000) => app.espera(`[...document.querySelectorAll('#consumo-bar .consumo-item:not([hidden]) .consumo-pct')].map(e => e.textContent).join(',') === ${JSON.stringify(pcts.join(','))}`, ms, `barra mostrando ${pcts.join(', ')}`);
 const atualiza = app => app.clica('#btn-refresh');
+// escolhe uma opção do seletor como o usuário faria (muda o valor e dispara change)
+const selecionar = async (app, id) => {
+  await app.ev(`(() => { const s = document.getElementById('consumo-provedor'); s.value = ${JSON.stringify(id)}; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+  await sleep(500);
+};
 const horaLocal = ms => new Date(ms).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
 CENARIOS['normal'] = async () => {
@@ -327,7 +393,14 @@ CENARIOS['normal'] = async () => {
       `preenchimento ${b.itens[0].fillW.toFixed(1)} de ${b.itens[0].trilhoW} px (42%) e ${b.itens[1].fillW.toFixed(1)} (27%)`);
     afirma(b.itens.every(i => i.fillBg === COR.verde), `cor do preenchimento é o verde (${b.itens[0].fillBg})`);
     afirma(b.title.includes('Empresa Demo') && b.title.includes('Max 5x') && b.title.includes('Reinicia em'), `tooltip: ${JSON.stringify(b.title)}`);
-    afirma(!b.title.includes('@') && !b.texto.includes('@') && !/voce/i.test(b.title), 'nem o tooltip nem a barra trazem o e-mail');
+    // reescrito de propósito (antes: nunca e-mail na barra): agora o e-mail inteiro aparece, com a organização
+    afirma(b.title.includes('voce@exemplo.com') && b.texto.includes('voce@exemplo.com'), 'tooltip e barra trazem o e-mail completo (fictício)');
+    afirma(b.nome.visivel && b.nome.texto === 'Empresa Demo' && b.email.visivel && b.email.texto === 'voce@exemplo.com' && !b.email.cortado,
+      `organização "${b.nome.texto}" e e-mail "${b.email.texto}" inteiros à vista`);
+    afirma(b.title.includes(`Ambiente: ${HOST}`), `tooltip com o ambiente (${HOST})`);
+    afirma(b.aria === 'Consumo do plano do Claude Code', `aria-label do grupo: ${b.aria}`);
+    afirma(b.select.visivel && b.select.opcoes.join('|') === `Claude (${HOST})|Codex (${HOST})` && b.select.valor === 'claude:local',
+      `seletor com ${b.select.opcoes.join(' | ')}, aberto em ${b.select.valor}`);
     await app.foto('normal-1366x768');
     // regressão da página Claude: um limite normal continua sem classe de nível
     await app.pagina('claude');
@@ -355,7 +428,7 @@ CENARIOS['niveis'] = async () => {
 };
 
 CENARIOS['velho'] = async () => {
-  await comApp({ status: { five: 42, seven: 27 }, idadeMs: 20 * 60000, janela: { w: 1366, h: 768 } }, async (app, sb) => {
+  await comApp({ status: { five: 42, seven: 27 }, idadeMs: 20 * 60000, codexIdadeMs: 20 * 60000, janela: { w: 1366, h: 768 } }, async (app, sb) => {
     await barraVisivel(app);
     await app.espera(`document.getElementById('consumo-bar').title.includes('Empresa Demo')`, 20000, 'tooltip com a conta');
     await sleep(800);
@@ -369,6 +442,14 @@ CENARIOS['velho'] = async () => {
     afirma(b.title.includes(`lido às ${hora}`), `tooltip com a hora da leitura (${hora}): ${JSON.stringify(b.title)}`);
     afirma(b.itens.every(i => i.valuetext.endsWith(`, lido às ${hora}`)), `aria-valuetext: ${JSON.stringify(b.itens[0].valuetext)}`);
     await app.foto('velho-1366x768');
+    // o Codex segue a mesma regra de 15 minutos: o evento do rollout tem 20 minutos
+    await selecionar(app, 'codex:local');
+    const horaCodex = horaLocal(fs.statSync(path.join(sb.home, '.codex', 'sessions', '2026', '10', '03', 'rollout-e2e-demo.jsonl')).mtimeMs);
+    const c = await lerBarra(app);
+    afirma(c.itens.length === 1 && c.itens[0].rotulo === 'Semanal' && c.itens[0].classe.includes('stale'), 'Codex: o semanal fica em cinza (stale)');
+    afirma(c.itens[0].pctCor === COR.muted && c.itens[0].fillBg === COR.muted, 'Codex: percentual e preenchimento em cinza');
+    afirma(c.title.includes(`lido às ${horaCodex}`), `Codex: tooltip com a hora do evento (${horaCodex}): ${JSON.stringify(c.title)}`);
+    await app.foto('velho-codex-1366x768');
   });
 };
 
@@ -379,6 +460,9 @@ CENARIOS['contraste'] = async () => {
     const verifica = async nome => {
       const b = await lerBarra(app);
       afirma(b.itens.length === 2, `${nome}: dois itens`);
+      afirma(contraste(b.nome.cor, b.fundo) >= 4.5, `${nome}: organização ${contraste(b.nome.cor, b.fundo).toFixed(1)}:1 (mínimo 4,5)`);
+      afirma(contraste(b.email.cor, b.fundo) >= 4.5, `${nome}: e-mail ${contraste(b.email.cor, b.fundo).toFixed(1)}:1 (mínimo 4,5)`);
+      afirma(contraste(b.select.cor, b.select.fundo) >= 4.5, `${nome}: seletor ${contraste(b.select.cor, b.select.fundo).toFixed(1)}:1 (mínimo 4,5)`);
       for (const i of b.itens) {
         const cr = contraste(i.rotCor, b.fundo), cp = contraste(i.pctCor, b.fundo), cf = contraste(i.fillBg, i.trilhoBg);
         afirma(cr >= 4.5, `${nome}, ${i.rotulo}: rótulo ${cr.toFixed(1)}:1 (mínimo 4,5)`);
@@ -398,6 +482,12 @@ CENARIOS['contraste'] = async () => {
     await app.espera(`document.querySelector('#consumo-bar .consumo-item').classList.contains('stale')`, 15000, 'estado antigo');
     await sleep(600);
     await verifica('stale');
+    // sem limites o texto "sem dados" também passa no contraste
+    apagarStatus(sb);
+    await atualiza(app);
+    await app.espera(`!document.getElementById('consumo-semdados').hidden`, 15000, 'texto sem dados');
+    const sd = await lerBarra(app);
+    afirma(contraste(sd.semDadosCor, sd.fundo) >= 4.5, `sem dados: ${contraste(sd.semDadosCor, sd.fundo).toFixed(1)}:1 (mínimo 4,5)`);
   });
 };
 
@@ -426,16 +516,23 @@ CENARIOS['ritmo'] = async () => {
     afirma(true, `a barra passou a 88% sozinha, em ${Math.round((Date.now() - t) / 1000)} s`);
     await sleep(700);
     afirma((await lerBarra(app)).itens[0].fillBg === COR.laranja, '88% ficou laranja');
-    // 2) o dado some: a barra some
+    // 2) o dado some: os limites somem e a conta fica com "sem dados" (a barra só some sem conta)
     apagarStatus(sb);
     t = Date.now();
-    await barraEscondida(app, 70000);
-    afirma(true, `a barra sumiu sozinha sem o arquivo, em ${Math.round((Date.now() - t) / 1000)} s`);
+    await barraTem(app, [], 70000);
+    afirma((await lerBarra(app)).semDados, `os limites sumiram sozinhos sem o arquivo, em ${Math.round((Date.now() - t) / 1000)} s, e a barra diz "sem dados"`);
     // 3) o dado volta: a barra volta
     escreverStatus(sb, { five: 10, seven: 20 }, 30000);
     t = Date.now();
     await barraTem(app, ['10%', '20%'], 70000);
     afirma(true, `a barra voltou sozinha com o arquivo, em ${Math.round((Date.now() - t) / 1000)} s`);
+    // 4) o Codex também chega pelo timer de 60 s (canal leve), sem ↻ e sem esperar o scan
+    await selecionar(app, 'codex:local');
+    await barraTem(app, ['9%']);
+    escreverCodexLimites(sb, { pct: 61 });
+    t = Date.now();
+    await barraTem(app, ['61%'], 70000);
+    afirma(true, `o Codex passou a 61% sozinho, em ${Math.round((Date.now() - t) / 1000)} s`);
   });
 };
 
@@ -448,17 +545,164 @@ CENARIOS['larguras'] = async () => {
       const m = await app.ev(`(() => {
         const r = s => { const e = document.querySelector(s); if (!e) return null; const x = e.getBoundingClientRect(); return { x: x.x, r: x.right, y: x.y, b: x.bottom, w: x.width, h: x.height }; };
         return { nome: r('.app-name'), barra: r('#consumo-bar'), dir: r('.title-bar-right'), titulo: r('#title-bar'), grade: r('.ws.active .dev-term-grid'),
+                 compacto: document.getElementById('consumo-bar').classList.contains('compacto'),
                  itens: [...document.querySelectorAll('#consumo-bar .consumo-item')].map(i => { const x = i.getBoundingClientRect(); return { y: x.y, h: x.height }; }),
                  rolagem: document.documentElement.scrollWidth > document.documentElement.clientWidth };
       })()`);
       const tag = `${w}x${h}`;
       afirma(m.barra.x >= m.nome.r && m.barra.r <= m.dir.x, `${tag}: a barra (${m.barra.x.toFixed(0)}..${m.barra.r.toFixed(0)}) cabe entre o nome (fim ${m.nome.r.toFixed(0)}) e os botões (início ${m.dir.x.toFixed(0)}); ${m.barra.w.toFixed(0)} px, sobram ${(m.dir.x - m.nome.r - m.barra.w).toFixed(0)} px`);
+      const lb = await lerBarra(app);
+      afirma(lb.itens.length === 2 && lb.select.visivel, `${tag}: os dois itens de limite e o seletor continuam à vista`);
+      afirma(!m.compacto || (!lb.nome.visivel && !lb.email.visivel), `${tag}: nome ${lb.nome.visivel ? 'visível' : 'oculto'}, e-mail ${lb.email.visivel ? 'visível' : 'oculto'}, seletor ${m.compacto ? 'compacto: ' + lb.select.opcoes.join(' | ') : 'completo: ' + lb.select.opcoes.join(' | ')}, barra ${m.barra.w.toFixed(0)} px`);
+      if (w >= 1366) afirma(lb.nome.visivel && lb.email.visivel && !lb.email.cortado, `${tag}: organização e e-mail inteiros`);
+      if (w === 580) afirma(m.compacto && !lb.email.visivel && !lb.nome.visivel && lb.select.opcoes.join('|') === 'Claude|Codex', `${tag}: seletor compacto (${lb.select.opcoes.join(' | ')}), sem e-mail e sem nome, os dois itens permanecem`);
       afirma(m.itens.every(i => i.h <= 20 && perto(i.y, m.itens[0].y, 1)), `${tag}: cada item numa linha só (altura ${m.itens.map(i => i.h.toFixed(0)).join('/')})`);
       afirma(m.titulo.h <= 41, `${tag}: a barra de título continua com ${m.titulo.h.toFixed(0)} px`);
       afirma(perto(m.grade.h, h - 128, 2), `${tag}: a grade de terminais mantém ${m.grade.h.toFixed(0)} px (altura ${h} - 128)`);
       afirma(!m.rolagem, `${tag}: sem rolagem horizontal`);
       await app.foto(`larguras-${tag}`);
     }
+  });
+};
+
+// Seletor de provedor + ambiente: aparece com 2 ou mais opções, some com uma só. O e2e roda com
+// RENDRA_HOME falso, então a descoberta de WSL é pulada e só existem as opções do sistema local; os
+// rótulos com distro e o caso de 3 opções ficam nos testes unitários (consumo, claude-account-env)
+CENARIOS['seletor'] = async () => {
+  await comApp({ status: { five: 42, seven: 27 }, idadeMs: 30000, janela: { w: 1366, h: 768 } }, async app => {
+    await barraVisivel(app);
+    await app.espera(`document.getElementById('consumo-provedor').options.length === 2`, 20000, 'duas opções no seletor');
+    const b = await lerBarra(app);
+    afirma(b.select.visivel, 'com Claude e Codex o seletor existe');
+    afirma(b.select.opcoes.join('|') === `Claude (${HOST})|Codex (${HOST})`, `rótulos exatos: ${b.select.opcoes.join(' | ')}`);
+    afirma(b.select.ids.join('|') === 'claude:local|codex:local', `ids estáveis: ${b.select.ids.join(' | ')}`);
+    afirma(b.select.valor === 'claude:local', 'primeira vez: Claude');
+    await app.foto('seletor-2-opcoes-1366x768');
+  });
+  // só o Claude: sem seletor, a barra mostra só a conta
+  await comApp({ status: { five: 42, seven: 27 }, idadeMs: 30000, semCodex: true, janela: { w: 1366, h: 768 } }, async app => {
+    await barraVisivel(app);
+    await app.espera(`document.getElementById('consumo-nome').textContent === 'Empresa Demo'`, 20000, 'organização na barra');
+    const b = await lerBarra(app);
+    afirma(!b.select.visivel, 'com uma opção só o seletor não aparece');
+    afirma(b.nome.visivel && b.email.visivel && b.itens.length === 2, 'a conta e os dois itens continuam à vista');
+    await app.foto('seletor-1-opcao-1366x768');
+  });
+};
+
+CENARIOS['troca-provedor'] = async () => {
+  await comApp({ status: { five: 42, seven: 27 }, idadeMs: 30000, codexPct: 9, janela: { w: 1366, h: 768 } }, async (app, sb) => {
+    await barraVisivel(app);
+    await app.espera(`document.getElementById('consumo-provedor').options.length === 2`, 20000, 'duas opções');
+    await selecionar(app, 'codex:local');
+    await sleep(800);
+    let b = await lerBarra(app);
+    afirma(b.nome.texto === CODEX_DEMO.org && b.email.texto === CODEX_DEMO.email, `Codex: organização "${b.nome.texto}" (a padrão, não a primeira) e e-mail "${b.email.texto}"`);
+    afirma(b.itens.map(i => i.rotulo).join('|') === 'Semanal' && b.itens[0].pct === '9%', `Codex: só o item Semanal, ${b.itens.map(i => i.pct).join(', ')}`);
+    afirma(b.aria === 'Consumo do plano do Codex', `aria-label do grupo: ${b.aria}`);
+    afirma(b.title.includes('Pro') && b.title.includes(CODEX_DEMO.email) && b.title.includes(`Ambiente: ${HOST}`), `tooltip do Codex: ${JSON.stringify(b.title)}`);
+    afirma(b.select.valor === 'codex:local', 'o seletor mostra Codex');
+    await app.foto('troca-provedor-codex-1366x768');
+    // o dado do Codex muda e ↻ traz o novo valor, sem esperar o scan
+    escreverCodexLimites(sb, { pct: 55 });
+    await atualiza(app);
+    await barraTem(app, ['55%'], 8000);
+    afirma(true, 'Codex: depois de ↻ a barra mostra 55%');
+    await selecionar(app, 'claude:local');
+    b = await lerBarra(app);
+    afirma(b.itens.map(i => i.rotulo).join('|') === '5 Horas|Semanal' && b.itens.map(i => i.pct).join('|') === '42%|27%', 'de volta ao Claude: 5 Horas e Semanal, 42% e 27%');
+    afirma(b.nome.texto === 'Empresa Demo' && b.email.texto === 'voce@exemplo.com' && b.aria === 'Consumo do plano do Claude Code', 'de volta ao Claude: organização, e-mail e aria do Claude');
+  });
+};
+
+CENARIOS['persistencia-provedor'] = async () => {
+  const preservadas = { refreshInterval: 600, claudePath: 'C:\\falso\\claude.exe', dailyCostAlert: 7, limitsSource: 'statusline' };
+  await comApp({ status: { five: 42, seven: 27 }, idadeMs: 30000, settings: { claudePath: preservadas.claudePath, dailyCostAlert: 7 }, janela: { w: 1366, h: 768 } }, async (app, sb) => {
+    await barraVisivel(app);
+    await app.espera(`document.getElementById('consumo-provedor').options.length === 2`, 20000, 'duas opções');
+    afirma(!('provedorBarra' in lerConfig(sb).settings), 'abrir o app não grava a escolha');
+    await selecionar(app, 'codex:local');
+    await sleep(800);
+    const cfg = lerConfig(sb).settings;
+    afirma(cfg.provedorBarra === 'codex:local', `escolher grava o id (${cfg.provedorBarra})`);
+    // porta de verdade: o merge de save-settings preserva as outras chaves
+    afirma(Object.entries(preservadas).every(([k, v]) => cfg[k] === v), `as outras configurações seguem intactas: ${JSON.stringify(Object.fromEntries(Object.keys(preservadas).map(k => [k, cfg[k]])))}`);
+    // reabrir com o mesmo home: a barra abre em Codex
+    const novo = await app.reiniciar();
+    await barraVisivel(novo);
+    await novo.espera(`document.getElementById('consumo-provedor').value === 'codex:local'`, 20000, 'abriu no Codex');
+    const b = await lerBarra(novo);
+    afirma(b.select.valor === 'codex:local' && b.nome.texto === CODEX_DEMO.org && b.itens.map(i => i.rotulo).join('|') === 'Semanal', 'depois de reabrir a barra abre em Codex');
+    afirma(lerConfig(sb).settings.provedorBarra === 'codex:local', 'reabrir não regravou outro valor');
+  });
+  // escolha lembrada que não existe mais (distro parada): usa o padrão e NÃO sobrescreve a escolha
+  await comApp({ status: { five: 42, seven: 27 }, idadeMs: 30000, settings: { provedorBarra: 'codex:wsl:Sumiu' }, janela: { w: 1366, h: 768 } }, async (app, sb) => {
+    await barraVisivel(app);
+    await app.espera(`document.getElementById('consumo-provedor').options.length === 2`, 20000, 'duas opções');
+    await sleep(1500);
+    const b = await lerBarra(app);
+    afirma(b.select.valor === 'claude:local', `opção lembrada ausente: abre no padrão (${b.select.valor})`);
+    afirma(lerConfig(sb).settings.provedorBarra === 'codex:wsl:Sumiu', 'e a escolha lembrada continua gravada, intacta');
+  });
+};
+
+// A barra nunca leva token ao renderer: nenhum dos valores sentinela de auth.json aparece no DOM
+CENARIOS['seguranca-codex'] = async () => {
+  await comApp({ status: { five: 42, seven: 27 }, idadeMs: 30000, janela: { w: 1366, h: 768 } }, async app => {
+    await barraVisivel(app);
+    await app.espera(`document.getElementById('consumo-provedor').options.length === 2`, 20000, 'duas opções');
+    await selecionar(app, 'codex:local');
+    await sleep(800);
+    const dump = await app.ev(`(() => {
+      const attrs = [...document.querySelectorAll('*')].flatMap(e => [...e.attributes].map(a => a.name + '=' + a.value)).join('\\n');
+      return document.documentElement.outerHTML + '\\n' + document.body.innerText + '\\n' + attrs;
+    })()`);
+    afirma((await lerBarra(app)).email.texto === CODEX_DEMO.email, 'controle: o e-mail do Codex está na barra (o leitor funcionou)');
+    for (const t of SENT) afirma(!dump.includes(t), `o DOM, os title e os aria não contêm o sentinela ${t.slice(0, 14)}…`);
+    afirma(!/access_token|refresh_token|id_token/.test(dump), 'nenhuma chave de token aparece no DOM');
+    // pela porta do IPC: nenhum valor sentinela sai nem do canal
+    const ipc = await app.ev(`Promise.all([window.rendra.providerSnapshot({ wsl: false }), window.rendra.providerSnapshot({ wsl: true })]).then(r => JSON.stringify(r))`);
+    afirma(ipc.includes(CODEX_DEMO.email), 'controle: o canal devolve o e-mail do Codex');
+    for (const t of SENT) afirma(!ipc.includes(t), `o retorno do canal provider:snapshot não contém ${t.slice(0, 14)}…`);
+    afirma(!/access_token|refresh_token|id_token|accessToken/.test(ipc), 'o retorno do canal não tem chave de token');
+  });
+};
+
+// E-mail e nome longos (32 e 30 caracteres): o espaço que falta tira primeiro o e-mail (antes, com
+// reticências), depois o nome, por fim o seletor vira compacto; nada empurra os botões. Os cortes
+// ficam registrados no log (dependem da fonte), a asserção é sobre a ordem e o encaixe
+CENARIOS['email-largura'] = async () => {
+  const contaClaude = { email: 'maria.fernanda.souza@empresa.com', org: 'Organização Demonstração Ltda', nome: 'Maria Fernanda' };
+  await comApp({ status: { five: 42, seven: 27 }, idadeMs: 30000, contaClaude, janela: { w: 1920, h: 1080 } }, async app => {
+    await barraVisivel(app);
+    await app.espera(`document.getElementById('consumo-provedor').options.length === 2`, 20000, 'duas opções');
+    await app.espera(`document.getElementById('consumo-email').textContent.includes('@')`, 20000, 'e-mail na barra');
+    const larguras = [1920, 1366, 1100, 1000, 960, 900, 860, 820, 780, 740, 700, 660, 620, 580];
+    const linhas = [];
+    for (const w of larguras) {
+      await app.tamanho(w, 720);
+      await sleep(500);
+      const b = await lerBarra(app);
+      const m = await app.ev(`(() => { const r = s => document.querySelector(s).getBoundingClientRect(); return { nomeR: r('.app-name').right, dirX: r('.title-bar-right').x, rolagem: document.documentElement.scrollWidth > document.documentElement.clientWidth, tituloH: r('#title-bar').height }; })()`);
+      linhas.push({ w, reticencias: b.email.reticencias && b.nome.reticencias, email: b.email.visivel, emailCortado: b.email.cortado, nome: b.nome.visivel, nomeCortado: b.nome.cortado, compacto: b.compacto, sel: b.select.opcoes.join(' | ') });
+      afirma(b.rect.x >= m.nomeR - 0.5 && b.rect.r <= m.dirX + 0.5, `${w}: a barra (${b.rect.x.toFixed(0)}..${b.rect.r.toFixed(0)}) cabe entre o nome do app (${m.nomeR.toFixed(0)}) e os botões (${m.dirX.toFixed(0)})`);
+      afirma(b.itens.length === 2 && !m.rolagem && m.tituloH <= 41, `${w}: os dois itens à vista, sem rolagem, título com ${m.tituloH.toFixed(0)} px`);
+      afirma(!b.email.visivel || b.nome.visivel, `${w}: o e-mail só aparece com o nome (o e-mail sai primeiro)`);
+      afirma(!b.nome.visivel || !b.compacto, `${w}: o nome só aparece com o seletor completo (o seletor compacta por último)`);
+      console.log(`    ${w}: e-mail ${b.email.visivel ? (b.email.cortado ? 'com reticências' : 'inteiro') : 'oculto'}, nome ${b.nome.visivel ? (b.nome.cortado ? 'com reticências' : 'inteiro') : 'oculto'}, seletor ${b.compacto ? 'compacto' : 'completo'}, barra ${b.rect.w.toFixed(0)} px`);
+    }
+    const por = w => linhas.find(l => l.w === w);
+    afirma(por(1920).email && !por(1920).emailCortado && por(1920).nome && !por(1920).nomeCortado, '1920: e-mail e nome inteiros');
+    afirma(linhas.some(l => l.email && l.emailCortado && l.reticencias), 'em alguma largura o e-mail aparece encurtado, com text-overflow: ellipsis (reticências)');
+    afirma(linhas.some(l => !l.email && l.nome), 'em alguma largura só o nome sobra (e-mail fora)');
+    afirma(linhas.some(l => !l.email && !l.nome && !l.compacto), 'em alguma largura só o seletor completo sobra (nome fora)');
+    afirma(por(580).compacto && !por(580).email && !por(580).nome && por(580).sel === 'Claude | Codex', `580: seletor compacto (${por(580).sel}), sem nome e sem e-mail`);
+    await app.tamanho(580, 720);
+    await sleep(500);
+    await app.foto('email-largura-580x720');
+    await app.tamanho(960, 720);
+    await sleep(500);
+    await app.foto('email-largura-960x720');
   });
 };
 
