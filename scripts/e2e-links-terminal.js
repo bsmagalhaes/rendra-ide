@@ -119,11 +119,11 @@ async function alvos(porta, tipo) {
     // 3) hover: http no texto
     const pHttp = await linha('https://exemplo.invalid/a?b=1&c=2', 8);
     afirma(!!pHttp, 'linha com a URL http impressa no terminal');
-    if (pHttp) { await passa(pHttp); afirma(await titulo() === 'Ctrl+clique para abrir o link', `hover na URL http mostra a dica (title="${await titulo()}")`); await fora(); afirma(await titulo() === '', 'ao sair do link, a dica some'); }
+    if (pHttp) { await passa(pHttp); afirma(await titulo() === 'Clique para abrir (Ctrl+clique abre direto)', `hover na URL http mostra a dica (title="${await titulo()}")`); await fora(); afirma(await titulo() === '', 'ao sair do link, a dica some'); }
     // 4) hover: OSC 8 https
     const pOsc = await linha('clique aqui', 3);
     afirma(!!pOsc, 'linha com o hyperlink OSC 8 (texto "clique aqui")');
-    if (pOsc) { await passa(pOsc); afirma(await titulo() === 'Ctrl+clique para abrir o link', `hover no OSC 8 https mostra a dica (title="${await titulo()}")`); await fora(); }
+    if (pOsc) { await passa(pOsc); afirma(await titulo() === 'Clique para abrir (Ctrl+clique abre direto)', `hover no OSC 8 https mostra a dica (title="${await titulo()}")`); await fora(); }
     // 5) OSC 8 file: não vira link
     const pFile = await linha('arquivo local', 3);
     afirma(!!pFile, 'linha com o OSC 8 file:');
@@ -138,17 +138,49 @@ async function alvos(porta, tipo) {
 
     // 6) cliques, só com o stub confirmado
     if (stubOk && pHttp && pOsc) {
+      const clica = async (p, modifiers = 0) => { await passa(p); await mouse('mousePressed', p.x, p.y, { button: 'left', clickCount: 1, modifiers }); await mouse('mouseReleased', p.x, p.y, { button: 'left', clickCount: 1, modifiers }); await sleep(600); };
+      const modal = () => ev(`(() => { const o = document.getElementById('save-overlay'); return o.classList.contains('visible') ? { titulo: document.getElementById('save-title').textContent, url: document.querySelector('#save-body .link-url')?.textContent, botoes: [...document.querySelectorAll('#save-actions button')].map(b => b.textContent) } : null; })()`);
+      const tecla = async key => { for (const type of ['keyDown', 'keyUp']) await send('Input.dispatchKeyEvent', { type, key, code: key, windowsVirtualKeyCode: key === 'Escape' ? 27 : 13 }); await sleep(400); };
+      const URL1 = 'https://exemplo.invalid/a?b=1&c=2';
       const antes = (await abertos()).length;
-      await passa(pHttp);
-      await mouse('mousePressed', pHttp.x, pHttp.y, { button: 'left', clickCount: 1 }); await mouse('mouseReleased', pHttp.x, pHttp.y, { button: 'left', clickCount: 1 }); await sleep(500);
-      afirma((await abertos()).length === antes, 'clique simples na URL não abre nada');
-      await mouse('mousePressed', pHttp.x, pHttp.y, { button: 'left', clickCount: 1, modifiers: 2 }); await mouse('mouseReleased', pHttp.x, pHttp.y, { button: 'left', clickCount: 1, modifiers: 2 }); await sleep(700);
+      // a) clique simples: confirmação, nada aberto
+      await passa(pHttp); await clica(pHttp);
+      let m = await modal();
+      afirma(!!m && m.titulo === 'Abrir no navegador?' && m.url === URL1 && m.botoes.join('|') === 'Cancelar|Abrir', `clique simples mostra a confirmação com a URL completa: ${JSON.stringify(m)}`);
+      afirma((await abertos()).length === antes, 'a confirmação sozinha não abre nada');
+      const fotoM = await send('Page.captureScreenshot', { format: 'png' });
+      fs.mkdirSync(SAIDA, { recursive: true }); fs.writeFileSync(path.join(SAIDA, 'confirmacao-link.png'), Buffer.from(fotoM.data, 'base64'));
+      // b) Cancelar não abre
+      await ev(`document.querySelector('#save-actions [data-choice="cancel"]').click()`); await sleep(300);
+      afirma(!(await modal()) && (await abertos()).length === antes, 'Cancelar fecha a confirmação e não abre');
+      // c) Esc não abre
+      await clica(pHttp); afirma(!!(await modal()), 'segundo clique simples mostra a confirmação de novo');
+      await tecla('Escape');
+      afirma(!(await modal()) && (await abertos()).length === antes, 'Esc fecha a confirmação e não abre');
+      // d) Abrir chama open-external com a URL
+      await clica(pHttp);
+      await ev(`document.querySelector('#save-actions [data-choice="open"]').click()`); await sleep(700);
       let lista = await abertos();
-      afirma(lista[lista.length - 1] === 'https://exemplo.invalid/a?b=1&c=2', `Ctrl+clique na URL http chega ao main com a URL inteira: ${JSON.stringify(lista)}`);
+      afirma(!(await modal()) && lista.length === antes + 1 && lista[lista.length - 1] === URL1, `Abrir leva a URL ao open-external: ${JSON.stringify(lista)}`);
+      // e) Ctrl+clique abre direto, sem confirmação
+      await clica(pHttp, 2);
+      lista = await abertos();
+      afirma(!(await modal()) && lista.length === antes + 2 && lista[lista.length - 1] === URL1, `Ctrl+clique abre sem confirmação: ${JSON.stringify(lista)}`);
+      // f) arrastar para selecionar (começa e termina dentro do link) não dispara nada
+      await passa({ x: pHttp.x - 20, y: pHttp.y });
+      await mouse('mousePressed', pHttp.x - 20, pHttp.y, { button: 'left', clickCount: 1 });
+      for (let k = 1; k <= 6; k++) { await mouse('mouseMoved', pHttp.x - 20 + k * 8, pHttp.y, { button: 'left', buttons: 1 }); await sleep(40); }
+      await mouse('mouseReleased', pHttp.x + 28, pHttp.y, { button: 'left', clickCount: 1 }); await sleep(600);
+      const sel = await ev(`(() => { const s = String(window.getSelection()); return s; })()`);
+      afirma(!(await modal()) && (await abertos()).length === antes + 2, `arrastar sobre o link não mostra a confirmação nem abre (selecionado: "${String(sel).slice(0, 30)}")`);
+      const n0 = (await abertos()).length;
       await fora(); await passa(pOsc);
       await mouse('mousePressed', pOsc.x, pOsc.y, { button: 'left', clickCount: 1, modifiers: 2 }); await mouse('mouseReleased', pOsc.x, pOsc.y, { button: 'left', clickCount: 1, modifiers: 2 }); await sleep(700);
       lista = await abertos();
       afirma(lista[lista.length - 1] === 'https://osc.invalid/x', `Ctrl+clique no OSC 8 abre a URL do hyperlink, não o texto: ${JSON.stringify(lista)}`);
+      await clica(pOsc); m = await modal();
+      afirma(!!m && m.url === 'https://osc.invalid/x' && (await abertos()).length === lista.length, `clique simples no OSC 8 confirma a URL do hyperlink: ${JSON.stringify(m)}`);
+      await tecla('Escape');
       await fora();
       // 7) IPC direto (como about.js/pricing.js e qualquer renderer): só http(s) passa
       const n = (await abertos()).length;

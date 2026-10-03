@@ -13,6 +13,8 @@
 - Quando falta largura, a barra tira primeiro o e-mail (antes, ele ganha reticências), depois o nome da organização, e por fim o seletor passa a mostrar só "Claude" ou "Codex" (o ambiente vai para o tooltip), com a barra de progresso mais curta. Os limites nunca somem.
 - Com conta e sem limites a barra agora fica visível, com a conta e o texto "sem dados"; antes ela sumia. Sem conta e sem limites ela continua escondida.
 - Limites conhecidos: o Claude em uma distro WSL mostra só a identidade da conta ("sem dados" nos limites), porque a ponte da statusline só é instalada no Windows. Uma distro só aparece se tiver `.claude/projects` ou `.codex/sessions`.
+### Links no terminal
+- Clicar num link do terminal (clique simples) agora mostra a confirmação "Abrir no navegador?" com o endereço completo e os botões "Abrir" e "Cancelar" (Esc também cancela). Ctrl+clique (Cmd+clique no Mac) continua abrindo direto, e arrastar para selecionar um texto que contém link não dispara a confirmação.
 
 ## 1.3.1 · 03/10/2026
 ### Instalador do Mac

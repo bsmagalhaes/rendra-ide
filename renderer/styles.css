@@ -781,6 +781,7 @@ body.dev-resizing, body.dev-resizing * { cursor: col-resize !important; user-sel
 .save-modal .settings-title { margin-bottom: 10px; }
 .save-body { font-size: 11px; color: var(--text-muted); line-height: 1.6; margin-bottom: 18px; }
 .save-body b { color: var(--text); }
+.save-body .link-url { display: block; font-family: var(--font); color: var(--text); word-break: break-all; overflow-wrap: anywhere; max-height: 160px; overflow-y: auto; }
 .save-body ul { margin: 6px 0 0 18px; max-height: 160px; overflow-y: auto; }
 
 /* ── ENVIRONMENT SETUP MODAL ── */
