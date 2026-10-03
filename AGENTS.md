@@ -47,6 +47,11 @@ and in the About page credits.
 | `src/sessoes-claude.js`, `src/sessoes-codex.js`, `src/sessoes-io.js` | Claude Code and Codex conversation listings for one folder (title and date only, bounded reads and time) and the shared bounded readers |
 | `src/provedores-instalados.js` | Which providers are installed in the terminal environment: `--version` exits 0 (never the `.claude`/`.codex` folder), no shell with external data, 60 s cache |
 | `scripts/e2e-seletor-sessoes.js` | e2e of the terminal conversation picker (`RENDRA_E2E_HIDDEN=1`, home, data and CODEX_HOME in sandbox, fake `claude`/`codex`); runs by hand, not in `npm test` |
+| `renderer/terminal-keys.js` | Pure terminal key logic (UMD, node-testable): Shift+Enter, `acaoDeTecla` per system (Ctrl+C always consumed; Ctrl+V, Alt+V, Ctrl+Shift+C), the Ctrl+C machine (1 tap pastes after 1 s, 2 warn, 3 interrupt within 2 s), `deveCopiar`, `decidirColagem`, `bytesColarImagem` |
+| `renderer/atalhos-ide.js` | Pure IDE shortcuts per system (Ctrl+Shift+T new terminal, Ctrl+O open folder only outside the terminal, Ctrl+Tab editor tabs) and `proximaAba`; the listener lives in `devcode.js` |
+| `src/clip-imagem.js` | `temImagem(clipboard)`: image detection through the Electron 44 `clipboard.read()` (the old `availableFormats` no longer exists) |
+| `renderer/comandos-conteudo.js`, `renderer/comandos.js` | "Comandos" page: pure content per system and agent (shortcuts, Claude Code/Codex commands with the other agent's equivalent, IDE shortcuts) and the page that draws it (selectors with `aria-pressed`, `<kbd class="kbd">`) |
+| `scripts/e2e-teclas-comandos.js` | e2e of the terminal keys and the Comandos page (`RENDRA_E2E_HIDDEN=1`, sandbox, real clipboard and real timers, `pty:write` spied in the main); `--caso=T1,T4,...`; runs by hand, not in `npm test` |
 | `src/rtk-paths.js`, `rtk-config.js`, `rtk-env.js`, `rtk-status.js`, `rtk-install.js`, `rtk-enable.js`, `rtk-ipc.js` | RTK por agente e por sistema (host e WSL): caminhos e versões, edição dos hooks (Claude Code e Codex), execução no host/distro, leitura do estado, instalação, ativação com cópia e rollback, canais IPC |
 | `renderer/rtk-agents.js` | Visão da página RTK por agente e por sistema (UMD, sem DOM, testável no node) |
 | `scripts/e2e-rtk*.js` | e2e da página RTK (`RENDRA_E2E_HIDDEN=1`, home e dados em sandbox) |

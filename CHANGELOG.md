@@ -1,5 +1,18 @@
 # Novidades
 
+## Próxima versão
+### Terminal
+- O Ctrl+V voltava a não colar (nem texto nem imagem). Foi corrigido.
+- Marcar texto com o mouse copia sozinho: o realce continua e aparece "Copiado".
+- Ctrl+C agora segue uma regra nova, sem texto marcado: 1 toque cola o que você copiou depois de 1 segundo; 2 toques mostram "aperte mais 1 vez para interromper"; 3 toques em até 2 segundos interrompem o programa. Atenção: para interromper, agora são 3 toques (em programas como o Claude Code, sair com Ctrl+C passa a exigir 3 toques para cada Ctrl+C dele). Com texto marcado, o Ctrl+C só copia e mostra "Copiado".
+- O clique direito sempre cola, na hora, e deixou de copiar o texto marcado.
+- Alt+V cola imagem no Claude Code do Windows (PowerShell e Git Bash); no WSL, no Linux e no macOS a imagem vai com Ctrl+V (Control+V no Mac). Com texto e imagem copiados juntos, o Ctrl+V cola o texto.
+- Alt+Backspace apaga a palavra no Git Bash e no WSL; no PowerShell, use Ctrl+Backspace.
+- Com o painel de conversas aberto, Ctrl+C, colar e Alt+V não escrevem no terminal.
+### Atalhos e página Comandos
+- Atalhos novos: Ctrl+Shift+T abre um terminal (Cmd+Shift+T no Mac), Ctrl+O abre uma pasta quando o foco está fora do terminal (Cmd+O no Mac; dentro do terminal o Ctrl+O continua indo ao programa) e Ctrl+Tab troca de aba do editor (Ctrl+Shift+Tab volta).
+- A página Comandos, na barra lateral acima de Novidades, lista os atalhos do terminal e da IDE e os comandos do Claude Code e do Codex, por sistema (Windows, macOS, Linux) e por agente, com o equivalente de cada comando no outro agente.
+
 ## 1.5.0 · 03/10/2026
 ### Conversas do terminal
 - Ao abrir um terminal numa pasta, a IDE mostra as 10 conversas mais recentes do Claude Code e do Codex daquela pasta, da mais nova para a mais antiga, com o ícone do provedor, o título (o nome salvo ou o começo da conversa) e a data. Clicar numa delas retoma a conversa ali mesmo. "Ver todas" lista as demais.
