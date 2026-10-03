@@ -1033,6 +1033,18 @@
       term.loadAddon(new Unicode11Addon.Unicode11Addon());
       term.unicode.activeVersion = '11';
     }
+    // Links do terminal: http(s) no texto e hyperlinks OSC 8 abrem no navegador do sistema por
+    // Ctrl+clique (Cmd+clique no Mac), como nos outros terminais; o clique simples só seleciona.
+    // A dica aparece ao passar o mouse sobre o link. O main recusa tudo que não for http(s).
+    const abrirLink = (ev, url) => {
+      if (ev && (ev.ctrlKey || ev.metaKey)) window.rendra.openExternal(url);
+    };
+    const dicaLink = () => { body.title = /Mac/i.test(navigator.platform) ? 'Cmd+clique para abrir o link' : 'Ctrl+clique para abrir o link'; };
+    const limpaDica = () => { body.title = ''; };
+    if (window.WebLinksAddon) {
+      term.loadAddon(new WebLinksAddon.WebLinksAddon(abrirLink, { hover: dicaLink, leave: limpaDica }));
+    }
+    term.options.linkHandler = { activate: abrirLink, hover: dicaLink, leave: limpaDica, allowNonHttpProtocols: false };
     term.open(body);
     const t = { id: null, term, fit, pane, tab, body, alive: false, name: '' };
     // clicking the tab (outside its buttons) focuses that terminal

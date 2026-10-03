@@ -1,0 +1,63 @@
+// Links do terminal e o ambiente do pty. O teste de ambiente passa pelo handler real pty:create
+// (node-pty falso) e afirma o env com que o processo foi iniciado.
+const test = require('node:test');
+const assert = require('node:assert');
+const { urlWebSegura, ambientePty } = require('../src/terminal-env');
+const { registerDevCode } = require('../src/devcode');
+
+test('urlWebSegura aceita só http e https', () => {
+  assert.strictEqual(urlWebSegura('https://claude.ai/oauth/authorize?code=true&client_id=x'), 'https://claude.ai/oauth/authorize?code=true&client_id=x');
+  assert.strictEqual(urlWebSegura('http://localhost:3000/cb'), 'http://localhost:3000/cb');
+  for (const ruim of ['file:///C:/Windows/System32/calc.exe', 'javascript:alert(1)', 'data:text/html,<b>x</b>', 'ms-settings:privacy',
+    'vscode://file/x', 'ftp://exemplo.com/a', 'smb://host/share', 'https://', '//exemplo.com', 'exemplo.com', '', null, undefined, 42,
+    'https://a.com/\r\ncalc', 'https://a.com/' + 'x'.repeat(9000)]) {
+    assert.strictEqual(urlWebSegura(ruim), null, String(ruim).slice(0, 40));
+  }
+});
+
+test('ambientePty: BROWSER e WSLENV só no WSL', () => {
+  const base = { PATH: 'x', WSLENV: 'FOO/p' };
+  const lin = ambientePty(base, { wsl: false });
+  assert.strictEqual(lin.BROWSER, undefined);
+  assert.strictEqual(lin.WSLENV, 'FOO/p');
+  assert.strictEqual(lin.TERM, 'xterm-256color');
+  const w = ambientePty(base, { wsl: true });
+  assert.strictEqual(w.BROWSER, 'explorer.exe');
+  assert.strictEqual(w.WSLENV, 'FOO/p:BROWSER/u');
+  assert.strictEqual(ambientePty({}, { wsl: true }).WSLENV, 'BROWSER/u');
+});
+
+test('ambientePty respeita BROWSER já definido e não duplica o WSLENV', () => {
+  assert.strictEqual(ambientePty({ BROWSER: 'meu-navegador' }, { wsl: true }).BROWSER, 'meu-navegador');
+  assert.strictEqual(ambientePty({ Browser: 'x' }, { wsl: true }).BROWSER, undefined);
+  assert.strictEqual(ambientePty({ WSLENV: 'BROWSER/u' }, { wsl: true }).WSLENV, 'BROWSER/u');
+});
+
+function montar() {
+  const handlers = new Map(); const lancados = [];
+  const ptyFalso = { spawn: (file, args, opts) => { lancados.push({ file, args, env: opts.env }); return { onData() {}, onExit() {}, write() {}, kill() {}, resize() {} }; } };
+  registerDevCode({
+    ipcMain: { handle: (n, f) => handlers.set(n, f), on() {}, once() {}, removeHandler() {} }, dialog: {},
+    store: { get: (k, d) => d, set() {}, delete() {} }, getWindow: () => null,
+    deps: { listWslDistros: async () => [{ name: 'Ubuntu', state: 'Running', version: 2, isDefault: false }], loadPty: () => ptyFalso, wakeWslDistro: async () => true },
+  });
+  return { criar: a => handlers.get('pty:create')({}, { cols: 80, rows: 24, ...a }), lancados };
+}
+
+test('pty:create no WSL leva BROWSER, e o terminal do Windows não', { skip: process.platform !== 'win32' }, async () => {
+  const salvo = { b: process.env.BROWSER, w: process.env.WSLENV };
+  delete process.env.BROWSER; delete process.env.WSLENV;
+  try {
+    const t = montar();
+    await t.criar({ shell: 'wsl:Ubuntu' });
+    await t.criar({ shell: 'cmd' });
+    assert.strictEqual(t.lancados[0].file, 'wsl.exe');
+    assert.strictEqual(t.lancados[0].env.BROWSER, 'explorer.exe');
+    assert.match(t.lancados[0].env.WSLENV, /(^|:)BROWSER\/u$/);
+    assert.strictEqual(t.lancados[1].env.BROWSER, undefined);
+    assert.strictEqual(t.lancados[1].env.WSLENV, undefined);
+  } finally {
+    if (salvo.b !== undefined) process.env.BROWSER = salvo.b;
+    if (salvo.w !== undefined) process.env.WSLENV = salvo.w;
+  }
+});

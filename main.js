@@ -214,7 +214,11 @@ ipcMain.handle('window-maximize', () => {
   else mainWindow?.maximize();
 });
 ipcMain.handle('window-close', () => mainWindow?.close());
-ipcMain.handle('open-external', (_e, url) => shell.openExternal(url));
+// só http(s): o terminal e as páginas passam texto de fora (src/terminal-env.js)
+ipcMain.handle('open-external', (_e, url) => {
+  const seguro = require('./src/terminal-env').urlWebSegura(url);
+  return seguro ? shell.openExternal(seguro) : false;
+});
 
 ipcMain.handle('set-filters', async (_e, filters) => {
   store.set('filters', {

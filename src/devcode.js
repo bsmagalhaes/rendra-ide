@@ -14,6 +14,7 @@ const { caminhoNoWsl } = require('../renderer/terminal-escolha');
 const { validarNome } = require('../renderer/novo-item');
 
 const IS_WIN = process.platform === 'win32';
+const { ambientePty } = require('./terminal-env');
 const IS_MAC = process.platform === 'darwin';
 const HOME = os.homedir();
 const PROGRAM_FILES = process.env.ProgramFiles || 'C:\\Program Files';
@@ -424,7 +425,7 @@ function registerDevCode({ ipcMain, dialog, store, getWindow, deps = {} }) {
         rows: Math.max(5, rows | 0 || 24),
         cwd: wsl ? home : dir, // wsl.exe gets the Linux folder via --cd
         // advertise a full-color terminal so CLIs (git, ls, npm, rtk…) emit colors and emoji
-        env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' },
+        env: ambientePty(process.env, { wsl: sh.key === 'wsl' }),
         useConpty: true,
       });
       const shell = sh.label;

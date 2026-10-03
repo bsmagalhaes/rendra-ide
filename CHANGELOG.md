@@ -1,8 +1,13 @@
 # Novidades
 
 ## Próxima versão
+### Instalador do Mac
+- O instalador do Mac chega para Apple Silicon (`Rendra-IDE-mac-arm64.dmg`) e Intel (`Rendra-IDE-mac-x64.dmg`), assinado e notarizado pela Apple, na página de Releases do GitHub e no site. Ele se atualiza sozinho, como os de Windows e Linux.
 ### Editor
 - Arquivos `.env` (`.env`, `.env.local`, `.env.example`, `producao.env` e parecidos) abrem com realce de cores: a chave em laranja, o valor em verde, os comentários em cinza itálico, o `=` e o `export` discretos e a interpolação `${VAR}` em amarelo. É só cor: os valores continuam visíveis e nada é mascarado.
+### Links e navegador no terminal
+- Links do terminal (`http` e `https` no texto e hyperlinks do próprio programa) abrem no navegador padrão com Ctrl+clique (Cmd+clique no Mac); ao passar o mouse sobre o link, aparece a dica. Só `http` e `https` abrem: `file:`, `javascript:` e outros esquemas são recusados.
+- No terminal WSL, programas que abrem o navegador (como o `/login` do Claude Code) agora abrem o navegador do Windows sozinhos: a IDE define `BROWSER` para o `explorer.exe` ao abrir o terminal, sem instalar nada na distro. Se você já tem um `BROWSER` definido, ele continua valendo. No Windows e no Linux nada muda.
 
 ## 1.3.0 · 02/10/2026
 ### Instaladores
