@@ -1168,6 +1168,7 @@
       lineHeight: 1.15,
       cursorBlink: true,
       scrollback: 10000,
+      rightClickSelectsWord: false,    // o clique direito cola (no macOS o padrão do xterm seria selecionar a palavra)
       allowProposedApi: true,          // required by the unicode11 addon
       customGlyphs: true,              // pixel-perfect box drawing for tables
     });
@@ -1273,7 +1274,12 @@
     term.open(body);
     const t = { id: null, term, fit, pane, tab, body, alive: false, name: '', recente: '', digitou: false, painel: null, aguardando: null };
     // clicking the tab (outside its buttons) focuses that terminal
-    tab.addEventListener('mousedown', e => { if (!e.target.closest('button, input')) { e.preventDefault(); term.focus(); } });
+    // (com o painel de conversas aberto o foco vai para o painel: o xterm não pode voltar a receber teclas)
+    tab.addEventListener('mousedown', e => {
+      if (e.target.closest('button, input')) return;
+      e.preventDefault();
+      if (t.painel) t.painel.el.querySelector('button')?.focus(); else term.focus();
+    });
     ws.terms.push(t);
     layoutTerminals(ws);
     fitTerm(t);
@@ -1303,40 +1309,63 @@
     });
     term.onKey(() => { t.digitou = true; }); // só tecla do usuário (as respostas automáticas do xterm não contam)
     term.onResize(({ cols, rows }) => dev.ptyResize(t.id, cols, rows));
-    // Ctrl+Shift+C / Ctrl+Shift+V copy & paste (plain Ctrl+C stays an interrupt, as in VS Code)
-    // Image paste for CLIs like Claude Code, which read the clipboard themselves when they get
-    // the key: Alt+V on Windows, Ctrl+V on Linux/WSL and macOS. The browser would otherwise turn
-    // Ctrl+V into a text paste, so an image-only clipboard never reached the program.
-    const pasteText = () => navigator.clipboard.readText().then(x => { if (x) term.paste(x); });
+    // Teclas do terminal: a decisão é pura (RendraTermKeys.acaoDeTecla, por sistema) e este trecho só executa.
+    // Ctrl+C nunca envia o \x03 do xterm: sem texto marcado, 1 toque cola o que está copiado depois de 1 s, 2 avisam
+    // e o 3º dentro de 2 s interrompe (um só \x03 ao programa); com texto marcado só confirma "Copiado" (copiar é ao
+    // marcar). Imagem para as CLIs (Claude Code, Codex), que leem a área de transferência sozinhas ao receber a tecla:
+    // Alt+V ou Ctrl+V conforme o sistema (RendraTermKeys.bytesColarImagem). Com o painel de conversas aberto nenhuma
+    // escrita direta vai ao pty, como a digitação (t.painel).
+    const plataforma = window.rendra.platform;
+    const podeEscrever = () => t.alive && !t.painel;
+    const pasteText = () => navigator.clipboard.readText().then(x => { if (x && podeEscrever()) term.paste(x); });
+    const aviso = document.createElement('div');
+    aviso.className = 'term-aviso';
+    aviso.setAttribute('role', 'status');
+    aviso.setAttribute('aria-live', 'polite');
+    pane.appendChild(aviso);
+    t.ctrlC = RendraTermKeys.criarCtrlC({
+      aoColar: () => { if (podeEscrever()) pasteText().catch(() => { }); },
+      aoAvisar: () => { aviso.textContent = 'aperte mais 1 vez para interromper'; aviso.classList.add('visible'); },
+      aoEsconder: () => aviso.classList.remove('visible'),
+      aoInterromper: () => { if (podeEscrever()) dev.ptyWrite(t.id, '\x03'); },
+    });
     term.attachCustomKeyEventHandler(ev => {
-      const nova = RendraTermKeys.sequenciaDeTecla(ev);
-      if (nova !== null) {
-        ev.preventDefault();
-        if (t.alive) dev.ptyWrite(t.id, nova); // Shift+Enter: nova linha, sem enviar
-        return false;
+      const a = RendraTermKeys.acaoDeTecla(ev, plataforma, t.shellKey, { temSelecao: term.hasSelection() });
+      switch (a.tipo) {
+        case 'enviar':
+          ev.preventDefault();
+          if (t.alive) dev.ptyWrite(t.id, a.bytes); // Shift+Enter: nova linha, sem enviar
+          return false;
+        case 'ctrlc':
+          ev.preventDefault();
+          if (!a.toque || !t.alive) return false;
+          if (a.selecao) { navigator.clipboard.writeText(term.getSelection()).then(() => toast('Copiado'), () => { }); return false; }
+          if (!t.painel) t.ctrlC.tocar();
+          return false;
+        case 'colar':
+          ev.preventDefault();
+          if (!podeEscrever()) return false;
+          // erro no canal da imagem nunca bloqueia a colagem de texto
+          dev.clipboardHasImage().then(hasImage => {
+            if (hasImage) dev.ptyWrite(t.id, '\x16'); // raw Ctrl+V: the CLI grabs the image
+            else pasteText();
+          }).catch(() => pasteText());
+          return false;
+        case 'colar-imagem':
+          ev.preventDefault();
+          if (podeEscrever()) dev.ptyWrite(t.id, a.bytes);
+          return false;
+        case 'copiar-selecao': {
+          const sel = term.getSelection();
+          if (sel) navigator.clipboard.writeText(sel);
+          return false;
+        }
+        case 'atalho-ide':
+          ev.preventDefault(); // a escuta do document (captura) já executou a ação: aqui só não vira bytes
+          return false;
+        default:
+          return true; // Cmd+V do macOS (colagem do browser), Control+V e Option do macOS, Alt+Backspace, Ctrl+L, Ctrl+O...
       }
-      if (ev.type !== 'keydown' || ev.code !== 'KeyV' && ev.code !== 'KeyC') return true;
-      if (ev.ctrlKey && ev.shiftKey) {
-        if (ev.code === 'KeyC') { const sel = term.getSelection(); if (sel) navigator.clipboard.writeText(sel); }
-        else pasteText();
-        return false;
-      }
-      if (ev.code !== 'KeyV' || !t.alive) return true;
-      if (ev.altKey && !ev.ctrlKey && !ev.metaKey) {
-        ev.preventDefault();
-        dev.ptyWrite(t.id, '\x1bv'); // Alt+V as the terminal escape sequence
-        return false;
-      }
-      if (ev.ctrlKey && !ev.altKey && !ev.metaKey) {
-        ev.preventDefault();
-        // erro no canal da imagem nunca bloqueia a colagem de texto
-        dev.clipboardHasImage().then(hasImage => {
-          if (hasImage) dev.ptyWrite(t.id, '\x16'); // raw Ctrl+V: the CLI grabs the image
-          else pasteText();
-        }).catch(() => pasteText());
-        return false;
-      }
-      return true; // Cmd+V on macOS: normal paste
     });
     body.addEventListener('contextmenu', ev => {
       ev.preventDefault();
@@ -1434,6 +1463,7 @@
   }
 
   async function killTerminal(ws, t) {
+    t.ctrlC?.cancelar(); // um toque de Ctrl+C pendente não cola em terminal fechado
     if (t.id != null) { await dev.ptyKill(t.id); ptyOwner.delete(t.id); }
     t.term.dispose();
     t.pane.remove();
@@ -1455,6 +1485,8 @@
     const owner = ptyOwner.get(id);
     if (!owner) return;
     owner.t.alive = false;
+    owner.t.ctrlC?.cancelar();
+    owner.t.pane.querySelector('.term-aviso')?.classList.remove('visible');
     owner.t.painel?.fechar();
     owner.t.pane.classList.add('dead');
     owner.t.tab.classList.add('dead');

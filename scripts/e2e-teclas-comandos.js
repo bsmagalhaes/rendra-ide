@@ -199,6 +199,113 @@ caso('T1', async app => {
   afirma(esc2.some(x => x.data === '\x16'), 'só imagem na área de transferência: o Ctrl+V entrega \\x16 ao programa');
 });
 
+const LOOP = 'for($i=0;$i -lt 900;$i++){ Write-Output "tick$i"; Start-Sleep -Milliseconds 200 }';
+const ultimoTick = async app => { const m = [...(await textoTerm(app)).matchAll(/tick(\d+)/g)].map(x => +x[1]); return m.length ? Math.max(...m) : -1; };
+const avisoVisivel = app => app.ev(`(() => { const a = (${ULTIMO}).querySelector('.term-aviso'); return a && a.classList.contains('visible') ? a.textContent : null; })()`);
+const bytes03 = async app => (await app.escritas()).filter(x => x.data.includes('\x03')).length;
+
+caso('T4', async app => {
+  console.log('\n[T4] Ctrl+C: 1 toque cola depois de 1 s, 2 avisam, 3 interrompem (tempo real, PowerShell com laço em andamento)');
+  await novoTerminal(app);
+  await foco(app);
+  const marca = `colado-ctrlc-${Date.now() % 100000}`;
+  await app.areaTexto(marca);
+  await digita(app, LOOP); await enter(app);
+  await app.espera(`[...(${ULTIMO}).querySelectorAll('.xterm-rows > div')].some(d => /tick3/.test(d.textContent))`, 15000, 'laço rodando');
+
+  // 1 toque: nenhum \x03; antes de 1 s nada é colado; depois de 1 s o texto da área de transferência chega ao pty
+  await app.zeraEscritas();
+  await tecla(app, CTRL_C);
+  await sleep(500);
+  let esc = await app.escritas();
+  afirma(!esc.some(x => x.data.includes('\x03')), '1 toque: nenhum \\x03 chega ao programa');
+  afirma(!esc.some(x => x.data.includes(marca)), '1 toque, aos 500 ms: ainda não colou');
+  await sleep(900);
+  esc = await app.escritas();
+  afirma(esc.some(x => x.data.includes(marca)), '1 toque, depois de 1 s: colou o texto da área de transferência');
+  afirma(!esc.some(x => x.data.includes('\x03')), '1 toque: continua sem \\x03 depois da colagem');
+  const t1 = await ultimoTick(app);
+  await sleep(700);
+  afirma(await ultimoTick(app) > t1, 'o programa seguiu rodando depois de 1 toque');
+
+  // 2 toques: aviso na tela, sem colar, sem \x03; o aviso some em até 2 s; o programa segue
+  await app.zeraEscritas();
+  await tecla(app, CTRL_C);
+  await sleep(300);
+  await tecla(app, CTRL_C);
+  await sleep(150);
+  const av = await avisoVisivel(app);
+  afirma(av === 'aperte mais 1 vez para interromper', `2 toques: aviso "aperte mais 1 vez para interromper" no terminal (${JSON.stringify(av)})`);
+  await fotografa(app, 'aviso-ctrl-c');
+  await sleep(1200); // 1,65 s desde o primeiro toque: já passou de 1 s e o aviso continua, sem colar
+  afirma(await avisoVisivel(app) !== null, 'o aviso continua visível aos 1,65 s');
+  esc = await app.escritas();
+  afirma(!esc.some(x => x.data.includes(marca)), '2 toques: a colagem foi cancelada (nada colado)');
+  await sleep(900); // 2,55 s
+  afirma(await avisoVisivel(app) === null, 'sem o 3º toque o aviso some em até 2 s');
+  esc = await app.escritas();
+  afirma(!esc.some(x => x.data.includes('\x03') || x.data.includes(marca)), '2 toques e silêncio: nada foi enviado ao programa');
+  const t2 = await ultimoTick(app);
+  await sleep(700);
+  afirma(await ultimoTick(app) > t2, 'o programa segue rodando depois dos 2 toques');
+
+  // 3 toques em menos de 2 s: um só \x03, o laço para, o prompt volta, o aviso some
+  await app.zeraEscritas();
+  await tecla(app, CTRL_C); await sleep(250);
+  await tecla(app, CTRL_C); await sleep(250);
+  await tecla(app, CTRL_C);
+  await sleep(1200);
+  afirma(await bytes03(app) === 1, `3 toques: exatamente um \\x03 chega ao programa (${await bytes03(app)})`);
+  afirma(await avisoVisivel(app) === null, '3 toques: o aviso some');
+  const t3 = await ultimoTick(app);
+  await sleep(900);
+  afirma(await ultimoTick(app) === t3, 'o laço parou de rodar (interrompido)');
+  const txt = await textoTerm(app);
+  afirma(txt.lastIndexOf('PS ') > txt.lastIndexOf(`tick${t3}`), 'o prompt do PowerShell voltou depois do último tick');
+  esc = await app.escritas();
+  afirma(!esc.some(x => x.data.includes(marca)), '3 toques: nada foi colado');
+
+  // segurar a tecla (autoRepeat) não conta como três toques
+  await digita(app, LOOP); await enter(app);
+  await app.espera(`[...(${ULTIMO}).querySelectorAll('.xterm-rows > div')].some(d => /tick2/.test(d.textContent))`, 15000, 'laço rodando de novo');
+  await app.zeraEscritas();
+  await tecla(app, CTRL_C, { soBaixo: true });
+  for (let k = 0; k < 6; k++) { await tecla(app, CTRL_C, { repete: true, soBaixo: true }); await sleep(60); }
+  await app.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'c', code: 'KeyC', windowsVirtualKeyCode: 67, modifiers: 2 });
+  await sleep(300);
+  afirma(await bytes03(app) === 0, 'tecla segurada (repeat) não envia \\x03 nem conta como três toques');
+  await sleep(2300);
+  // interrompe o laço para deixar o terminal limpo
+  await tecla(app, CTRL_C); await sleep(200); await tecla(app, CTRL_C); await sleep(200); await tecla(app, CTRL_C); await sleep(800);
+});
+
+caso('T4p', async app => {
+  console.log('\n[T4p] painel de conversas aberto: nenhuma escrita direta nova (Ctrl+C, colar, Alt+V) e o clique na aba não devolve o foco ao xterm');
+  await novoTerminal(app, { manterPainel: true });
+  const tem = await app.espera(`!!(${ULTIMO}).querySelector('.term-agentes')`, 6000).catch(() => false);
+  if (!tem) { pula('T4p', 'o painel de conversas não abriu (nenhum Claude Code ou Codex instalado nesta máquina)'); return; }
+  const marca = `painel-${Date.now() % 100000}`;
+  await app.areaTexto(marca);
+  // clique na aba: o foco fica no painel
+  const aba = await app.ev(`(() => { const r = (${ULTIMO.replace('.term-pane', '.term-pane')}) && document.querySelector('.ws.active .term-tab:last-of-type .term-pane-name').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
+  for (const type of ['mousePressed', 'mouseReleased']) await app.send('Input.dispatchMouseEvent', { type, x: aba.x, y: aba.y, button: 'left', clickCount: 1 });
+  await sleep(300);
+  const foc = await app.ev(`(() => { const a = document.activeElement; return { xterm: !!a.closest('.xterm'), painel: !!a.closest('.term-agentes') }; })()`);
+  afirma(!foc.xterm && foc.painel, `clicar na aba com o painel aberto leva o foco ao painel, não ao xterm (${JSON.stringify(foc)})`);
+  // mesmo forçando o foco no xterm, as teclas novas não escrevem no pty
+  await app.ev(`(${ULTIMO}).querySelector('.xterm-helper-textarea').focus()`);
+  await app.zeraEscritas();
+  for (let k = 0; k < 3; k++) { await tecla(app, CTRL_C); await sleep(200); }
+  await tecla(app, CTRL_V);
+  await tecla(app, { key: 'v', code: 'KeyV', vk: 86, mods: ['alt'] });
+  await sleep(1400);
+  const esc = await app.escritas();
+  const proibidos = esc.filter(x => x.data.includes('\x03') || x.data.includes('\x16') || x.data.includes('\x1bv') || x.data.includes(marca));
+  afirma(proibidos.length === 0, `com o painel aberto: nenhum \\x03, \\x16, ESC v nem colagem chega ao pty (${JSON.stringify(proibidos)})`);
+  await app.ev(`(${ULTIMO}).querySelector('.term-agentes button[data-nova="terminal"]').click()`);
+  await sleep(300);
+});
+
 // ── Execução ────────────────────────────────────────────────────────────────
 (async () => {
   const sb = sandbox();
