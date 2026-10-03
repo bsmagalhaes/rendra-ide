@@ -92,3 +92,23 @@ test('atalho-ide no terminal: o handler consome a tecla (sem bytes) e deixa a a�
   const ramo = trecho(devcode, "case 'atalho-ide':", 'default:');
   assert.match(ramo, /return false;/);
 });
+
+// ── Copiar ao marcar (T5) ───────────────────────────────────────────────────────────────────────────────────
+test('copiar ao marcar: onSelectionChange com estabilizador, deveCopiar e aviso "Copiado"', () => {
+  assert.match(devcode, /term\.onSelectionChange\(agendarCopia\);/);
+  const bloco = trecho(devcode, 'const SELECAO_ESTAVEL', 'term.attachCustomKeyEventHandler(');
+  assert.match(bloco, /clearTimeout\(timerSelecao\); timerSelecao = setTimeout\(copiarMarcado, SELECAO_ESTAVEL\)/);
+  assert.match(bloco, /RendraTermKeys\.deveCopiar\(texto, ultimoCopiado\)/);
+  assert.match(bloco, /navigator\.clipboard\.writeText\(texto\)\.then\(\(\) => toast\('Copiado'\)/);
+  assert.match(bloco, /if \(botaoBaixo\) return;/); // com o botão do mouse apertado não copia
+});
+
+test('copiar ao marcar mantém o realce: o terminal nunca chama clearSelection', () => {
+  const novo = trecho(devcode, 'const SELECAO_ESTAVEL', "body.addEventListener('contextmenu'");
+  assert.ok(!/clearSelection\(/.test(novo), 'o trecho de copiar ao marcar e das teclas chama clearSelection');
+});
+
+test('o terminal limpa o timer e o listener de mouseup ao fechar', () => {
+  assert.match(devcode, /t\.limparSelecao = \(\) => \{ clearTimeout\(timerSelecao\); document\.removeEventListener\('mouseup', soltouMouse, true\); \};/);
+  assert.match(trecho(devcode, 'async function killTerminal', '\n  }'), /t\.limparSelecao\?\.\(\)/);
+});

@@ -1329,6 +1329,25 @@
       aoEsconder: () => aviso.classList.remove('visible'),
       aoInterromper: () => { if (podeEscrever()) dev.ptyWrite(t.id, '\x03'); },
     });
+    // Copiar ao marcar: o realce continua (a seleção não é limpa). Cada arraste dispara vários eventos de seleção,
+    // então a cópia espera a seleção ficar parada por SELECAO_ESTAVEL ms e o botão do mouse estar solto.
+    const SELECAO_ESTAVEL = 200;
+    let timerSelecao = null, ultimoCopiado = '', botaoBaixo = false;
+    const copiarMarcado = () => {
+      timerSelecao = null;
+      if (botaoBaixo) return; // o mouseup volta a agendar
+      const texto = term.hasSelection() ? term.getSelection() : '';
+      if (!texto) { ultimoCopiado = ''; return; } // seleção limpa: marcar o mesmo texto de novo copia de novo
+      if (!RendraTermKeys.deveCopiar(texto, ultimoCopiado)) return;
+      ultimoCopiado = texto;
+      navigator.clipboard.writeText(texto).then(() => toast('Copiado'), () => { });
+    };
+    const agendarCopia = () => { clearTimeout(timerSelecao); timerSelecao = setTimeout(copiarMarcado, SELECAO_ESTAVEL); };
+    const soltouMouse = () => { if (botaoBaixo) { botaoBaixo = false; agendarCopia(); } };
+    term.onSelectionChange(agendarCopia);
+    body.addEventListener('mousedown', ev => { if (ev.button === 0) botaoBaixo = true; });
+    document.addEventListener('mouseup', soltouMouse, true);
+    t.limparSelecao = () => { clearTimeout(timerSelecao); document.removeEventListener('mouseup', soltouMouse, true); };
     term.attachCustomKeyEventHandler(ev => {
       const a = RendraTermKeys.acaoDeTecla(ev, plataforma, t.shellKey, { temSelecao: term.hasSelection() });
       switch (a.tipo) {
@@ -1464,6 +1483,7 @@
 
   async function killTerminal(ws, t) {
     t.ctrlC?.cancelar(); // um toque de Ctrl+C pendente não cola em terminal fechado
+    t.limparSelecao?.();
     if (t.id != null) { await dev.ptyKill(t.id); ptyOwner.delete(t.id); }
     t.term.dispose();
     t.pane.remove();

@@ -306,6 +306,80 @@ caso('T4p', async app => {
   await sleep(300);
 });
 
+// posição (em px) de uma coluna de uma linha do terminal cuja linha inteira (sem espaços nas pontas) é `texto`
+async function pontoNaLinha(app, texto) {
+  return app.ev(`(() => {
+    const nb = s => s.replace(/\\u00a0/g, ' ');
+    const rows = [...(${ULTIMO}).querySelectorAll('.xterm-rows > div')];
+    const row = rows.filter(r => nb(r.textContent).trim() === ${JSON.stringify(texto)}).at(-1);
+    if (!row) return null;
+    const sp = [...row.children].find(s => nb(s.textContent).includes(${JSON.stringify(texto)}));
+    const r = sp.getBoundingClientRect();
+    return { x: r.x, y: r.y + r.height / 2, cel: r.width / sp.textContent.length, dentro: nb(sp.textContent).indexOf(${JSON.stringify(texto)}) };
+  })()`);
+}
+const mouse = (app, type, x, y, extra = {}) => app.send('Input.dispatchMouseEvent', { type, x, y, ...extra });
+// arrasta do meio da coluna `c0` até o meio da coluna `c1` (colunas dentro do texto), devagar, como a mão
+async function arrasta(app, p, c0, c1) {
+  const x = c => p.x + p.cel * (p.dentro + c);
+  await mouse(app, 'mouseMoved', x(c0) + p.cel * 0.25, p.y);
+  await mouse(app, 'mousePressed', x(c0) + p.cel * 0.25, p.y, { button: 'left', buttons: 1, clickCount: 1 });
+  for (let k = 1; k <= 8; k++) { await mouse(app, 'mouseMoved', x(c0) + p.cel * 0.25 + (x(c1) - x(c0)) * k / 8, p.y, { button: 'left', buttons: 1 }); await sleep(30); }
+  await mouse(app, 'mouseReleased', x(c1) + p.cel * 0.25, p.y, { button: 'left', buttons: 0, clickCount: 1 });
+}
+const toastAtual = app => app.ev(`(() => { const t = document.getElementById('toast'); return { texto: t.textContent, visivel: t.classList.contains('visible') }; })()`);
+const realce = app => app.ev(`[...(${ULTIMO}).querySelectorAll('.xterm-selection div')].length`);
+
+caso('T5', async app => {
+  console.log('\n[T5] copiar ao marcar: marcar com o mouse copia, o realce fica e aparece "Copiado"; Ctrl+C com texto marcado só confirma');
+  await novoTerminal(app);
+  await foco(app);
+  const LINHA = 'alfa-beta-gama-delta';
+  await digita(app, `Write-Output "${LINHA}"`); await enter(app);
+  await app.espera(`[...(${ULTIMO}).querySelectorAll('.xterm-rows > div')].some(d => d.textContent.replace(/\\u00a0/g, ' ').trim() === ${JSON.stringify(LINHA)})`, 10000, 'saída do comando');
+  await sleep(500);
+  const p = await pontoNaLinha(app, LINHA);
+  afirma(!!p, 'achou a linha de saída no terminal');
+  await app.areaTexto('antes-de-marcar');
+  await app.ev(`window.__escritasClip = 0; (() => { const o = navigator.clipboard.writeText.bind(navigator.clipboard); navigator.clipboard.writeText = t => { window.__escritasClip++; return o(t); }; })(); true`);
+  await app.ev(`document.getElementById('toast').classList.remove('visible')`);
+  await app.zeraEscritas();
+  await arrasta(app, p, 5, 14);
+  await sleep(900);
+  const copiado = await app.lerArea();
+  afirma(copiado === 'beta-gama', `marcar "beta-gama" com o mouse copiou para a área de transferência (veio ${JSON.stringify(copiado)})`);
+  afirma(await app.ev('window.__escritasClip') === 1, `um arraste copia uma vez só (${await app.ev('window.__escritasClip')} cópias)`);
+  afirma(await realce(app) > 0, `o realce da seleção continua na tela (${await realce(app)} blocos)`);
+  const to = await toastAtual(app);
+  afirma(to.texto === 'Copiado' && to.visivel, `aviso discreto "Copiado" visível (${JSON.stringify(to)})`);
+  await fotografa(app, 'copiado-ao-marcar');
+  afirma(!(await app.escritas()).some(x => x.data.includes('beta-gama')), 'copiar não escreve nada no programa');
+
+  // Ctrl+C com texto marcado: copia de novo, mostra "Copiado", não cola, não conta toque, não envia \x03
+  await app.areaTexto('outro-texto-da-area');
+  await app.ev(`document.getElementById('toast').classList.remove('visible')`);
+  await app.zeraEscritas();
+  await tecla(app, CTRL_C);
+  await sleep(300);
+  afirma(await app.lerArea() === 'beta-gama', 'Ctrl+C com texto marcado devolve a seleção à área de transferência');
+  const to2 = await toastAtual(app);
+  afirma(to2.texto === 'Copiado' && to2.visivel, `Ctrl+C com texto marcado mostra "Copiado" (${JSON.stringify(to2)})`);
+  await sleep(1400);
+  const esc = await app.escritas();
+  afirma(!esc.some(x => x.data.includes('\x03') || x.data.includes('beta-gama') || x.data.includes('outro-texto')), `Ctrl+C com texto marcado não envia \\x03 nem cola, nem 1 s depois (${JSON.stringify(esc.map(x => x.data))})`);
+  afirma(await realce(app) > 0, 'o realce segue depois do Ctrl+C');
+  afirma(await avisoVisivel(app) === null, 'Ctrl+C com texto marcado não conta toque: nada de aviso de interromper');
+
+  // limpar a seleção e marcar o mesmo texto de novo copia de novo
+  await mouse(app, 'mousePressed', p.x + p.cel * 40, p.y - 60, { button: 'left', buttons: 1, clickCount: 1 });
+  await mouse(app, 'mouseReleased', p.x + p.cel * 40, p.y - 60, { button: 'left', buttons: 0, clickCount: 1 });
+  await sleep(500);
+  await app.areaTexto('limpou');
+  await arrasta(app, p, 5, 14);
+  await sleep(900);
+  afirma(await app.lerArea() === 'beta-gama', 'depois de limpar, marcar o mesmo texto copia de novo');
+});
+
 // ── Execução ────────────────────────────────────────────────────────────────
 (async () => {
   const sb = sandbox();

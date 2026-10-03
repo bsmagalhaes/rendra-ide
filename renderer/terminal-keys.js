@@ -83,6 +83,14 @@
 
   const ctrlC = { novoEstado, tocar, passar, proximoPrazo, ESPERA_COLAR, JANELA };
 
+  // ── Copiar ao marcar ─────────────────────────────────────────────────────────────────────────────────────
+  // Marcar texto com o mouse copia sozinho (o realce fica). Cada arraste dispara vários eventos de seleção; o
+  // devcode espera a seleção estabilizar e só então pergunta: vazio e repetido não copiam de novo.
+  function deveCopiar(texto, ultimoCopiado) {
+    if (!texto) return false;
+    return texto !== ultimoCopiado;
+  }
+
   // ── Colar imagem (Alt+V) ─────────────────────────────────────────────────────────────────────────────────
   // O Claude Code liga Alt+V só no Windows e no WSL e Ctrl+V nos outros sistemas; o Codex só Ctrl+V. As duas CLIs
   // leem a imagem da área de transferência sozinhas ao receber a tecla. Bytes por sistema e shell (T7):
@@ -132,7 +140,7 @@
     return { tipo: 'deixar' };
   }
 
-  const api = { sequenciaDeTecla, ctrlC, criarCtrlC, acaoDeTecla, bytesColarImagem };
+  const api = { sequenciaDeTecla, ctrlC, criarCtrlC, acaoDeTecla, bytesColarImagem, deveCopiar };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RendraTermKeys = api;
 })(typeof window !== 'undefined' ? window : this);
