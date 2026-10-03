@@ -68,7 +68,9 @@ test('com texto marcado o Ctrl+C só copia e mostra "Copiado", sem tocar a máqu
 test('painel de conversas aberto: nenhuma escrita direta nova (colar, Alt+V, Ctrl+C) e o clique na aba não devolve o foco ao xterm', () => {
   assert.match(devcode, /const podeEscrever = \(\) => t\.alive && !t\.painel;/);
   assert.match(devcode, /const pasteText = \(\) => navigator\.clipboard\.readText\(\)\.then\(x => \{ if \(x && podeEscrever\(\)\) term\.paste\(x\); \}\);/);
-  assert.match(trecho(handler, "case 'colar':", "case 'colar-imagem':"), /if \(!podeEscrever\(\)\) return false;/);
+  const colarFn = trecho(devcode, 'const colar = async () => {', '\n    };');
+  // antes de ler e depois de ler (o painel pode abrir no meio)
+  assert.strictEqual((colarFn.match(/if \(!podeEscrever\(\)\) return;/g) || []).length, 2);
   assert.match(trecho(handler, "case 'colar-imagem':", "case 'copiar-selecao':"), /if \(podeEscrever\(\)\) dev\.ptyWrite\(t\.id, a\.bytes\)/);
   assert.match(handler, /if \(!t\.painel\) t\.ctrlC\.tocar\(\);/);
   const aba = trecho(devcode, "tab.addEventListener('mousedown'", '    });');
@@ -104,11 +106,29 @@ test('copiar ao marcar: onSelectionChange com estabilizador, deveCopiar e aviso 
 });
 
 test('copiar ao marcar mantém o realce: o terminal nunca chama clearSelection', () => {
-  const novo = trecho(devcode, 'const SELECAO_ESTAVEL', "body.addEventListener('contextmenu'");
-  assert.ok(!/clearSelection\(/.test(novo), 'o trecho de copiar ao marcar e das teclas chama clearSelection');
+  const novo = trecho(devcode, 'async function newTerminal', 'function renameTerminal');
+  assert.ok(!/clearSelection\(/.test(novo), 'newTerminal chama clearSelection');
 });
 
 test('o terminal limpa o timer e o listener de mouseup ao fechar', () => {
   assert.match(devcode, /t\.limparSelecao = \(\) => \{ clearTimeout\(timerSelecao\); document\.removeEventListener\('mouseup', soltouMouse, true\); \};/);
   assert.match(trecho(devcode, 'async function killTerminal', '\n  }'), /t\.limparSelecao\?\.\(\)/);
+});
+
+// ── Colar por Ctrl+V e por clique direito (T6) ──────────────────────────────────────────────────────────────
+test('Ctrl+V e Ctrl+Shift+V usam decidirColagem: texto vence e só imagem manda o \x16', () => {
+  assert.match(handler, /case 'colar':\n\s+ev\.preventDefault\(\);\n\s+colar\(\);\n\s+return false;/);
+  const colarFn = trecho(devcode, 'const colar = async () => {', '\n    };');
+  assert.match(colarFn, /RendraTermKeys\.decidirColagem\(texto, imagem\) === 'imagem'/);
+  assert.match(colarFn, /dev\.ptyWrite\(t\.id, '\\x16'\)/);
+  assert.match(colarFn, /else if \(texto\) term\.paste\(texto\)/);
+  // erro de leitura ou do canal da imagem não bloqueia a colagem: cada leitura tem o seu try/catch
+  assert.strictEqual((colarFn.match(/try \{/g) || []).length, 2);
+});
+
+test('o clique direito cola pelo term.paste e nunca copia, limpa a seleção ou escreve direto no pty', () => {
+  const ctx = trecho(devcode, "body.addEventListener('contextmenu'", '    });');
+  assert.match(ctx, /ev\.preventDefault\(\);/);
+  assert.match(ctx, /pasteText\(\)/);
+  assert.ok(!/clearSelection|ptyWrite|writeText|getSelection/.test(ctx), 'o clique direito ainda copia, limpa ou escreve direto');
 });

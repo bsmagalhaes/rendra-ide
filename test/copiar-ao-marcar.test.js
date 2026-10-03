@@ -22,3 +22,21 @@ test('a seleção ampliada ou trocada copia de novo', () => {
   assert.strictEqual(deveCopiar('alfa beta', 'alfa'), true);
   assert.strictEqual(deveCopiar('gama', 'alfa beta'), true);
 });
+
+// ── decidirColagem (T6) ──
+const { decidirColagem } = require('../renderer/terminal-keys');
+
+test('decidirColagem: texto e imagem juntos dá texto (texto vence)', () => {
+  assert.strictEqual(decidirColagem('abc', true), 'texto');
+});
+test('decidirColagem: só imagem dá imagem (o \x16 vai ao programa)', () => {
+  assert.strictEqual(decidirColagem('', true), 'imagem');
+  assert.strictEqual(decidirColagem(undefined, true), 'imagem');
+});
+test('decidirColagem: só texto dá texto', () => {
+  assert.strictEqual(decidirColagem('abc', false), 'texto');
+});
+test('decidirColagem: nada na área de transferência dá texto vazio, sem efeito', () => {
+  assert.strictEqual(decidirColagem('', false), 'texto');
+  assert.strictEqual(decidirColagem(null, false), 'texto');
+});

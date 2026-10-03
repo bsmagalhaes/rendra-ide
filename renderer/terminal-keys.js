@@ -91,6 +91,14 @@
     return texto !== ultimoCopiado;
   }
 
+  // ── Colar (Ctrl+V, clique direito) ───────────────────────────────────────────────────────────────────────
+  // Texto na área de transferência vence: cola o texto (com bracketed paste quando o programa pediu). Só imagem:
+  // o Ctrl+V cru (\x16) vai ao programa, porque Claude Code e Codex leem a imagem sozinhos. Nada: cola vazio, sem efeito.
+  function decidirColagem(texto, temImagem) {
+    if (texto) return 'texto';
+    return temImagem ? 'imagem' : 'texto';
+  }
+
   // ── Colar imagem (Alt+V) ─────────────────────────────────────────────────────────────────────────────────
   // O Claude Code liga Alt+V só no Windows e no WSL e Ctrl+V nos outros sistemas; o Codex só Ctrl+V. As duas CLIs
   // leem a imagem da área de transferência sozinhas ao receber a tecla. Bytes por sistema e shell (T7):
@@ -140,7 +148,7 @@
     return { tipo: 'deixar' };
   }
 
-  const api = { sequenciaDeTecla, ctrlC, criarCtrlC, acaoDeTecla, bytesColarImagem, deveCopiar };
+  const api = { sequenciaDeTecla, ctrlC, criarCtrlC, acaoDeTecla, bytesColarImagem, deveCopiar, decidirColagem };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RendraTermKeys = api;
 })(typeof window !== 'undefined' ? window : this);

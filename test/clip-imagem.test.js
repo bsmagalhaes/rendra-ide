@@ -48,10 +48,10 @@ test('fiação: o canal clip:has-image não chama availableFormats e usa temImag
 });
 
 test('fiação: o ramo do Ctrl+V trata a rejeição do canal e cai na colagem de texto', () => {
-  const src = lerFonte('renderer/devcode.js');
+  const src = lerFonte('renderer/devcode.js').replace(/\r\n/g, '\n');
   const i = src.indexOf('dev.clipboardHasImage()');
   assert.ok(i > 0);
-  const trecho = src.slice(i, i + 400);
-  assert.match(trecho, /\.catch\(/);
-  assert.match(trecho, /pasteText\(\)/);
+  // a chamada fica num try/catch próprio: a rejeição vira "sem imagem" e o texto é colado
+  assert.match(src.slice(i - 40, i + 80), /try \{ imagem = await dev\.clipboardHasImage\(\); \} catch/);
+  assert.match(src.slice(i, i + 400), /else if \(texto\) term\.paste\(texto\)/);
 });

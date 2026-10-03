@@ -1318,6 +1318,17 @@
     const plataforma = window.rendra.platform;
     const podeEscrever = () => t.alive && !t.painel;
     const pasteText = () => navigator.clipboard.readText().then(x => { if (x && podeEscrever()) term.paste(x); });
+    // Ctrl+V e Ctrl+Shift+V: texto vence (term.paste, com bracketed paste quando o programa pediu); só imagem manda o
+    // Ctrl+V cru e a CLI pega a imagem. Erro de leitura ou do canal da imagem nunca bloqueia a colagem de texto.
+    const colar = async () => {
+      if (!podeEscrever()) return;
+      let texto = '', imagem = false;
+      try { texto = await navigator.clipboard.readText(); } catch { /* sem texto */ }
+      try { imagem = await dev.clipboardHasImage(); } catch { /* sem imagem */ }
+      if (!podeEscrever()) return;
+      if (RendraTermKeys.decidirColagem(texto, imagem) === 'imagem') dev.ptyWrite(t.id, '\x16');
+      else if (texto) term.paste(texto);
+    };
     const aviso = document.createElement('div');
     aviso.className = 'term-aviso';
     aviso.setAttribute('role', 'status');
@@ -1363,12 +1374,7 @@
           return false;
         case 'colar':
           ev.preventDefault();
-          if (!podeEscrever()) return false;
-          // erro no canal da imagem nunca bloqueia a colagem de texto
-          dev.clipboardHasImage().then(hasImage => {
-            if (hasImage) dev.ptyWrite(t.id, '\x16'); // raw Ctrl+V: the CLI grabs the image
-            else pasteText();
-          }).catch(() => pasteText());
+          colar();
           return false;
         case 'colar-imagem':
           ev.preventDefault();
@@ -1386,11 +1392,10 @@
           return true; // Cmd+V do macOS (colagem do browser), Control+V e Option do macOS, Alt+Backspace, Ctrl+L, Ctrl+O...
       }
     });
+    // clique direito cola sempre, na hora, pelo term.paste (bracketed paste como o Ctrl+V); copiar é ao marcar
     body.addEventListener('contextmenu', ev => {
       ev.preventDefault();
-      const sel = term.getSelection();
-      if (sel) { navigator.clipboard.writeText(sel); term.clearSelection(); }
-      else navigator.clipboard.readText().then(x => dev.ptyWrite(t.id, x));
+      pasteText().catch(() => { });
     });
     term.textarea?.addEventListener('focus', () => { pane.classList.add('focused'); tab.classList.add('focused'); });
     term.textarea?.addEventListener('blur', () => { pane.classList.remove('focused'); tab.classList.remove('focused'); });

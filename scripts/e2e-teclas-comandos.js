@@ -116,6 +116,8 @@ async function abrir(sb) {
   app.areaTexto = t => mev(`${REQ}('electron').clipboard.writeText(${JSON.stringify(t)})`);
   // só imagem (PNG gerado aqui, 8x8) na área de transferência do sistema, pela API do Electron 44
   app.areaImagem = () => mev(`(async () => { const { clipboard, ClipboardItem } = ${REQ}('electron'); clipboard.clear(); await clipboard.write([new ClipboardItem({ 'image/png': new Blob([Buffer.from('${pngBase64(8, 8)}', 'base64')], { type: 'image/png' }) })]); return true; })()`);
+  // texto e imagem juntos na área de transferência (como ao copiar de um editor ou de uma página)
+  app.areaTextoEImagem = t => mev(`(async () => { const { clipboard, ClipboardItem } = ${REQ}('electron'); clipboard.clear(); await clipboard.write([new ClipboardItem({ 'text/plain': ${JSON.stringify(t)}, 'image/png': new Blob([Buffer.from('${pngBase64(8, 8)}', 'base64')], { type: 'image/png' }) })]); return true; })()`);
   app.lerArea = () => mev(`${REQ}('electron').clipboard.readText()`);
   app.fechar = async () => {
     try { app.pag.ws.close(); app.main.ws.close(); } catch { /* fechado */ }
@@ -134,7 +136,11 @@ const textoTerm = (app, alvoEl = ULTIMO) => app.ev(`[...(${alvoEl}).querySelecto
 
 // manterPainel: deixa aberto o painel de conversas (aparece quando há Claude Code ou Codex instalados); por padrão
 // escolhe "Só o terminal", como o usuário faria, para o terminal receber teclas
-async function novoTerminal(app, { manterPainel = false } = {}) {
+async function novoTerminal(app, { manterPainel = false, shell = null } = {}) {
+  if (shell) {
+    const v = await app.ev(`(() => { const s = document.querySelector('.ws.active .dev-shell-select'); if (![...s.options].some(o => o.value === '${shell}')) return null; s.value = '${shell}'; s.dispatchEvent(new Event('change', { bubbles: true })); return s.value; })()`);
+    if (v !== shell) throw new Error(`shell ${shell} indisponível (opções: ${await app.ev(`[...document.querySelector('.ws.active .dev-shell-select').options].map(o => o.value).join(',')`)})`);
+  }
   const antes = await app.ev(`document.querySelectorAll('.ws.active .term-pane').length`);
   await app.ev(`(() => { const el = [...document.querySelectorAll('.ws.active [data-act="new-term"]')].find(e => e.offsetParent !== null); el.click(); return true; })()`);
   await sleep(500);
@@ -378,6 +384,83 @@ caso('T5', async app => {
   await arrasta(app, p, 5, 14);
   await sleep(900);
   afirma(await app.lerArea() === 'beta-gama', 'depois de limpar, marcar o mesmo texto copia de novo');
+});
+
+const cliqueDireito = async (app, x, y) => {
+  await mouse(app, 'mouseMoved', x, y);
+  await mouse(app, 'mousePressed', x, y, { button: 'right', buttons: 2, clickCount: 1 });
+  await mouse(app, 'mouseReleased', x, y, { button: 'right', buttons: 0, clickCount: 1 });
+};
+const centroDoTerminal = app => app.ev(`(() => { const r = (${ULTIMO}).querySelector('.term-pane-body').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
+const dadosEscritos = async app => (await app.escritas()).map(x => x.data).join('');
+
+caso('T6', async app => {
+  console.log('\n[T6] Ctrl+V e clique direito colam na hora (Git Bash, com bracketed paste); texto vence imagem; só imagem entrega \\x16');
+  try { await novoTerminal(app, { shell: 'gitbash' }); } catch (e) { pula('T6', `Git Bash indisponível (${e.message})`); return; }
+  await foco(app);
+  // 1) Ctrl+V com duas linhas: bracketed paste, a primeira linha não executa antes da hora
+  await app.areaTexto('linha-um\nlinha-dois');
+  await app.zeraEscritas();
+  await tecla(app, CTRL_V);
+  await sleep(900);
+  let d = await dadosEscritos(app);
+  afirma(d.includes('\x1b[200~linha-um\rlinha-dois\x1b[201~'), `Ctrl+V entrega o texto de duas linhas dentro do bracketed paste (${JSON.stringify(d.slice(0, 80))})`);
+  let txt = (await textoTerm(app)).split('\n').join('');
+  afirma(/linha-um/.test(txt) && /linha-dois/.test(txt), 'as duas linhas aparecem no prompt');
+  afirma(!/command not found|comando/.test(txt), 'a primeira linha não foi executada antes da hora');
+  // 2) Ctrl+Shift+V também cola
+  await app.areaTexto('csv-ok');
+  await app.zeraEscritas();
+  await tecla(app, { key: 'V', code: 'KeyV', vk: 86, mods: ['ctrl', 'shift'] });
+  await sleep(500);
+  afirma((await dadosEscritos(app)).includes('csv-ok'), 'Ctrl+Shift+V cola o texto');
+  // 3) texto e imagem juntos: o texto vence, nenhum \x16
+  await app.areaTextoEImagem('texto-com-imagem');
+  await app.zeraEscritas();
+  await tecla(app, CTRL_V);
+  await sleep(600);
+  d = await dadosEscritos(app);
+  afirma(d.includes('texto-com-imagem') && !d.includes('\x16'), `texto e imagem na área de transferência: cola o texto e não manda \\x16 (${JSON.stringify(d.slice(0, 60))})`);
+  // 4) só imagem: \x16 ao programa
+  await app.areaImagem();
+  await app.zeraEscritas();
+  await tecla(app, CTRL_V);
+  await sleep(600);
+  afirma((await dadosEscritos(app)).includes('\x16'), 'só imagem: o Ctrl+V entrega \\x16 ao programa');
+
+  // 5) clique direito: terminal novo, texto marcado com o mouse, área de transferência trocada, clique direito cola
+  await novoTerminal(app, { shell: 'gitbash' });
+  await foco(app);
+  const LINHA = 'alfa-beta-gama-delta';
+  await digita(app, `echo ${LINHA}`); await enter(app);
+  await app.espera(`[...(${ULTIMO}).querySelectorAll('.xterm-rows > div')].some(d => d.textContent.replace(/\\u00a0/g, ' ').trim() === ${JSON.stringify(LINHA)})`, 10000, 'saída do echo');
+  await sleep(400);
+  const p = await pontoNaLinha(app, LINHA);
+  await arrasta(app, p, 5, 14);
+  await sleep(700);
+  afirma(await app.lerArea() === 'beta-gama', 'o texto marcado foi copiado ao marcar');
+  await app.areaTexto('colado-direito');
+  await app.zeraEscritas();
+  const c = await centroDoTerminal(app);
+  await cliqueDireito(app, c.x, c.y + 120);
+  await sleep(700);
+  afirma((await dadosEscritos(app)).includes('colado-direito'), 'clique direito cola o texto da área de transferência na hora, mesmo com texto marcado');
+  afirma(await app.lerArea() === 'colado-direito', 'o clique direito não copiou a seleção por cima da área de transferência');
+  // clique direito com duas linhas: bracketed paste, nada executa
+  await app.areaTexto('rc-um\nrc-dois');
+  await app.zeraEscritas();
+  await cliqueDireito(app, c.x, c.y + 120);
+  await sleep(700);
+  d = await dadosEscritos(app);
+  afirma(d.includes('\x1b[200~rc-um\rrc-dois\x1b[201~'), `clique direito com duas linhas usa bracketed paste (${JSON.stringify(d.slice(0, 60))})`);
+  txt = (await textoTerm(app)).split('\n').join('');
+  afirma(/rc-dois/.test(txt) && !/command not found/.test(txt), 'as duas linhas ficam no prompt, nada foi executado');
+  // clique direito só com imagem: não escreve nada
+  await app.areaImagem();
+  await app.zeraEscritas();
+  await cliqueDireito(app, c.x, c.y + 120);
+  await sleep(500);
+  afirma(!(await dadosEscritos(app)).includes('\x16'), 'clique direito só com imagem não manda \\x16 (só o Ctrl+V cola imagem)');
 });
 
 // ── Execução ────────────────────────────────────────────────────────────────
