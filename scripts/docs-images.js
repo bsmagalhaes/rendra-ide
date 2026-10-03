@@ -121,6 +121,20 @@ function claudeAccountAndLimits() {
   }));
 }
 
+// Codex account for the title-bar selector: a made-up auth.json (fake JWT, placeholder tokens). Never
+// a real account: the e-mail and the organization are the same demo data used for Claude Code
+function codexAccount() {
+  const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url');
+  const payload = {
+    email: 'voce@exemplo.com', name: 'Você',
+    'https://api.openai.com/auth': { chatgpt_plan_type: 'plus', organizations: [{ id: 'org-demo', is_default: true, role: 'owner', title: 'Sua Empresa' }] },
+  };
+  write(path.join(HOME, '.codex', 'auth.json'), JSON.stringify({
+    auth_mode: 'chatgpt',
+    tokens: { id_token: `${b64({ alg: 'none' })}.${b64(payload)}.demo`, access_token: 'token-demo', refresh_token: 'token-demo', account_id: 'conta-demo' },
+  }));
+}
+
 // A small project with git history and pending changes (colors in the explorer)
 function demoProject() {
   const dir = path.join(HOME, 'projetos', 'loja-online');
@@ -182,7 +196,7 @@ async function connect() {
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 async function main() {
-  claudeSessions(); codexSessions(); claudeAccountAndLimits();
+  claudeSessions(); codexSessions(); claudeAccountAndLimits(); codexAccount();
   const project = demoProject();
   appData(project);
   fs.mkdirSync(OUT, { recursive: true });
