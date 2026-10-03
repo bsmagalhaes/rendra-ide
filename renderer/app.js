@@ -190,9 +190,9 @@ async function loadAccount() {
   document.getElementById('acc-email').textContent = acc?.email || '—';
   document.getElementById('acc-email').title = acc?.name || '';
   document.getElementById('acc-plan').textContent = acc ? fmtPlan(acc.plan, acc.tier) : '—';
-  // the title-bar consumption bar shows the same account and plan in its tooltip (never the e-mail)
-  contaBarra = acc ? (acc.organization || acc.name || '') : '';
-  planoBarra = acc ? fmtPlan(acc.plan, acc.tier).replace(/^—$/, '') : '';
+  // the title bar shows the e-mail too (organization, e-mail and plan); the plan of the local Claude
+  // account also comes from here (on macOS it lives in the Keychain, which the light channel never reads)
+  planoClaudeLocal = acc ? fmtPlan(acc.plan, acc.tier).replace(/^—$/, '') : '';
   desenharBarraConsumo();
 
   const list = document.getElementById('limits-list');
@@ -226,17 +226,43 @@ async function enableLimitsBridge() {
   loadAccount();
 }
 
-// ── Title-bar consumption bar (5 hours + weekly of the Claude Code plan) ───
-// Reads only the statusline file through limits:statusline (no credentials, no network), every
-// 60 s and on ↻. Rules live in renderer/consumo.js; this only paints the result.
-let consumoRes = null;
-let contaBarra = '';
-let planoBarra = '';
+// ── Title-bar consumption bar (provider + environment selector, account, plan limits) ───
+// Reads the light channel provider:snapshot (no credentials, no network, no tokens) every 60 s and
+// on ↻: identity and limits of each provider + environment (Claude and Codex, local system and WSL
+// distros). The local system is painted first; the WSL discovery (slow) arrives on its own.
+// Rules live in renderer/consumo.js; this only paints the result. The chosen option is remembered
+// in settings.provedorBarra and is written ONLY when the user changes the selector (an option that
+// disappears for a round, e.g. a stopped distro, falls back to the default without overwriting it).
+const provEntradas = { local: [], wsl: [] };
+const provSeq = { local: 0, wsl: 0 };
+let provLembrada = null;
+let planoClaudeLocal = ''; // plano vindo de loadAccount (no macOS vem do Keychain, que o canal leve não lê)
+
+const planoDaEntrada = e => {
+  if (!e?.conta) return '';
+  const p = fmtPlan(e.conta.plan, e.conta.tier).replace(/^—$/, '');
+  return p || (e.id === 'claude:local' ? planoClaudeLocal : '');
+};
+
+let barraCompacta = false;
+function rotulosDoSeletor(opcoes) {
+  const sel = document.getElementById('consumo-provedor');
+  [...sel.options].forEach(o => {
+    const op = opcoes.find(x => x.id === o.value);
+    if (op) { o.textContent = barraCompacta ? op.rotuloCompacto : op.rotulo; o.title = op.tooltipAmbiente; }
+  });
+  const atual = opcoes.find(x => x.id === sel.value);
+  sel.title = atual ? atual.tooltipAmbiente : '';
+}
 
 function desenharBarraConsumo() {
   const barra = document.getElementById('consumo-bar');
-  const estado = RendraConsumo.estadoConsumo(consumoRes, Date.now(), {
-    conta: contaBarra, plano: planoBarra, fmtResetIn, fmtHora: fmtTimestamp,
+  const sel = document.getElementById('consumo-provedor');
+  const escolha = RendraConsumo.opcoesSeletor([...provEntradas.local, ...provEntradas.wsl], provLembrada);
+  const entrada = [...provEntradas.local, ...provEntradas.wsl].find(e => e.id === escolha.selecionada) || null;
+  const estado = RendraConsumo.estadoConsumo(entrada && { limits: entrada.limits, fetchedAt: entrada.fetchedAt }, Date.now(), {
+    conta: entrada?.conta, plano: planoDaEntrada(entrada), ambiente: entrada?.ambiente, provedor: entrada?.provedor,
+    fmtResetIn, fmtHora: fmtTimestamp,
   });
   if (!estado.visivel) {
     barra.hidden = true;
@@ -245,6 +271,24 @@ function desenharBarraConsumo() {
   }
   barra.hidden = false;
   barra.title = estado.tooltip;
+  barra.setAttribute('aria-label', estado.ariaGrupo);
+
+  // seletor: só existe com 2 ou mais opções; as opções só são refeitas se mudarem
+  const ids = escolha.opcoes.map(o => o.id).join('|');
+  if (sel.dataset.ids !== ids) {
+    sel.dataset.ids = ids;
+    sel.replaceChildren(...escolha.opcoes.map(o => { const op = document.createElement('option'); op.value = o.id; return op; }));
+  }
+  sel.value = escolha.selecionada;
+  sel.hidden = !escolha.mostrarSeletor;
+  rotulosDoSeletor(escolha.opcoes);
+
+  document.getElementById('consumo-nome').textContent = estado.nome;
+  document.getElementById('consumo-nome').hidden = !estado.nome;
+  document.getElementById('consumo-email').textContent = estado.email;
+  document.getElementById('consumo-email').hidden = !estado.email;
+  document.getElementById('consumo-semdados').hidden = !estado.semDados;
+
   barra.querySelectorAll('.consumo-item').forEach(el => {
     const item = estado.itens.find(i => i.chave === el.dataset.kind);
     el.hidden = !item;
@@ -258,10 +302,77 @@ function desenharBarraConsumo() {
     pb.setAttribute('aria-valuenow', String(item.percent));
     pb.setAttribute('aria-valuetext', item.ariaTexto);
   });
+  ajustarBarraConsumo();
+}
+
+// Largura: mede e decide, em vez de cortes fixos (nome de organização, e-mail, distro e fonte variam).
+// Ordem: tudo; e-mail encurtado com reticências (mínimo 90 px); sem e-mail, com o nome encurtado
+// (mínimo 70 px); sem nome; por fim .compacto (seletor só com o provedor, trilho de 40 px, espaço de 8 px).
+// Os limites nunca somem. O título nunca é empurrado: o espaço é o que sobra entre o nome do app e os botões.
+const EMAIL_MIN = 90;
+const NOME_MIN = 70;
+function ajustarBarraConsumo() {
+  const barra = document.getElementById('consumo-bar');
+  if (barra.hidden) return;
+  const tb = document.getElementById('title-bar');
+  const nomeEl = document.getElementById('consumo-nome');
+  const emailEl = document.getElementById('consumo-email');
+  const opcoes = RendraConsumo.opcoesSeletor([...provEntradas.local, ...provEntradas.wsl], provLembrada).opcoes;
+
+  // espaço = largura útil do título menos tudo o que não é a barra (botões, nome do app), os espaços
+  // entre os itens do título e a margem de 12 px que .title-bar-right ganha quando a barra aparece
+  const espaco = () => {
+    const cs = getComputedStyle(tb);
+    const outros = [...tb.children].filter(c => c !== barra && c.getBoundingClientRect().width > 0);
+    const soma = outros.reduce((t, c) => t + c.getBoundingClientRect().width, 0);
+    return tb.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - soma - (parseFloat(cs.columnGap) || 0) * outros.length - 12;
+  };
+  const largura = () => barra.getBoundingClientRect().width;
+  const cabe = () => largura() <= espaco();
+  const aplica = (compacto, semEmail, semNome) => {
+    barraCompacta = compacto;
+    barra.classList.toggle('compacto', compacto);
+    emailEl.style.display = semEmail ? 'none' : '';
+    nomeEl.style.display = semNome ? 'none' : '';
+    emailEl.style.maxWidth = '';
+    nomeEl.style.maxWidth = '';
+    rotulosDoSeletor(opcoes);
+  };
+  // encurta o elemento exatamente pelo que passa do espaço; falso se sobrar menos que o mínimo útil
+  const encurta = (el, minimo) => {
+    const w = el.getBoundingClientRect().width - (largura() - espaco());
+    if (w < minimo) return false;
+    el.style.maxWidth = `${Math.floor(w)}px`;
+    return true;
+  };
+
+  aplica(false, false, false);
+  if (cabe()) return;
+  if (!emailEl.hidden && encurta(emailEl, EMAIL_MIN) && cabe()) return;
+  aplica(false, true, false);
+  if (cabe()) return;
+  if (!nomeEl.hidden && encurta(nomeEl, NOME_MIN) && cabe()) return;
+  aplica(false, true, true);
+  if (cabe()) return;
+  aplica(true, true, true);
 }
 
 async function atualizarBarraConsumo() {
-  try { consumoRes = await tm.limitsBridge.read(); } catch { consumoRes = null; }
+  const buscar = async (wsl, chave) => {
+    const meu = ++provSeq[chave];
+    let r = [];
+    try { r = await tm.providerSnapshot({ wsl }); } catch { r = []; }
+    if (meu !== provSeq[chave]) return; // chegou uma resposta mais nova
+    provEntradas[chave] = Array.isArray(r) ? r : [];
+    desenharBarraConsumo();
+  };
+  await Promise.all([buscar(false, 'local'), buscar(true, 'wsl')]);
+}
+
+// Trocar no seletor é a única hora em que a escolha é gravada (merge raso em save-settings)
+function escolherProvedorBarra(id) {
+  provLembrada = id;
+  tm.saveSettings({ provedorBarra: id });
   desenharBarraConsumo();
 }
 
@@ -904,6 +1015,12 @@ async function init() {
 
   initFilters();
   initUpdates();
+
+  // Title-bar consumption bar: the remembered provider + environment (written only when the user
+  // changes the selector), the selector itself and the width rule
+  try { provLembrada = (await tm.getSettings())?.provedorBarra || null; } catch { /* usa o padrão */ }
+  document.getElementById('consumo-provedor').addEventListener('change', e => escolherProvedorBarra(e.target.value));
+  new ResizeObserver(() => ajustarBarraConsumo()).observe(document.getElementById('title-bar'));
 
   // Account card + plan limits: now and every 5 minutes (the usage endpoint is rate limited)
   loadAccount();

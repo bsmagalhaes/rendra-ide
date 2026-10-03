@@ -25,8 +25,13 @@
     <button class="tl-btn tl-maximize" id="btn-maximize" title="Maximizar"></button>
   </div>
   <div class="app-name">RENDRA<span>IDE</span></div>
-  <!-- Consumo do plano do Claude Code: escondida até haver leitura (renderer/consumo.js, app.js) -->
+  <!-- Consumo do plano do provedor escolhido (Claude Code ou Codex): seletor de provedor + ambiente, organização,
+       e-mail e os limites. Escondida até haver leitura (renderer/consumo.js, app.js) -->
   <div id="consumo-bar" role="group" aria-label="Consumo do plano do Claude Code" hidden>
+    <select id="consumo-provedor" class="dev-shell-select consumo-select" aria-label="Provedor e ambiente" hidden></select>
+    <span class="consumo-nome" id="consumo-nome" hidden></span>
+    <span class="consumo-email" id="consumo-email" hidden></span>
+    <span class="consumo-semdados" id="consumo-semdados" hidden>sem dados</span>
     <div class="consumo-item" data-kind="session">
       <span class="consumo-rotulo">5 Horas</span>
       <span class="consumo-trilho" role="progressbar" aria-label="Limite de 5 horas" aria-valuemin="0" aria-valuemax="100"><span class="consumo-fill"></span></span>

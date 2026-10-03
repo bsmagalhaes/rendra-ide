@@ -66,16 +66,26 @@ body { display: flex; flex-direction: column; }
 }
 .app-name span { color: var(--orange); }
 
-/* Consumo do plano do Claude Code (5 Horas e Semanal): só aparece quando há leitura */
+/* Consumo do plano do provedor escolhido (seletor, organização, e-mail, 5 Horas e Semanal): só aparece
+   quando há leitura. Quando falta largura, app.js (ajustarBarraConsumo) mede e aplica, nesta ordem:
+   e-mail com reticências, e-mail oculto, nome oculto, e por fim .compacto (seletor só com o nome do
+   provedor, trilho de 40 px e espaço de 8 px). Os limites nunca somem. */
 #consumo-bar {
   display: flex; align-items: center; gap: 16px;
   margin-left: auto;
   font-family: var(--font); font-size: 10px; white-space: nowrap;
   -webkit-app-region: no-drag;
 }
-#consumo-bar[hidden] { display: none !important; }
+#consumo-bar[hidden], #consumo-bar [hidden] { display: none !important; }
+.consumo-select { flex-shrink: 0; max-width: 190px; margin-right: 0; text-overflow: ellipsis; }
+.consumo-nome, .consumo-email { flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.consumo-nome { color: var(--text); font-weight: 700; max-width: 180px; }
+.consumo-email { color: var(--text-muted); max-width: 260px; margin-left: -8px; }
+.consumo-semdados { color: var(--text-muted); flex-shrink: 0; }
+#consumo-bar.compacto { gap: 8px; }
+#consumo-bar.compacto .consumo-trilho { width: 40px; }
 #consumo-bar:not([hidden]) + .title-bar-right { margin-left: 12px; }
-.consumo-item { display: flex; align-items: center; gap: 6px; }
+.consumo-item { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .consumo-item[hidden] { display: none; }
 .consumo-rotulo { color: var(--text-muted); }
 .consumo-trilho { display: block; width: 64px; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
