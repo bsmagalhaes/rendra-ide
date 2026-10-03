@@ -4,6 +4,7 @@
 // JSON (settings.json do Claude, hooks.json do Codex): reserializa com a indentação detectada.
 // TOML (config.toml do Codex): só por acréscimo de texto, nunca reserializa.
 
+const crypto = require('crypto');
 const { hookCommand, isRtkHookCommand } = require('./rtk-paths');
 
 // ── JSON ─────────────────────────────────────────────────────────────────────
@@ -140,6 +141,30 @@ const codexDbEnv = tomlText => {
   return m ? untoml(m[1], m[2]) : null;
 };
 
+// ── Hash de confiança do hook (mesmo cálculo do Codex: hooks/src/engine/discovery.rs) ──
+// JSON canônico (chaves ordenadas em todos os níveis), compacto, SHA-256 sobre UTF-8.
+function canonical(v) {
+  if (Array.isArray(v)) return v.map(canonical);
+  if (v && typeof v === 'object') {
+    return Object.fromEntries(Object.keys(v).sort().map(k => [k, canonical(v[k])]));
+  }
+  return v;
+}
+// Identidade do hook: evento, matcher do grupo e o handler normalizado (timeout 600 quando ausente,
+// mínimo 1; campos ausentes não entram). Caminho do arquivo e índices ficam só na chave.
+function codexHookIdentityJson(group, handler, event = 'pre_tool_use') {
+  const t = handler.timeout != null && Number.isFinite(+handler.timeout) ? Math.trunc(+handler.timeout) : 600;
+  const h = { type: 'command', command: handler.command, timeout: Math.max(1, t), async: handler.async === true };
+  if (handler.statusMessage != null) h.statusMessage = handler.statusMessage;
+  if (handler.additionalContextLimit != null && handler.additionalContextLimit !== 2500) h.additionalContextLimit = handler.additionalContextLimit;
+  const id = { event_name: event, hooks: [h] };
+  if (group && group.matcher != null) id.matcher = group.matcher;
+  return JSON.stringify(canonical(id));
+}
+function codexHookHash(group, handler, event) {
+  return 'sha256:' + crypto.createHash('sha256').update(Buffer.from(codexHookIdentityJson(group, handler, event), 'utf8')).digest('hex');
+}
+
 // ── Confiança do hook no Codex ───────────────────────────────────────────────
 const normKey = k => String(k).replace(/\\/g, '/').toLowerCase();
 
@@ -171,5 +196,5 @@ function codexHookTrust(hooksJsonText, tomlText, hooksJsonPath, { changedNow = f
 
 module.exports = {
   hasRtkHook, isAbsoluteHook, patchClaudeSettings, claudeDbEnv, patchCodexHooks,
-  patchCodexConfigToml, codexDbEnv, codexHookTrust, detectIndent,
+  patchCodexConfigToml, codexDbEnv, codexHookTrust, detectIndent, codexHookHash, codexHookIdentityJson,
 };

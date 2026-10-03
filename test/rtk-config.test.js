@@ -184,3 +184,49 @@ test('confiança: caixa e separador do caminho são tolerados (Windows)', () => 
 test('confiança: sem hook do RTK é no-hook', () => {
   assert.strictEqual(C.codexHookTrust(ORCA_HOOKS, TOML, HJ).state, 'no-hook');
 });
+
+// ── T1: hash de confiança (mesmo algoritmo do Codex; vetores calculados pelo Codex real) ──
+const CMD_WIN = 'C:/Users/ana/.local/bin/rtk.exe hook codex';
+const CMD_LIN = '/home/ana/.local/bin/rtk hook codex';
+const grp = (matcher, command, extra = {}) => ({
+  group: matcher == null ? { hooks: [] } : { matcher, hooks: [] },
+  handler: { type: 'command', command, ...extra },
+});
+const hashOf = (matcher, command, extra) => { const g = grp(matcher, command, extra); return C.codexHookHash(g.group, g.handler); };
+const jsonOf = (matcher, command, extra) => { const g = grp(matcher, command, extra); return C.codexHookIdentityJson(g.group, g.handler); };
+
+test('hash V1: Bash, comando Windows, timeout implícito 600 (JSON canônico conferido antes do SHA)', () => {
+  assert.strictEqual(jsonOf('Bash', CMD_WIN),
+    '{"event_name":"pre_tool_use","hooks":[{"async":false,"command":"C:/Users/ana/.local/bin/rtk.exe hook codex","timeout":600,"type":"command"}],"matcher":"Bash"}');
+  assert.strictEqual(hashOf('Bash', CMD_WIN), 'sha256:2e2f4b6959b8577bc2b51a00d835c355d9c2b748cc3d601f26181f2acf909223');
+});
+test('hash V2: sem matcher a chave matcher não entra', () => {
+  assert.strictEqual(jsonOf(null, CMD_WIN),
+    '{"event_name":"pre_tool_use","hooks":[{"async":false,"command":"C:/Users/ana/.local/bin/rtk.exe hook codex","timeout":600,"type":"command"}]}');
+  assert.strictEqual(hashOf(null, CMD_WIN), 'sha256:2323418dc56bdf7ca075e9802865d78b566911bdd5140c2f1ae6aa8a38c3a0db');
+});
+test('hash V3 e V4: comando Linux com timeout explícito', () => {
+  assert.strictEqual(hashOf('Bash', CMD_LIN, { timeout: 30 }), 'sha256:428c25edc3548411432f1508f10af45c0179620fa235dce51d0b4858ce97fc48');
+  assert.strictEqual(hashOf(null, CMD_LIN, { timeout: 10 }), 'sha256:c29345a85710ac03409cc7066461a4dcb7721f13a32a01b125273c0a8bb37133');
+});
+test('hash V5: timeout 600 explícito é a mesma identidade do implícito', () => {
+  assert.strictEqual(hashOf('Bash', CMD_WIN, { timeout: 600 }), hashOf('Bash', CMD_WIN));
+});
+test('hash V6: acento e espaço no caminho (UTF-8), vindo do Codex real', () => {
+  assert.strictEqual(hashOf('Bash', '"C:/Users/João Silva/.local/bin/rtk.exe" hook codex'),
+    'sha256:bfcac5fa1128f58d6475b4e4a54b9101120a7851b15d512e16d67e05cf5ca508');
+});
+test('hash: timeout, matcher e comando diferentes mudam o hash; timeout mínimo é 1', () => {
+  const base = hashOf('Bash', CMD_WIN);
+  assert.notStrictEqual(hashOf('Bash', CMD_WIN, { timeout: 30 }), base);
+  assert.notStrictEqual(hashOf(null, CMD_WIN), base);
+  assert.notStrictEqual(hashOf('Bash', 'rtk hook codex'), base);
+  assert.strictEqual(hashOf('Bash', CMD_WIN, { timeout: 0 }), hashOf('Bash', CMD_WIN, { timeout: 1 }));
+});
+test('hash: async, statusMessage e additionalContextLimit (só se diferente de 2500) entram', () => {
+  const j = jsonOf('Bash', CMD_WIN, { async: true, statusMessage: 'oi', additionalContextLimit: 100 });
+  assert.match(j, /"additionalContextLimit":100/);
+  assert.match(j, /"async":true/);
+  assert.match(j, /"statusMessage":"oi"/);
+  assert.ok(!jsonOf('Bash', CMD_WIN, { additionalContextLimit: 2500 }).includes('additionalContextLimit'));
+});
