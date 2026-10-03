@@ -1,6 +1,6 @@
 # Novidades
 
-## Próxima versão
+## 1.3.1 · 03/10/2026
 ### Instalador do Mac
 - O instalador do Mac chega para Apple Silicon (`Rendra-IDE-mac-arm64.dmg`) e Intel (`Rendra-IDE-mac-x64.dmg`), assinado e notarizado pela Apple, na página de Releases do GitHub e no site. Ele se atualiza sozinho, como os de Windows e Linux.
 ### Editor
