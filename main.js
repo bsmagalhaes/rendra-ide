@@ -235,6 +235,24 @@ ipcMain.handle('set-filters', async (_e, filters) => {
 ipcMain.handle('claude-account', () => currentAccount(getSettings().limitsSource));
 // Only the statusline file (no credentials, no network): the title bar reads it every 60 s
 ipcMain.handle('limits:statusline', () => accountsMod.statuslineLimits());
+// Canal leve da barra de título (a cada 60 s): identidade e limites por provedor e ambiente, sem
+// credenciais, sem rede e sem tokens (ver src/provider-snapshot.js). wsl: false = só o sistema local;
+// wsl: true = as distros em execução (a barra pede as duas e mostra o local sem esperar o WSL).
+// Nunca rejeita: o Electron registra no console a rejeição de um ipcMain.handle.
+ipcMain.handle('provider:snapshot', async (_e, opts) => {
+  try {
+    return await require('./src/provider-snapshot').snapshotProvedores({ wsl: !!opts?.wsl }, {
+      homeIde: accountsMod.HOME,
+      codexHome: require('./src/codex-parser').codexHome,
+      statuslineLimits: accountsMod.statuslineLimits,
+      contaClaudeDoHome: accountsMod.contaClaudeDoHome,
+      lerContaCodex: require('./src/codex-account').lerContaCodex,
+      limitesLeves: require('./src/codex-limits').limitesLeves,
+      wslRoots: () => require('./src/wsl-roots').wslRoots(),
+      pulaWsl: !!(process.env.RENDRA_HOME || process.env.RENDRA_NO_WSL),
+    });
+  } catch { return []; }
+});
 ipcMain.handle('limits:bridge-status', () => accountsMod.statuslineStatus());
 ipcMain.handle('limits:bridge-install', () => accountsMod.installStatusline(path.join(__dirname, 'src', 'statusline.sh')));
 ipcMain.handle('limits:bridge-uninstall', () => accountsMod.uninstallStatusline());

@@ -42,6 +42,7 @@ contextBridge.exposeInMainWorld('rendra', {
   },
   setFilters: (filters) => ipcRenderer.invoke('set-filters', filters),
   claudeAccount: () => ipcRenderer.invoke('claude-account'),
+  providerSnapshot: (opts) => ipcRenderer.invoke('provider:snapshot', opts),
   limitsBridge: {
     read: () => ipcRenderer.invoke('limits:statusline'),
     status: () => ipcRenderer.invoke('limits:bridge-status'),

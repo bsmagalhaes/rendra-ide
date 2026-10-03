@@ -31,4 +31,7 @@ function ambientesWsl(roots = {}) {
   return [...porHome.values()];
 }
 
-module.exports = { ambientesWsl, homeEDistro };
+// junta partes a um home com o separador do próprio caminho (UNC do Windows ou posix)
+const juntaHome = (home, ...partes) => lib(home).join(home, ...partes);
+
+module.exports = { ambientesWsl, homeEDistro, juntaHome };

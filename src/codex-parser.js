@@ -41,13 +41,18 @@ const minus = (a, b) => ({ input: a.input - b.input, cached: a.cached - b.cached
 const isZero = u => !u.input && !u.cached && !u.output && !u.reasoning;
 
 function parseRollout(file) {
+  return parseRolloutText(fs.readFileSync(file, 'utf8'));
+}
+
+// text: o conteúdo (ou o final) de um rollout. soLimites: só o rate_limits mais recente, sem somar
+// uso (leitura leve da barra de título, que lê só o final do arquivo)
+function parseRolloutText(text, { soLimites = false } = {}) {
   const records = [];
   let model = 'unknown';
   let cwd = null;
   let prevTotal = null;
   let limits = null;
   let limitsAt = 0;
-  const text = fs.readFileSync(file, 'utf8');
   for (const line of text.split('\n')) {
     if (!line || (!line.includes('token_count') && !line.includes('turn_context') && !line.includes('session_meta'))) continue;
     let o;
@@ -58,7 +63,7 @@ function parseRollout(file) {
     if (o.type !== 'event_msg' || p.type !== 'token_count') continue;
     const ts = Date.parse(o.timestamp) || 0;
     if (p.rate_limits && ts >= limitsAt) { limits = p.rate_limits; limitsAt = ts; }
-    if (!p.info) continue;
+    if (soLimites || !p.info) continue;
     const total = usageOf(p.info.total_token_usage);
     let delta;
     if (prevTotal && total.input >= prevTotal.input && total.output >= prevTotal.output) delta = minus(total, prevTotal);
@@ -69,6 +74,9 @@ function parseRollout(file) {
   }
   return { records, cwd, limits, limitsAt };
 }
+
+// janela de limite do Codex: resets_at vem em segundos
+const janela = w => w && ({ percent: w.used_percent ?? 0, windowMinutes: w.window_minutes ?? null, resetsAt: w.resets_at ? w.resets_at * 1000 : null });
 
 function dayKey(ts) { return new Date(ts).toLocaleDateString('en-CA'); }
 
@@ -131,7 +139,6 @@ function aggregateCodex(opts = {}) {
     days.push({ date: key, label: `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`, ...(daily.get(key) || { inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCostUSD: 0 }) });
   }
 
-  const window = w => w && ({ percent: w.used_percent ?? 0, windowMinutes: w.window_minutes ?? null, resetsAt: w.resets_at ? w.resets_at * 1000 : null });
   return {
     available: sessions.length > 0,
     home,
@@ -148,8 +155,8 @@ function aggregateCodex(opts = {}) {
     projectBreakdown: [...projects.values()].sort((a, b) => b.totalTokens - a.totalTokens),
     recentSessions: sessions.sort((a, b) => b.lastTs - a.lastTs).slice(0, 10)
       .map(s => ({ project: s.project, mtime: s.lastTs, totalTokens: s.input + s.output, model: s.model })),
-    limits: limits ? { primary: window(limits.primary), secondary: window(limits.secondary), at: limitsAt } : null,
+    limits: limits ? { primary: janela(limits.primary), secondary: janela(limits.secondary), at: limitsAt } : null,
   };
 }
 
-module.exports = { aggregateCodex, parseRollout };
+module.exports = { aggregateCodex, parseRollout, parseRolloutText, janela, codexHome };
