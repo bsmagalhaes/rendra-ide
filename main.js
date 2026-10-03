@@ -544,7 +544,7 @@ const rtkInstall = createRtkInstall({ env: rtkEnv });
 const rtkStatus = createRtkStatus({
   env: rtkEnv,
   runRtk,
-  hostWarnings: () => (e2eRtk ? [] : rtkInstall.hostWarnings()), // no e2e não se consulta o PATH real
+  hostWarnings: agents => (e2eRtk ? [] : rtkInstall.hostWarnings(agents)), // no e2e não se consulta o PATH real
   // o campo `codex` de antes (instalação e AGENTS.md), que a página ainda lê
   codexLegacy: async () => {
     const codexHome = process.env.CODEX_HOME || path.join(require('os').homedir(), '.codex');

@@ -306,3 +306,14 @@ test('chips pelo status(): vêm dos dados por sistema; o texto do rtk init --sho
   assert.ok(!m.hostRuns.some(a => a[0] === 'init'), 'o rtk init --show não é chamado');
   assert.ok(r.checks.every(c => !PROIBIDO.test(c.text)));
 });
+
+test('o status entrega os agentes do host a hostWarnings (o aviso do WinGet depende do hook absoluto)', async () => {
+  const recebido = [];
+  const st = createRtkStatus({
+    env: createRtkEnv({ platform: 'linux', env: {}, execFile: (f, a, o, cb) => cb(null, 'rtk 0.50.0\n', ''), fs: { existsSync: () => false }, homedir: () => '/home/ana', rtkPath: async () => '/home/ana/.local/bin/rtk' }),
+    processEnv: {}, runRtk: async () => ({ ok: true, output: '' }),
+    hostWarnings: async agentes => { recebido.push(Object.keys(agentes || {})); return []; },
+  });
+  await st.status();
+  assert.deepStrictEqual(recebido, [['claude', 'codex']]);
+});

@@ -7,7 +7,6 @@ const fs = require('fs');
 const path = require('path');
 const P = require('./rtk-paths');
 
-const WINGET_HINT = 'winget upgrade --id rtk-ai.rtk';
 const PROFILE_MARK = '# added by Rendra IDE (RTK)';
 const PROFILE_LINE = 'export PATH="$HOME/.local/bin:$PATH"';
 
@@ -65,17 +64,25 @@ function createRtkInstall(deps) {
     return r.ok ? P.parseRtkVersion(r.stdout) : null;
   }
 
-  // Cópia do WinGet defasada (F63): só orienta, nunca mexe nela
-  async function hostWarnings() {
+  // Cópia do WinGet defasada (F63): só orienta, nunca mexe nela e a IDE nunca roda o winget.
+  // Sem aviso quando o RTK gerenciado pela IDE vem primeiro no PATH e todo agente do host que tem
+  // hook usa caminho absoluto (aí a cópia do WinGet nunca é a que os agentes executam). `agents` vem
+  // do status do host; sem ele, nenhum agente conta contra. O PATH é o do processo da IDE, que pode
+  // estar defasado em relação ao do usuário (risco aceito).
+  const sameFile = (a, b) => String(a).replace(/\//g, '\\').toLowerCase() === String(b).replace(/\//g, '\\').toLowerCase();
+  async function hostWarnings(agents) {
     if (env.HOST.platform !== 'win32') return [];
     const w = await env.run(env.HOST, ['where.exe', 'rtk'], { timeout: 8000 });
     const paths = w.ok ? w.stdout.split(/\r?\n/).map(s => s.trim()).filter(Boolean) : [];
     const out = [];
     if (paths.length > 1) {
+      const managed = await env.findRtk(env.HOST);
+      const comHook = Object.values(agents || {}).filter(a => a && a.hook);
+      if (managed && sameFile(paths[0], managed) && comHook.every(a => a.hookAbsolute)) return out;
       for (const x of paths.filter(q => /winget/i.test(q))) {
         const v = await versionOf(env.HOST, x);
         if (v && P.compareVersions(v, P.RTK_MIN) < 0) {
-          out.push({ kind: 'winget', path: x, version: v, command: WINGET_HINT, text: `Há um RTK ${v} do WinGet no PATH. Para atualizá-lo, rode: ${WINGET_HINT}` });
+          out.push({ kind: 'winget', path: x, version: v, text: `Há um RTK ${v} antigo do WinGet no PATH, que pode ser usado no lugar do da IDE. Atualize ou remova essa cópia do WinGet.` });
         }
       }
     }
@@ -159,4 +166,4 @@ function createRtkInstall(deps) {
   return { install, hostWarnings };
 }
 
-module.exports = { swapBinary, createRtkInstall, WINGET_HINT };
+module.exports = { swapBinary, createRtkInstall };

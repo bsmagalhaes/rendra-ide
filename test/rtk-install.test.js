@@ -117,7 +117,7 @@ test('checksum certo extrai e devolve o binário', async () => {
 });
 
 // ── install por ambiente, com ambiente falso ────────────────────────────────
-function ambiente({ version = null, uname = 'x86_64\n', bashHasRtk = false, profile = null, fail = {}, hostPlatform = 'linux', whereOut = '', wingetVersion = 'rtk 0.48.0' } = {}) {
+function ambiente({ version = null, uname = 'x86_64\n', bashHasRtk = false, profile = null, fail = {}, hostPlatform = 'linux', whereOut = '', wingetVersion = 'rtk 0.48.0', managed = null } = {}) {
   const calls = [];
   const writes = [];
   const files = new Map(profile === null ? [] : [['/home/bruno/.profile', profile]]);
@@ -126,7 +126,7 @@ function ambiente({ version = null, uname = 'x86_64\n', bashHasRtk = false, prof
   const fake = {
     HOST: { id: 'host', kind: 'host', platform: hostPlatform, running: true },
     calls, writes, files, dl,
-    findRtk: async () => (version ? '/home/bruno/.local/bin/rtk' : null),
+    findRtk: async () => managed || (version ? '/home/bruno/.local/bin/rtk' : null),
     homeOf: async () => '/home/bruno',
     run: async (e, argv) => {
       calls.push(argv.join(' '));
@@ -242,18 +242,45 @@ test('host: usa setup.installRtk e confere a versão; versão ainda velha vira e
   assert.match(r.error, /0\.48\.0.*PATH/s);
 });
 
-test('WinGet defasado: aviso só com mais de um caminho e versão velha, só orienta', async () => {
-  const wg = 'C:\\Users\\ana\\AppData\\Local\\Microsoft\\WinGet\\Packages\\rtk-ai.rtk\\rtk.exe';
-  const dois = ambiente({ hostPlatform: 'win32', whereOut: `C:\\Users\\ana\\.local\\bin\\rtk.exe\r\n${wg}\r\n`, wingetVersion: 'rtk 0.48.0' });
-  const w = await instalador(dois).inst.hostWarnings();
+const WG = 'C:\\Users\\ana\\AppData\\Local\\Microsoft\\WinGet\\Packages\\rtk-ai.rtk\\rtk.exe';
+const GER = 'C:\\Users\\ana\\.local\\bin\\rtk.exe';
+const HOOK_ABS = { claude: { hook: true, hookAbsolute: true }, codex: { hook: true, hookAbsolute: true } };
+
+test('WinGet defasado com o gerenciado em primeiro e hooks absolutos: nenhum aviso', async () => {
+  const env = ambiente({ hostPlatform: 'win32', whereOut: `${GER}\r\n${WG}\r\n`, wingetVersion: 'rtk 0.48.0', managed: GER });
+  assert.deepStrictEqual(await instalador(env).inst.hostWarnings(HOOK_ABS), []);
+  assert.deepStrictEqual(await instalador(env).inst.hostWarnings({}), [], 'agente sem hook não conta contra');
+  assert.deepStrictEqual(await instalador(env).inst.hostWarnings(undefined), []);
+  // caixa e barras diferentes do mesmo arquivo continuam sendo o mesmo
+  const outro = ambiente({ hostPlatform: 'win32', whereOut: `${GER.toUpperCase()}\r\n${WG}\r\n`, managed: GER.replace(/\\/g, '/') });
+  assert.deepStrictEqual(await instalador(outro).inst.hostWarnings(HOOK_ABS), []);
+});
+
+test('WinGet defasado com o gerenciado fora de primeiro, ou hook sem caminho absoluto: aviso em linguagem simples, sem comando', async () => {
+  const invertido = ambiente({ hostPlatform: 'win32', whereOut: `${WG}\r\n${GER}\r\n`, managed: GER });
+  const w = await instalador(invertido).inst.hostWarnings(HOOK_ABS);
   assert.strictEqual(w.length, 1);
-  assert.strictEqual(w[0].command, 'winget upgrade --id rtk-ai.rtk');
-  assert.ok(w[0].text.includes('winget upgrade --id rtk-ai.rtk'));
-  const so1 = ambiente({ hostPlatform: 'win32', whereOut: `${wg}\r\n` });
+  assert.strictEqual(w[0].kind, 'winget');
+  assert.strictEqual(w[0].command, undefined);
+  assert.ok(!/winget (upgrade|uninstall)|rode:|execute/i.test(w[0].text), w[0].text);
+  assert.ok(!/[\u2014\u2013]/.test(w[0].text));
+  const relativo = ambiente({ hostPlatform: 'win32', whereOut: `${GER}\r\n${WG}\r\n`, managed: GER });
+  assert.strictEqual((await instalador(relativo).inst.hostWarnings({ claude: { hook: true, hookAbsolute: false } })).length, 1);
+  const semGerenciado = ambiente({ hostPlatform: 'win32', whereOut: `${GER}\r\n${WG}\r\n` });
+  assert.strictEqual((await instalador(semGerenciado).inst.hostWarnings(HOOK_ABS)).length, 1, 'sem o binário da IDE não dá para dizer que ele vem primeiro');
+});
+
+test('WinGet: um caminho só, versão suficiente ou outro sistema operacional não avisam; a IDE nunca roda o winget', async () => {
+  const so1 = ambiente({ hostPlatform: 'win32', whereOut: `${WG}\r\n` });
   assert.deepStrictEqual(await instalador(so1).inst.hostWarnings(), []);
-  const novo = ambiente({ hostPlatform: 'win32', whereOut: `C:\\a\\rtk.exe\r\n${wg}\r\n`, wingetVersion: 'rtk 0.50.0' });
+  const novo = ambiente({ hostPlatform: 'win32', whereOut: `C:\\a\\rtk.exe\r\n${WG}\r\n`, wingetVersion: 'rtk 0.50.0' });
   assert.deepStrictEqual(await instalador(novo).inst.hostWarnings(), []);
-  const linux = ambiente({ hostPlatform: 'linux', whereOut: `/a/rtk\n${wg}\n` });
+  const linux = ambiente({ hostPlatform: 'linux', whereOut: `/a/rtk\n${WG}\n` });
   assert.deepStrictEqual(await instalador(linux).inst.hostWarnings(), []);
-  assert.ok(!dois.calls.some(c => /winget (upgrade|install)/.test(c) && !c.includes('where')), 'nunca executa o winget');
+  const inv = ambiente({ hostPlatform: 'win32', whereOut: `${WG}\r\n${GER}\r\n`, managed: GER });
+  await instalador(inv).inst.hostWarnings(HOOK_ABS);
+  for (const e of [so1, novo, linux, inv]) {
+    assert.ok(!e.calls.some(c => /winget(\.exe)?\s+(upgrade|uninstall|install)/i.test(c)), 'nunca executa o winget');
+    assert.ok(e.calls.every(c => !/^winget/i.test(c)));
+  }
 });
