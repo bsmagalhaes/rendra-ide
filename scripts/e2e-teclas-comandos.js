@@ -676,22 +676,24 @@ caso('T12', async app => {
 });
 
 // ── Execução ────────────────────────────────────────────────────────────────
+// cada caso roda num app novo e numa sandbox nova: sem terminais, arquivos e estado herdados do caso anterior
 (async () => {
-  const sb = sandbox();
-  let app;
-  try {
-    app = await abrir(sb);
-    afirma(app.espiao.ls >= 1 && app.espiao.abrirPasta, `espiões instalados no main: ${JSON.stringify(app.espiao)}`);
-    for (const c of casos) {
-      if (FILTRO && !FILTRO.some(f => c.nome === f)) continue;
-      try { await c.fn(app); } catch (e) { afirma(false, `${c.nome} lançou: ${e.message}`); }
+  for (const c of casos) {
+    if (FILTRO && !FILTRO.some(f => c.nome === f)) continue;
+    const sb = sandbox();
+    let app;
+    try {
+      app = await abrir(sb);
+      afirma(app.espiao.ls >= 1 && app.espiao.abrirPasta, `espiões instalados no main: ${JSON.stringify(app.espiao)}`);
+      await c.fn(app);
+    } catch (e) {
+      afirma(false, `${c.nome} lançou: ${e.stack || e.message}`);
+    } finally {
+      if (app) await app.fechar();
+      sb.limpa();
     }
-  } catch (e) {
-    afirma(false, `erro geral: ${e.stack || e.message}`);
-  } finally {
-    if (app) await app.fechar();
-    sb.limpa();
   }
+
   console.log(`\n${falhas.length ? 'FALHOU' : 'OK'}: ${falhas.length} falha(s), ${puladas.length} pulado(s)`);
   for (const p of puladas) console.log(`  pulado: ${p}`);
   for (const f of falhas) console.log(`  ✗ ${f}`);
