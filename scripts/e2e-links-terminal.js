@@ -20,6 +20,8 @@ function sandbox() {
   escreve(path.join(projeto, 'a.txt'), 'a\n');
   escreve(path.join(projeto, 'docs', 'spec', 'exemplo-vitrine.md'), '# Exemplo\nlinha 2\nlinha 3 alvo\nlinha 4\nlinha 5\n');
   fs.mkdirSync(path.join(projeto, 'docs', 'pasta-vazia'), { recursive: true });
+  escreve(path.join(dir, 'fora', 'segredo.txt'), 'SEGREDO'); // alvo da junção que escapa da pasta aberta
+  fs.symlinkSync(path.join(dir, 'fora'), path.join(projeto, 'jun'), 'junction');
   escreve(path.join(data, 'rendra-config.json'), JSON.stringify({
     settings: { refreshInterval: 600 }, filters: { days: 30, projects: [] }, setup: { dismissed: true },
     devcode: { workspaces: { list: [{ name: 'demo', custom: false, cols: 1, root: projeto, groups: [] }], active: 0 } },
@@ -102,6 +104,7 @@ async function alvos(porta, tipo) {
     await digita(`Write-Host "${E}]8;;file:///C:/Windows/System32/calc.exe${E}\\arquivo local${E}]8;;${E}\\"`);
     await digita('Write-Host "veja docs/spec/exemplo-vitrine.md:3 aqui"');
     await digita('Write-Host "veja docs/spec/nao-existe-mesmo.md aqui"');
+    await digita('Write-Host "veja jun/segredo.txt aqui"');
     await digita('Write-Host "veja docs/pasta-vazia/ aqui"');
     await sleep(600);
 
@@ -205,11 +208,17 @@ async function alvos(porta, tipo) {
     const nAntes = stubOk ? (await abertos()).length : 0;
     const pCam = await linha('veja docs/spec/exemplo-vitrine.md:3 aqui', 14);
     const pNao = await linha('veja docs/spec/nao-existe-mesmo.md aqui', 14);
+    const pJun = await linha('veja jun/segredo.txt aqui', 14);
         afirma(!!pCam && !!pNao, 'linhas com os caminhos impressas no terminal');
     const sublinhados = () => ev(`[...document.querySelectorAll('.ws.active .xterm-rows span')].filter(s => getComputedStyle(s).textDecorationLine.includes('underline')).map(s => s.textContent.replace(/ /g, ' '))`);
     if (pNao) {
       await passa(pNao);
       afirma(await titulo() === '' && !(await sublinhados()).some(t => /nao-existe/.test(t)), `caminho inexistente não vira link nem sublinha (title="${await titulo()}")`);
+      await fora();
+    }
+    if (pJun) {
+      await passa(pJun); await sleep(800); await passa(pJun);
+      afirma(await titulo() === '' && !(await sublinhados()).some(t => /segredo/.test(t)), `junção que aponta para fora da pasta aberta não vira link (title="${await titulo()}")`);
       await fora();
     }
     if (pCam) {

@@ -36,6 +36,7 @@ test('não reconhece URLs, palavras soltas, datas, e-mails nem texto sem barra o
     'https://exemplo.com/a/b.html', 'http://localhost:3000/x/y.js:10', 'file:///C:/x/a.txt', 'ftp://h/a/b.txt', '//cdn.exemplo.com/a.js',
     'ssh://git@host/a/b.git', '\\\\servidor\\share\\a.txt',
     'palavra solta README.md', 'a.b.c', 'v1.2.3', 'and/or', 'input/output', '10/03/2026', '12:30:45', 'usuario@exemplo.com',
+    'www.exemplo.com/a/b.html', 'a@b.com/x/y.md', 'git@github.com:user/repo.git', 'user@host:/home/x/a.txt', 'a.txt:Zone.Identifier', 'docs/a.txt:Zone.Identifier', 'C:\\x\\a.txt:ads',
     '@scope/pacote', 'a/b', 'C:', '/', '/x', '', '   ',
   ]) {
     assert.deepStrictEqual(textos(linha), [], linha);
@@ -43,6 +44,10 @@ test('não reconhece URLs, palavras soltas, datas, e-mails nem texto sem barra o
   // a URL dentro de uma frase não vira caminho, mas o caminho ao lado vira
   assert.deepStrictEqual(textos('abra https://a.com/x/y.md e docs/y.md'), ['docs/y.md']);
   assert.deepStrictEqual(textos(null), []);
+});
+
+test('mantém caminhos legítimos com @ depois da primeira barra e unidade com sufixo', () => {
+  assert.deepStrictEqual(textos('node_modules/@types/node/index.d.ts:3 C:\\a\\b.js:4:2'), ['node_modules/@types/node/index.d.ts:3', 'C:\\a\\b.js:4:2']);
 });
 
 test('limita candidatos por linha e ignora token gigante', () => {
@@ -105,6 +110,38 @@ test('dev:resolve-path: arquivo e pasta existentes dentro da pasta aberta; inexi
   assert.deepStrictEqual(await resolve('b.txt', fora, raiz), { path: path.join(raiz, 'b.txt'), isDir: false }, 'cwd fora da pasta aberta é ignorado, vale a raiz');
   assert.strictEqual(await resolve('b.txt', fora, fora), null, 'raiz e cwd fora das pastas abertas');
   for (const ruim of [null, undefined, 42, '', 'a/b\u0000.txt']) assert.strictEqual(await resolve(ruim, raiz, raiz), null);
+});
+
+test('dev:resolve-path: junção dentro da pasta aberta apontando para fora não vira link (arquivo nem pasta)', async () => {
+  const raiz = pasta(), fora = pasta();
+  fs.mkdirSync(path.join(fora, 'sub'));
+  fs.writeFileSync(path.join(fora, 'segredo.txt'), 'SEGREDO');
+  fs.symlinkSync(fora, path.join(raiz, 'jun'), 'junction');
+  fs.writeFileSync(path.join(raiz, 'ok.txt'), 'x');
+  fs.mkdirSync(path.join(raiz, 'real'));
+  fs.symlinkSync(path.join(raiz, 'real'), path.join(raiz, 'interna'), 'junction'); // junção que fica dentro: continua valendo
+  fs.writeFileSync(path.join(raiz, 'real', 'i.txt'), 'x');
+  const resolve = montar(raiz);
+  assert.strictEqual(await resolve('jun/segredo.txt', raiz, raiz), null);
+  assert.strictEqual(await resolve('jun/', raiz, raiz), null);
+  assert.strictEqual(await resolve('jun/sub/', raiz, raiz), null);
+  assert.strictEqual(await resolve(path.join(raiz, 'jun', 'segredo.txt'), raiz, raiz), null);
+  assert.deepStrictEqual(await resolve('ok.txt', raiz, raiz), { path: path.join(raiz, 'ok.txt'), isDir: false });
+  assert.deepStrictEqual(await resolve('interna/i.txt', raiz, raiz), { path: path.join(raiz, 'interna', 'i.txt'), isDir: false });
+});
+
+test('dev:resolve-path: stat lento passa do tempo limite e não vira link nem trava', async () => {
+  const raiz = pasta();
+  fs.writeFileSync(path.join(raiz, 'a.txt'), 'x');
+  const resolve = montar(raiz, { statTimeoutMs: 40 });
+  const orig = fs.promises.stat;
+  fs.promises.stat = alvo => new Promise(r => setTimeout(() => r(orig(alvo)), 400));
+  try {
+    const t0 = Date.now();
+    assert.strictEqual(await resolve('a.txt', raiz, raiz), null);
+    assert.ok(Date.now() - t0 < 300, 'respondeu no tempo limite, sem esperar o stat');
+  } finally { fs.promises.stat = orig; }
+  assert.deepStrictEqual(await resolve('a.txt', raiz, raiz), { path: path.join(raiz, 'a.txt'), isDir: false });
 });
 
 test('dev:resolve-path: caminho Linux /mnt/<letra>/ vira o arquivo do Windows', { skip: process.platform !== 'win32' }, async () => {

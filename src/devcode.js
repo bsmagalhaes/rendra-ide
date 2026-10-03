@@ -153,6 +153,7 @@ function registerDevCode({ ipcMain, dialog, store, getWindow, deps = {} }) {
     }
     return false;
   };
+  const inside0 = (p, r) => { const a = norm(path.resolve(p)), b = norm(path.resolve(r)); return a === b || a.startsWith(b.endsWith(path.sep) ? b : b + path.sep); };
   const guard = p => {
     if (!inside(p)) throw new Error('Caminho fora das pastas abertas');
     return path.resolve(p);
@@ -268,10 +269,22 @@ function registerDevCode({ ipcMain, dialog, store, getWindow, deps = {} }) {
   // abertas (a mesma regra do guard). Só lê metadados com tempo limite (um WSL parado não trava nada) e
   // nunca abre nem executa: o renderer abre o resultado no editor ou revela a pasta na árvore.
   const STAT_TIMEOUT_MS = 1500;
-  const statComLimite = alvo => Promise.race([
-    fs.promises.stat(alvo).then(st => ({ isDir: st.isDirectory(), isFile: st.isFile() }), () => null),
-    new Promise(r => setTimeout(() => r(null), deps.statTimeoutMs || STAT_TIMEOUT_MS)),
-  ]);
+  const comLimite = p => Promise.race([p, new Promise(r => setTimeout(() => r(null), deps.statTimeoutMs || STAT_TIMEOUT_MS))]);
+  // stat + realpath: o caminho REAL (depois de junção/symlink) também tem de estar dentro das pastas abertas.
+  const statComLimite = alvo => comLimite((async () => {
+    try {
+      const st = await fs.promises.stat(alvo);
+      const real = await fs.promises.realpath(alvo);
+      let dentro = inside(real);
+      if (!dentro) { // a própria pasta aberta pode ser um link (ou ter nome curto 8.3): compara com o real dela
+        for (const r of roots) {
+          const rr = await fs.promises.realpath(r).catch(() => null);
+          if (rr && inside0(real, rr)) { dentro = true; break; }
+        }
+      }
+      return dentro ? { isDir: st.isDirectory(), isFile: st.isFile() } : null;
+    } catch { return null; }
+  })());
   ipcMain.handle('dev:resolve-path', async (_e, { texto, cwd, root } = {}) => {
     try {
       const bases = [cwd, root].map(b => (typeof b === 'string' && b && inside(b) ? path.resolve(b) : null));

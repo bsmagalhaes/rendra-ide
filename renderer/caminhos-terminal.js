@@ -25,6 +25,9 @@
       const suf = /^(.*[^:\d]):(\d{1,7})(?::(\d{1,7}))?$/.exec(tok);
       if (suf) { caminho = suf[1]; linha = Number(suf[2]); coluna = suf[3] ? Number(suf[3]) : null; }
       if (!/[\\/]/.test(caminho) || !/[A-Za-z]/.test(caminho)) continue;
+      if (/^[A-Za-z]:/.test(caminho) ? caminho.slice(2).includes(':') : caminho.includes(':')) continue; // ":" só na unidade e no sufixo :linha (a.txt:Zone.Identifier, git@host:x não)
+      const primeiro = caminho.split(/[\\/]/)[0];
+      if (primeiro.includes('@') || /^www\./i.test(primeiro)) continue; // a@b.com/x, user@host:/x, www.exemplo.com/x: endereço, não arquivo
       const separadores = (caminho.match(/[\\/]/g) || []).length;
       const ultimo = caminho.split(/[\\/]/).pop();
       let ok;
