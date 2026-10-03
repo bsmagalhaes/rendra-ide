@@ -59,7 +59,33 @@
     return { visivel: true, itens, tooltip: linhas.join('\n') };
   }
 
-  const api = { nivelDe, formatarPercentual, estadoConsumo };
+  // ── Seletor de provedor + ambiente ────────────────────────────────────────
+  // entradas: lista do canal provider:snapshot ({ id, provedor, ambiente, conta, limits }). Uma
+  // opção existe quando o ambiente tem conta OU limites (sem login, com a statusline, a barra
+  // continua mostrando os limites). O id é estável (claude:local, codex:wsl:<distro>) e nunca
+  // depende do rótulo; a escolha lembrada é só lida aqui: quem grava é o chamador, quando o
+  // usuário troca no seletor (uma opção que some numa rodada não apaga a escolha).
+  const NOME_PROVEDOR = { claude: 'Claude', codex: 'Codex' };
+  const ORDEM_PROVEDOR = { claude: 0, codex: 1 };
+  const ehLocal = id => !String(id).includes(':wsl:');
+
+  function opcoesSeletor(entradas, lembrada) {
+    const opcoes = (Array.isArray(entradas) ? entradas : [])
+      .filter(e => e && e.id && NOME_PROVEDOR[e.provedor] && (e.conta || (Array.isArray(e.limits) && e.limits.length)))
+      .sort((a, b) => (ORDEM_PROVEDOR[a.provedor] - ORDEM_PROVEDOR[b.provedor])
+        || (ehLocal(b.id) - ehLocal(a.id)) || String(a.ambiente).localeCompare(String(b.ambiente)))
+      .map(e => {
+        const rotulo = `${NOME_PROVEDOR[e.provedor]} (${e.ambiente})`;
+        return { id: e.id, rotulo, rotuloCompacto: NOME_PROVEDOR[e.provedor], tooltipAmbiente: rotulo };
+      });
+    const ids = opcoes.map(o => o.id);
+    const selecionada = ids.includes(lembrada) ? lembrada
+      : ids.includes('claude:local') ? 'claude:local'
+      : (ids[0] || null);
+    return { opcoes, selecionada, mostrarSeletor: opcoes.length >= 2 };
+  }
+
+  const api = { nivelDe, formatarPercentual, estadoConsumo, opcoesSeletor };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RendraConsumo = api;
 })(typeof window !== 'undefined' ? window : this);

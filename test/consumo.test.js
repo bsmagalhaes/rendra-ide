@@ -124,3 +124,65 @@ test('só o primeiro de cada tipo conta; limite por modelo e gasto ficam de fora
   }, AGORA, deps);
   assert.deepStrictEqual(e.itens.map(i => i.texto), ['10%', '20%']);
 });
+
+// ── Seletor de provedor + ambiente ──────────────────────────────────────────
+const { opcoesSeletor } = require('../renderer/consumo');
+const conta = org => ({ organization: org, name: 'Ana', email: 'ana@exemplo.test' });
+const entrada = (id, provedor, ambiente, c = conta('Org'), limits = null) => ({ id, provedor, ambiente, conta: c, limits });
+const CWIN = entrada('claude:local', 'claude', 'Windows');
+const CUBU = entrada('claude:wsl:Ubuntu-24.04', 'claude', 'Ubuntu-24.04');
+const XUBU = entrada('codex:wsl:Ubuntu-24.04', 'codex', 'Ubuntu-24.04');
+const XWIN = entrada('codex:local', 'codex', 'Windows');
+
+test('seletor: só o Claude do Windows gera uma opção e o seletor não aparece', () => {
+  const r = opcoesSeletor([CWIN], null);
+  assert.deepStrictEqual(r.opcoes.map(o => o.rotulo), ['Claude (Windows)']);
+  assert.strictEqual(r.mostrarSeletor, false);
+  assert.strictEqual(r.selecionada, 'claude:local');
+});
+
+test('seletor: três combinações geram os rótulos exatos, em ordem estável, com rótulo compacto e ambiente no tooltip', () => {
+  const embaralhado = [XUBU, CUBU, CWIN];
+  const r = opcoesSeletor(embaralhado, null);
+  assert.deepStrictEqual(r.opcoes.map(o => o.rotulo), ['Claude (Windows)', 'Claude (Ubuntu-24.04)', 'Codex (Ubuntu-24.04)']);
+  assert.deepStrictEqual(r.opcoes.map(o => o.rotuloCompacto), ['Claude', 'Claude', 'Codex']);
+  assert.deepStrictEqual(r.opcoes.map(o => o.tooltipAmbiente), ['Claude (Windows)', 'Claude (Ubuntu-24.04)', 'Codex (Ubuntu-24.04)']);
+  assert.deepStrictEqual(r.opcoes.map(o => o.id), ['claude:local', 'claude:wsl:Ubuntu-24.04', 'codex:wsl:Ubuntu-24.04']);
+  assert.strictEqual(r.mostrarSeletor, true);
+  assert.deepStrictEqual(opcoesSeletor([XUBU, XWIN, CWIN, CUBU], null).opcoes.map(o => o.id),
+    ['claude:local', 'claude:wsl:Ubuntu-24.04', 'codex:local', 'codex:wsl:Ubuntu-24.04'], 'local antes das distros, Claude antes do Codex');
+});
+
+test('seletor: o id da opção não depende do rótulo', () => {
+  const r = opcoesSeletor([entrada('claude:local', 'claude', 'macOS')], null);
+  assert.strictEqual(r.opcoes[0].rotulo, 'Claude (macOS)');
+  assert.strictEqual(r.opcoes[0].id, 'claude:local');
+});
+
+test('seletor: a escolha lembrada vale se ainda existe; se não existe, cai no Claude local', () => {
+  assert.strictEqual(opcoesSeletor([CWIN, XUBU], 'codex:wsl:Ubuntu-24.04').selecionada, 'codex:wsl:Ubuntu-24.04');
+  assert.strictEqual(opcoesSeletor([CWIN, XUBU], 'codex:wsl:Sumiu').selecionada, 'claude:local');
+});
+
+test('seletor: sem Claude local e sem lembrada cai na primeira opção; sem opções, null', () => {
+  assert.strictEqual(opcoesSeletor([XUBU, CUBU], null).selecionada, 'claude:wsl:Ubuntu-24.04');
+  const vazio = opcoesSeletor([], 'claude:local');
+  assert.strictEqual(vazio.selecionada, null);
+  assert.deepStrictEqual(vazio.opcoes, []);
+  assert.strictEqual(vazio.mostrarSeletor, false);
+});
+
+test('seletor: ambiente sem conta e sem limites não aparece; com limites e sem conta aparece (modo api, sem login)', () => {
+  const semNada = entrada('codex:local', 'codex', 'Windows', null, null);
+  assert.deepStrictEqual(opcoesSeletor([CWIN, semNada], null).opcoes.map(o => o.id), ['claude:local']);
+  const soLimites = entrada('claude:local', 'claude', 'Windows', null, [{ kind: 'session', percent: 42 }]);
+  assert.deepStrictEqual(opcoesSeletor([soLimites], null).opcoes.map(o => o.id), ['claude:local']);
+  assert.deepStrictEqual(opcoesSeletor([entrada('claude:local', 'claude', 'Windows', null, [])], null).opcoes, []);
+});
+
+test('seletor: opção lembrada some numa rodada (queda do ambiente) e volta na seguinte: a escolha não é perdida', () => {
+  const lembrada = 'codex:wsl:Ubuntu-24.04';
+  assert.strictEqual(opcoesSeletor([CWIN, XUBU], lembrada).selecionada, lembrada);
+  assert.strictEqual(opcoesSeletor([CWIN], lembrada).selecionada, 'claude:local', 'ambiente fora: usa o padrão');
+  assert.strictEqual(opcoesSeletor([CWIN, XUBU], lembrada).selecionada, lembrada, 'ambiente de volta: a mesma lembrada vale de novo');
+});
