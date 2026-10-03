@@ -1,6 +1,6 @@
 # Novidades
 
-## Próxima versão
+## 1.5.0 · 03/10/2026
 ### Conversas do terminal
 - Ao abrir um terminal numa pasta, a IDE mostra as 10 conversas mais recentes do Claude Code e do Codex daquela pasta, da mais nova para a mais antiga, com o ícone do provedor, o título (o nome salvo ou o começo da conversa) e a data. Clicar numa delas retoma a conversa ali mesmo. "Ver todas" lista as demais.
 - Abaixo da lista, "Nova conversa no Claude" e "Nova conversa no Codex" iniciam uma conversa nova, e "Só o terminal" (ou Esc) deixa o terminal puro. Só aparecem os provedores que respondem no sistema daquele terminal (Windows ou a distro do WSL); sem nenhum deles, o terminal abre direto, como antes.

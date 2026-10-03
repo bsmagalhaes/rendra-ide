@@ -1,4 +1,4 @@
-/*! Rendra IDE v1.4.0 | MIT | © 2026 Bruno Magalhaes | brunomagalhaes.me */
+/*! Rendra IDE v1.5.0 | MIT | © 2026 Bruno Magalhaes | brunomagalhaes.me */
 // Rendra IDE renderer — UI logic, routing, chart rendering
 
 const tm = window.rendra;
