@@ -1329,10 +1329,11 @@
       }
       if (ev.ctrlKey && !ev.altKey && !ev.metaKey) {
         ev.preventDefault();
+        // erro no canal da imagem nunca bloqueia a colagem de texto
         dev.clipboardHasImage().then(hasImage => {
           if (hasImage) dev.ptyWrite(t.id, '\x16'); // raw Ctrl+V: the CLI grabs the image
           else pasteText();
-        });
+        }).catch(() => pasteText());
         return false;
       }
       return true; // Cmd+V on macOS: normal paste

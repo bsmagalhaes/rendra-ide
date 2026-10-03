@@ -15,6 +15,7 @@ const { ambienteDoTerminal } = require('../renderer/sessoes-escolha');
 const { validarNome } = require('../renderer/novo-item');
 const { ambientePty } = require('./terminal-env');
 const { candidatosDoCaminho } = require('./caminho-terminal');
+const { temImagem } = require('./clip-imagem');
 
 const IS_WIN = process.platform === 'win32';
 const IS_MAC = process.platform === 'darwin';
@@ -438,7 +439,7 @@ function registerDevCode({ ipcMain, dialog, store, getWindow, deps = {} }) {
   // Lets the terminal tell an image paste (forward the key to the CLI) from a text paste
   ipcMain.handle('clip:has-image', () => {
     const { clipboard } = require('electron');
-    return clipboard.availableFormats().some(f => f.startsWith('image/'));
+    return temImagem(clipboard);
   });
 
   ipcMain.handle('pty:create', async (_e, { cols, rows, cwd, shell: shellKey } = {}) => {
