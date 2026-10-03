@@ -1041,6 +1041,26 @@
       + `<span class="term-agentes-tit">${esc(s.titulo)}</span><span class="term-agentes-data">${esc(SG.dataBr(s.quando))}</span></button></li>`).join('');
   }
 
+  // Escrita no pty só depois do primeiro prompt: o texto escrito antes dele pode se perder no ConPTY, e na
+  // distro o .bashrc ainda pode estar rodando. Vale o que vier primeiro: o prompt na saída recente do pty
+  // (fimDePrompt) ou o tempo limite. Dispara uma única vez; prompt já na tela escreve na hora.
+  const ESPERA_PROMPT_MS = 8000;
+  function escreverQuandoPronto(t, comando, aoEscrever) {
+    let feito = false;
+    let timer = null;
+    const dispara = () => {
+      if (feito) return;
+      feito = true;
+      clearTimeout(timer);
+      t.aguardando = null;
+      if (t.alive) dev.ptyWrite(t.id, comando);
+      aoEscrever();
+    };
+    t.aguardando = { dispara, cancela: () => { feito = true; clearTimeout(timer); t.aguardando = null; } };
+    timer = setTimeout(dispara, ESPERA_PROMPT_MS);
+    if (window.RendraSessoesEscolha.fimDePrompt(t.recente)) dispara();
+  }
+
   function montarSeletor(ws, t, shell, r) {
     const SG = window.RendraSessoesEscolha;
     const opcoes = SG.opcoesNovaSessao(r.provedores);
@@ -1057,6 +1077,7 @@
     </div>`;
     t.pane.appendChild(el);
     const fechar = () => {
+      t.aguardando?.cancela();
       el.remove();
       t.painel = null;
       if (t.alive) t.term.focus();
@@ -1066,9 +1087,30 @@
       e.stopPropagation(); // as teclas ficam no painel, não vão ao shell
       if (e.key === 'Escape') { e.preventDefault(); fechar(); }
     });
+    // o comando só chega ao shell pelas funções fixas de RendraSessoesEscolha (id uuid validado, ou "claude"/"codex")
+    const iniciar = comando => {
+      if (t.aguardando) return;
+      el.classList.add('ocupado');
+      el.querySelectorAll('button').forEach(b => { b.disabled = true; });
+      escreverQuandoPronto(t, comando, fechar);
+    };
     el.addEventListener('click', async e => {
       const nova = e.target.closest('button[data-nova]');
       if (nova && nova.dataset.nova === 'terminal') { fechar(); return; }
+      if (nova) {
+        let comando;
+        try { comando = SG.comandoNovo(nova.dataset.nova); } catch { return; }
+        iniciar(comando);
+        return;
+      }
+      const item = e.target.closest('button.term-agentes-item');
+      if (item) {
+        const s = sessoes[+item.dataset.i];
+        let comando;
+        try { comando = SG.comandoRetomar(s && s.provedor, s && s.id); } catch { toast('Conversa inválida'); return; }
+        iniciar(comando);
+        return;
+      }
       const todas = e.target.closest('button[data-act="todas"]');
       if (todas) {
         todas.disabled = true;
@@ -1228,7 +1270,7 @@
       },
     });
     term.open(body);
-    const t = { id: null, term, fit, pane, tab, body, alive: false, name: '' };
+    const t = { id: null, term, fit, pane, tab, body, alive: false, name: '', recente: '', digitou: false, painel: null, aguardando: null };
     // clicking the tab (outside its buttons) focuses that terminal
     tab.addEventListener('mousedown', e => { if (!e.target.closest('button, input')) { e.preventDefault(); term.focus(); } });
     ws.terms.push(t);
@@ -1392,7 +1434,15 @@
     layoutTerminals(ws);
   }
 
-  dev.onPtyData(({ id, data }) => ptyOwner.get(id)?.t.term.write(data));
+  dev.onPtyData(({ id, data }) => {
+    const owner = ptyOwner.get(id);
+    if (!owner) return;
+    const t = owner.t;
+    t.term.write(data);
+    // janela curta da saída crua (2 KB) para achar o prompt, desde o primeiro dado
+    t.recente = ((t.recente || '') + data).slice(-2048);
+    if (t.aguardando && window.RendraSessoesEscolha.fimDePrompt(t.recente)) t.aguardando.dispara();
+  });
   dev.onPtyExit(({ id, exitCode }) => {
     const owner = ptyOwner.get(id);
     if (!owner) return;
