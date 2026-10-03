@@ -157,3 +157,31 @@ test('criarCtrlC: depois de cancelar, um toque começa ciclo novo', t => {
   t.mock.timers.tick(1000);
   assert.deepStrictEqual(chamadas, ['colar']);
 });
+
+// ── guarda da colagem agendada ──────────────────────────────────────────────────────────────────────────
+const { podeColarDeCtrlC } = require('../renderer/terminal-keys');
+
+test('podeColarDeCtrlC: só com o terminal vivo, sem painel e sem modal aberto', () => {
+  assert.strictEqual(podeColarDeCtrlC({ vivo: true, painel: false, modalAberto: false }), true);
+  assert.strictEqual(podeColarDeCtrlC({ vivo: true, painel: false, modalAberto: true }), false);
+  assert.strictEqual(podeColarDeCtrlC({ vivo: true, painel: true, modalAberto: false }), false);
+  assert.strictEqual(podeColarDeCtrlC({ vivo: false, painel: false, modalAberto: false }), false);
+});
+
+test('1 toque e um modal abre dentro do segundo: ao colar o estado é consultado de novo e nada é colado', () => {
+  let modal = false, timer = null, colou = 0, t = 0;
+  const c = criarCtrlC({
+    agora: () => t,
+    setTimeout: fn => { timer = fn; return 1; }, clearTimeout: () => { timer = null; },
+    aoColar: () => { if (podeColarDeCtrlC({ vivo: true, painel: false, modalAberto: modal })) colou++; },
+  });
+  c.tocar();
+  modal = true; // o overlay "Abrir link?" abriu
+  t = 1000; timer();
+  assert.strictEqual(colou, 0);
+  // sem modal o mesmo caminho cola
+  modal = false; t = 5000;
+  c.tocar();
+  t = 6000; timer();
+  assert.strictEqual(colou, 1);
+});

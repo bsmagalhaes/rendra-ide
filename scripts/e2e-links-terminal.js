@@ -58,6 +58,12 @@ async function alvos(porta, tipo) {
   const electron = require(path.join(ROOT, 'node_modules', 'electron'));
   const env = { ...process.env, RENDRA_E2E_HIDDEN: '1', RENDRA_DATA_DIR: sb.data, RENDRA_HOME: sb.home, CODEX_HOME: path.join(sb.home, '.codex') };
   delete env.ELECTRON_RUN_AS_NODE;
+  // PATH sem as pastas que têm um claude/codex de verdade: o terminal novo abre direto no shell, sem o painel de conversas
+  // (o isolamento que o e2e do seletor já faz); o PowerShell continua achado pelo resto do PATH
+  const reais = n => [n, n + '.exe', n + '.cmd', n + '.bat'];
+  const PATH = (process.env.Path || process.env.PATH || '').split(path.delimiter).filter(d => d && !['claude', 'codex'].some(n => reais(n).some(f => fs.existsSync(path.join(d, f))))).join(path.delimiter);
+  for (const k of Object.keys(env)) if (/^path$/i.test(k)) delete env[k];
+  env[process.platform === 'win32' ? 'Path' : 'PATH'] = PATH;
   const proc = spawn(electron, [ROOT, `--remote-debugging-port=${porta}`, `--inspect=${portaMain}`], { cwd: ROOT, env, stdio: 'ignore' });
   console.log(`electron pid ${proc.pid}`);
   let pagina, main;

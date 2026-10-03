@@ -25,6 +25,20 @@
 
   const novoEstado = () => ({ toques: 0, t0: 0 });
 
+  // A colagem que o 1 toque agendou só acontece com o terminal vivo, sem painel de conversas e sem janela modal ou menu
+  // aberto (o overlay "Abrir link?" pode abrir dentro do segundo de espera).
+  function podeColarDeCtrlC({ vivo, painel, modalAberto }) {
+    return !!vivo && !painel && !modalAberto;
+  }
+
+  // A letra lógica da tecla: `ev.key` quando é uma letra latina (vale em Dvorak, Colemak, AZERTY); sem ela (layout
+  // não latino, tecla morta, evento sem key) cai na posição física `ev.code`.
+  function eLetra(ev, letra) {
+    const k = ev.key;
+    if (typeof k === 'string' && /^[a-z]$/i.test(k)) return k.toLowerCase() === letra;
+    return ev.code === `Key${letra.toUpperCase()}`;
+  }
+
   // Avança o relógio: cola quando o único toque completa ESPERA_COLAR; esconde o aviso quando completa JANELA.
   function passar(estado, agora) {
     if (estado.toques === 1 && agora - estado.t0 >= ESPERA_COLAR) return { estado: novoEstado(), efeitos: ['colar'] };
@@ -124,13 +138,13 @@
   //   nativo         Cmd+V no macOS (colagem do browser)
   //   atalho-ide     Ctrl+Shift+T, Ctrl+Tab, Cmd+O... (acao vem de atalhos-ide.js)
   //   deixar         o xterm trata (inclui Control+V e Option no macOS, Alt+Backspace, Ctrl+L, Ctrl+O, PageUp)
-  // contexto: { temSelecao }. As letras vêm de ev.code (posição física da tecla, como sempre).
+  // contexto: { temSelecao }. As letras C e V vêm de ev.key (a letra lógica, certa em Dvorak), com ev.code de reserva.
   function acaoDeTecla(ev, plataforma, shellKey, contexto = {}) {
     const mac = plataforma === 'darwin';
     const { ctrlKey: ctrl, shiftKey: shift, altKey: alt, metaKey: meta } = ev;
     // Ctrl+C em qualquer tipo de evento: se algum caminho deixasse o xterm tratar, o \x03 sairia sem passar
     // pela máquina (tecla segurada, keyup, keypress)
-    if (ev.code === 'KeyC' && ctrl && !shift && !alt && !meta) {
+    if (eLetra(ev, 'c') && ctrl && !shift && !alt && !meta) {
       return { tipo: 'ctrlc', toque: ev.type === 'keydown' && !ev.repeat, selecao: !!contexto.temSelecao };
     }
     if (ev.type !== 'keydown') return { tipo: 'deixar' };
@@ -139,8 +153,8 @@
     const ide = atalhosIde();
     const acao = ide && ide.acaoDeAtalhoIde(ev, plataforma, { foraDoTerminal: false });
     if (acao) return { tipo: 'atalho-ide', acao };
-    if (ev.code === 'KeyC' && ctrl && shift && !alt && !meta) return { tipo: mac ? 'deixar' : 'copiar-selecao' };
-    if (ev.code === 'KeyV') {
+    if (eLetra(ev, 'c') && ctrl && shift && !alt && !meta) return { tipo: mac ? 'deixar' : 'copiar-selecao' };
+    if (eLetra(ev, 'v')) {
       if (mac) return { tipo: meta && !ctrl && !alt && !shift ? 'nativo' : 'deixar' };
       if (ctrl && !alt && !meta) return { tipo: 'colar' };
       if (alt && !ctrl && !meta && !shift) return { tipo: 'colar-imagem', bytes: bytesColarImagem(plataforma, shellKey) };
@@ -148,7 +162,7 @@
     return { tipo: 'deixar' };
   }
 
-  const api = { sequenciaDeTecla, ctrlC, criarCtrlC, acaoDeTecla, bytesColarImagem, deveCopiar, decidirColagem };
+  const api = { podeColarDeCtrlC, eLetra, sequenciaDeTecla, ctrlC, criarCtrlC, acaoDeTecla, bytesColarImagem, deveCopiar, decidirColagem };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RendraTermKeys = api;
 })(typeof window !== 'undefined' ? window : this);

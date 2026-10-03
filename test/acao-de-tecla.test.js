@@ -158,3 +158,23 @@ test('bytesColarImagem: Linux e macOS enviam Ctrl+V; WSL também (o Claude liga 
   }
   assert.strictEqual(bytesColarImagem('win32', 'wsl'), '\x16');
 });
+
+// ── Layouts: a letra lógica manda (Dvorak, Colemak), a posição física é só reserva ───────────────────────────
+test('Dvorak: a tecla física KeyJ gera "c" e conta como Ctrl+C; a física KeyC gera "j" e não conta', () => {
+  for (const p of ['win32', 'darwin', 'linux']) {
+    assert.deepStrictEqual(acaoDeTecla(ev('KeyJ', ['ctrl'], { key: 'c' }), p), { tipo: 'ctrlc', toque: true, selecao: false });
+    assert.strictEqual(tipo(ev('KeyC', ['ctrl'], { key: 'j' }), p), 'deixar');
+  }
+});
+
+test('Dvorak: Ctrl+Shift+C e Ctrl+V seguem a letra lógica', () => {
+  assert.strictEqual(tipo(ev('KeyJ', ['ctrl', 'shift'], { key: 'C' }), 'linux'), 'copiar-selecao');
+  assert.strictEqual(tipo(ev('KeyDot', ['ctrl'], { key: 'v' }), 'win32'), 'colar');
+  assert.strictEqual(tipo(ev('KeyV', ['ctrl'], { key: 'k' }), 'win32'), 'deixar');
+});
+
+test('sem letra latina em ev.key (layout não latino, tecla morta, evento sem key) vale ev.code', () => {
+  assert.strictEqual(acaoDeTecla(ev('KeyC', ['ctrl'], { key: 'с' }), 'win32').tipo, 'ctrlc');
+  assert.strictEqual(acaoDeTecla(ev('KeyC', ['ctrl'], { key: 'Unidentified' }), 'linux').tipo, 'ctrlc');
+  assert.strictEqual(acaoDeTecla(ev('KeyC', ['ctrl'], { key: undefined }), 'linux').tipo, 'ctrlc');
+});

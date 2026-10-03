@@ -34,7 +34,7 @@
     </article>`;
   }
 
-  function secao(b, c) {
+  function secao(b) {
     const notas = (b.notas || []).map(n => `<p class="cmd-nota cmd-nota-bloco">${esc(n)}</p>`).join('');
     const cartoes = b.itens.map(i => (b.id === 'agente' ? cartaoDeComando(i) : cartaoDeAtalho(i))).join('');
     return `<section class="cmd-secao" aria-labelledby="cmd-h-${b.id}">
@@ -59,7 +59,7 @@
           ${C.AGENTES.map(a => botao('agente', a, C.NOME_AGENTE[a])).join('')}
         </div>
       </div>
-      ${c.blocos.map(b => secao(b, c)).join('')}`;
+      ${c.blocos.map(secao).join('')}`;
   }
 
   function open() {

@@ -76,6 +76,7 @@ async function abrir(sb) {
   delete env.ELECTRON_RUN_AS_NODE;
   const proc = spawn(electron, [ROOT, `--remote-debugging-port=${porta}`, `--inspect=${portaMain}`], { cwd: ROOT, env, stdio: 'ignore' });
   console.log(`  electron pid ${proc.pid}`);
+  sb.proc = proc; // se abrir() falhar, o executor ainda encerra este processo (e só ele)
   const app = { proc, porta };
   const tMain = await alvo(portaMain);
   if (!tMain) throw new Error('inspector do main inacessível');
@@ -88,6 +89,22 @@ async function abrir(sb) {
     if (pronto) break;
     await sleep(300);
   }
+  // Isolamento do dono: a área de transferência real é guardada agora e devolvida em fechar(); e o terminal WSL nunca lê
+  // o ~/.bashrc do dono (que abre sessões tmux): o spawn do wsl.exe ganha `-e bash --noprofile --norc -i`.
+  await mev(`(async () => {
+    const { clipboard } = ${REQ}('electron');
+    globalThis.__areaOriginal = [];
+    for (const item of await clipboard.read()) { const tipos = {}; for (const t of item.types) tipos[t] = Buffer.from(await (await item.getType(t)).arrayBuffer()); globalThis.__areaOriginal.push(tipos); }
+    const pty = ${REQ}(${JSON.stringify(path.join(ROOT, 'node_modules', '@lydell', 'node-pty'))}); const spawnOriginal = pty.spawn;
+    pty.spawn = (file, args, opts) => spawnOriginal.call(pty, file, /wsl(\\.exe)?$/i.test(String(file)) ? [...args, '-e', 'bash', '--noprofile', '--norc', '-i'] : args, opts);
+    return true;
+  })()`);
+  app.restauraArea = () => mev(`(async () => {
+    const { clipboard, ClipboardItem } = ${REQ}('electron'); const o = globalThis.__areaOriginal; if (!o) return false;
+    clipboard.clear();
+    if (o.length) await clipboard.write(o.map(tipos => new ClipboardItem(Object.fromEntries(Object.entries(tipos).map(([t, buf]) => [t, new Blob([buf], { type: t })])))));
+    return true;
+  })()`);
   // espia pty:write (bytes entregues ao programa) e dev:open-folder (sem diálogo real: devolve cancelado)
   const r = await mev(`(() => {
     const { ipcMain } = ${REQ}('electron');
@@ -120,6 +137,7 @@ async function abrir(sb) {
   app.areaTextoEImagem = t => mev(`(async () => { const { clipboard, ClipboardItem } = ${REQ}('electron'); clipboard.clear(); await clipboard.write([new ClipboardItem({ 'text/plain': ${JSON.stringify(t)}, 'image/png': new Blob([Buffer.from('${pngBase64(8, 8)}', 'base64')], { type: 'image/png' }) })]); return true; })()`);
   app.lerArea = () => mev(`${REQ}('electron').clipboard.readText()`);
   app.fechar = async () => {
+    try { await app.restauraArea(); } catch { /* o main já caiu */ }
     try { app.pag.ws.close(); app.main.ws.close(); } catch { /* fechado */ }
     try { if (WIN) execFileSync('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { stdio: 'ignore' }); else proc.kill(); } catch { /* já encerrou */ }
     await sleep(1500);
@@ -283,6 +301,29 @@ caso('T4', async app => {
   await sleep(2300);
   // interrompe o laço para deixar o terminal limpo
   await tecla(app, CTRL_C); await sleep(200); await tecla(app, CTRL_C); await sleep(200); await tecla(app, CTRL_C); await sleep(800);
+});
+
+caso('T4m', async app => {
+  console.log('\n[T4m] Ctrl+C de 1 toque: com o overlay "Abrir link?" (ou outro modal) aberto na hora de colar, nada é colado');
+  await novoTerminal(app);
+  await foco(app);
+  const marca = `colado-modal-${Date.now() % 100000}`;
+  await app.areaTexto(marca);
+  await app.zeraEscritas();
+  await tecla(app, CTRL_C);
+  await sleep(300);
+  await app.ev(`document.getElementById('save-overlay').classList.add('visible'); true`); // o modal abre dentro do segundo de espera
+  await sleep(1300);
+  let esc = await app.escritas();
+  afirma(!esc.some(x => x.data.includes(marca)), 'modal aberto: a colagem agendada não foi feita');
+  afirma(!esc.some(x => x.data.includes('\x03')), 'modal aberto: nenhum \x03 chega ao programa');
+  await app.ev(`document.getElementById('save-overlay').classList.remove('visible'); true`);
+  await foco(app);
+  await app.zeraEscritas();
+  await tecla(app, CTRL_C);
+  await sleep(1400);
+  esc = await app.escritas();
+  afirma(esc.some(x => x.data.includes(marca)), 'sem o modal, o mesmo toque cola como sempre');
 });
 
 caso('T4p', async app => {
@@ -544,6 +585,28 @@ caso('T7', async app => {
   const altV = { key: 'v', code: 'KeyV', vk: 86, mods: ['alt'] };
   const bytesDoAltV = async () => { await app.zeraEscritas(); await tecla(app, altV); await sleep(500); return (await app.escritas()).map(x => x.data).filter(d => d === '\x1bv' || d === '\x16'); };
   await app.areaImagem();
+  // Print real do Windows (Win+Shift+S) é bitmap (CF_BITMAP/DIB), não PNG: o PowerShell/.NET grava esse formato a partir de
+  // uma imagem gerada no sandbox. A área de transferência original volta em app.fechar().
+  if (WIN) {
+    const arq = path.join(os.tmpdir(), `rendra-e2e-bitmap-${process.pid}.png`);
+    fs.writeFileSync(arq, Buffer.from(pngBase64(8, 8), 'base64'));
+    try {
+      const formatos = execFileSync('powershell.exe', ['-NoProfile', '-STA', '-Command', `Add-Type -AssemblyName System.Windows.Forms,System.Drawing; $i=[System.Drawing.Image]::FromFile('${arq}'); $b=New-Object System.Drawing.Bitmap($i); $d=New-Object System.Windows.Forms.DataObject; $d.SetImage($b); [System.Windows.Forms.Clipboard]::SetDataObject($d,$true); ([System.Windows.Forms.Clipboard]::GetDataObject().GetFormats() -join ',')`], { encoding: 'utf8' }).trim();
+      console.log(`  formatos gravados (bitmap do Windows): ${formatos}`);
+      afirma(/Bitmap|DeviceIndependentBitmap/.test(formatos) && !/(^|,)PNG(,|$)/.test(formatos), 'a área de transferência tem só bitmap (sem o formato PNG), como num print do Windows');
+      await novoTerminal(app, { shell: 'powershell' });
+      await foco(app);
+      await app.zeraEscritas();
+      await tecla(app, CTRL_V);
+      await sleep(700);
+      afirma((await dadosEscritos(app)).includes('\x16'), 'Ctrl+V com só um bitmap do Windows reconhece a imagem e entrega \\x16 ao programa');
+      await app.zeraEscritas();
+      await tecla(app, altV);
+      await sleep(500);
+      afirma((await app.escritas()).some(x => x.data === '\x1bv'), 'Alt+V com só um bitmap do Windows entrega ESC v');
+    } finally { try { fs.rmSync(arq, { force: true }); } catch { /* em uso */ } }
+    await app.areaImagem();
+  }
   for (const shell of ['powershell', 'gitbash']) {
     try { await novoTerminal(app, { shell }); } catch (e) { pula('T7', `${shell} indisponível (${e.message})`); continue; }
     await foco(app);
@@ -624,6 +687,12 @@ caso('T12', async app => {
   const v = await app.ev(`document.getElementById('comandos-versoes').textContent`);
   afirma(v === 'Conferido nas versões Claude Code 2.1.287 e Codex 0.157.1', `subtítulo com as versões conferidas (${v})`);
 
+  // folga do rótulo de cada item da barra (o Comandos encostava na borda); medida pelo texto, não pelo botão
+  const folgas = await app.ev(`[...document.querySelectorAll('#activity-bar .nav-tab:not([hidden])')].map(b => { const sp = b.querySelector('span'); const r = document.createRange(); r.selectNodeContents(sp); const t = r.getBoundingClientRect(), a = b.getBoundingClientRect(); return { pagina: b.dataset.page || b.id, esq: Math.round((t.left - a.left) * 10) / 10, dir: Math.round((a.right - t.right) * 10) / 10 }; })`);
+  console.log('  folgas do rótulo (esq/dir, px): ' + folgas.map(f => f.pagina + ' ' + f.esq + '/' + f.dir).join(', '));
+  const cmd = folgas.find(f => f.pagina === 'comandos'), term = folgas.find(f => f.pagina === 'terminal');
+  afirma(cmd.esq >= term.esq - 0.2 && cmd.dir >= term.dir - 0.2 && Math.abs(cmd.esq - cmd.dir) < 0.5, 'o rótulo COMANDOS tem folga igual dos dois lados e ao menos a do item mais apertado (Terminal)');
+
   // rodapé da barra: Comandos, Novidades e Sobre juntos, no fundo, sem flutuar no meio; com e sem o botão Nova versão
   const rodape = () => app.ev(`(() => { const r = s => { const b = document.querySelector(s).getBoundingClientRect(); return { top: Math.round(b.top), bottom: Math.round(b.bottom) }; }; const nav = document.getElementById('activity-bar').getBoundingClientRect(); const u = document.getElementById('nav-update'); return { cmd: r('.nav-tab[data-page="comandos"]'), nov: r('.nav-tab[data-page="novidades"]'), sobre: r('.nav-tab[data-page="sobre"]'), precos: r('.nav-tab[data-page="precos"]'), navBottom: Math.round(nav.bottom), update: u.hidden ? null : { top: Math.round(u.getBoundingClientRect().top), bottom: Math.round(u.getBoundingClientRect().bottom) } }; })()`);
   let g = await rodape();
@@ -690,6 +759,7 @@ caso('T12', async app => {
       afirma(false, `${c.nome} lançou: ${e.stack || e.message}`);
     } finally {
       if (app) await app.fechar();
+      else if (sb.proc) { try { if (WIN) execFileSync('taskkill', ['/PID', String(sb.proc.pid), '/T', '/F'], { stdio: 'ignore' }); else sb.proc.kill(); } catch { /* já encerrou */ } }
       sb.limpa();
     }
   }

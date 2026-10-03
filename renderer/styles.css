@@ -984,6 +984,8 @@ body.dev-mode #page-terminal.active { display: flex; flex-direction: column; hei
 /* ── PÁGINA COMANDOS ── */
 /* só o primeiro item do rodapé da barra leva o margin-top: auto (Comandos); Novidades e Sobre vêm logo abaixo, sem flutuar */
 .nav-tab-bottom ~ .nav-tab-bottom { margin-top: 0; }
+/* "COMANDOS" tem 8 letras e no tamanho dos outros rótulos encostava nas bordas da barra de 58 px: fonte e espaçamento menores só nele */
+.nav-tab[data-page="comandos"] span { font-size: 8px; letter-spacing: 0.02em; }
 .cmd-body { width: 100%; padding-bottom: 24px; font-family: var(--ui-font); }
 .cmd-controles { display: flex; flex-wrap: wrap; gap: 10px 24px; margin-bottom: 4px; }
 .cmd-grupo { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
@@ -1064,9 +1066,9 @@ body.dev-mode #page-terminal.active { display: flex; flex-direction: column; hei
   background: var(--surface); border: 1px solid var(--border-hi); border-left: 2px solid var(--orange);
   border-radius: var(--radius); padding: 8px 12px; max-width: calc(100% - 24px);
   font-family: var(--ui-font); font-size: 11px; line-height: 1.4; color: var(--text);
-  opacity: 0; pointer-events: none; transition: opacity 0.2s;
+  opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.2s, visibility 0s 0.2s;
 }
-.term-aviso.visible { opacity: 1; }
+.term-aviso.visible { opacity: 1; visibility: visible; transition-delay: 0s; }
 .term-agentes { position: absolute; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; padding: 16px; overflow: auto; background: #171717; font-family: var(--ui-font); }
 .term-agentes-box { width: min(560px, 100%); max-height: 100%; display: flex; flex-direction: column; gap: 8px; }
 .term-agentes h4 { margin: 8px 0 0; font-size: 10.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }

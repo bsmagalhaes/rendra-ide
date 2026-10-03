@@ -44,7 +44,10 @@ test('todo ramo ctrlc devolve false: nenhum caminho deixa o xterm emitir o \\x03
 test('o aviso do Ctrl+C é do terminal, não o toast global, e é anunciado como status', () => {
   const bloco = trecho(devcode, 't.ctrlC = RendraTermKeys.criarCtrlC({', '    });');
   assert.ok(!/toast\(|showToast/.test(bloco), 'o aviso usa o toast global');
-  assert.match(bloco, /aoAvisar: \(\) => \{ aviso\.textContent = 'aperte mais 1 vez para interromper'; aviso\.classList\.add\('visible'\); \}/);
+  assert.match(bloco, /aoAvisar: mostrarAviso,/);
+  assert.match(bloco, /aoEsconder: esconderAviso,/);
+  assert.match(devcode, /aviso\.textContent = '';\s+aviso\.classList\.add\('visible'\);\s+timerAviso = setTimeout\(\(\) => \{ aviso\.textContent = 'aperte mais 1 vez para interromper'; \}, \d+\);/);
+  assert.match(devcode, /const esconderAviso = \(\) => \{ clearTimeout\(timerAviso\); aviso\.classList\.remove\('visible'\); aviso\.textContent = ''; \};/);
   assert.match(devcode, /aviso\.className = 'term-aviso';/);
   assert.match(devcode, /aviso\.setAttribute\('role', 'status'\);/);
   assert.match(devcode, /aviso\.setAttribute\('aria-live', 'polite'\);/);
@@ -131,4 +134,20 @@ test('o clique direito cola pelo term.paste e nunca copia, limpa a seleção ou 
   assert.match(ctx, /ev\.preventDefault\(\);/);
   assert.match(ctx, /pasteText\(\)/);
   assert.ok(!/clearSelection|ptyWrite|writeText|getSelection/.test(ctx), 'o clique direito ainda copia, limpa ou escreve direto');
+});
+
+test('o aviso escondido sai da árvore de acessibilidade (visibility) e só aparece com .visible', () => {
+  const regra = css.match(/\.term-aviso \{[^}]*\}/)[0];
+  assert.match(regra, /visibility:\s*hidden/);
+  assert.match(css, /\.term-aviso\.visible \{[^}]*visibility:\s*visible/);
+});
+
+test('a colagem agendada pelo Ctrl+C passa pela guarda de modal (podeColarDeCtrlC) com o estado do momento de colar', () => {
+  const bloco = trecho(devcode, 't.ctrlC = RendraTermKeys.criarCtrlC({', '    });');
+  assert.match(bloco, /aoColar: \(\) => \{ if \(RendraTermKeys\.podeColarDeCtrlC\(\{ vivo: t\.alive, painel: t\.painel, modalAberto: modalAberto\(\) \}\)\) pasteText\(\)/);
+});
+
+test('o #toast é uma região viva (role=status) para o leitor de tela anunciar "Copiado"', () => {
+  const html = ler('renderer/index.html');
+  assert.match(html, /<div id="toast" class="toast" role="status" aria-live="polite"><\/div>/);
 });

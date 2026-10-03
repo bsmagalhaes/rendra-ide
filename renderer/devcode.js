@@ -1334,10 +1334,20 @@
     aviso.setAttribute('role', 'status');
     aviso.setAttribute('aria-live', 'polite');
     pane.appendChild(aviso);
+    // O leitor de tela só reanuncia uma região viva quando o texto muda: ao avisar, limpa e reescreve; ao sumir, tira o
+    // texto e o aviso sai da árvore de acessibilidade (visibility no CSS).
+    let timerAviso = null;
+    const mostrarAviso = () => {
+      clearTimeout(timerAviso);
+      aviso.textContent = '';
+      aviso.classList.add('visible');
+      timerAviso = setTimeout(() => { aviso.textContent = 'aperte mais 1 vez para interromper'; }, 60);
+    };
+    const esconderAviso = () => { clearTimeout(timerAviso); aviso.classList.remove('visible'); aviso.textContent = ''; };
     t.ctrlC = RendraTermKeys.criarCtrlC({
-      aoColar: () => { if (podeEscrever()) pasteText().catch(() => { }); },
-      aoAvisar: () => { aviso.textContent = 'aperte mais 1 vez para interromper'; aviso.classList.add('visible'); },
-      aoEsconder: () => aviso.classList.remove('visible'),
+      aoColar: () => { if (RendraTermKeys.podeColarDeCtrlC({ vivo: t.alive, painel: t.painel, modalAberto: modalAberto() })) pasteText().catch(() => { }); },
+      aoAvisar: mostrarAviso,
+      aoEsconder: esconderAviso,
       aoInterromper: () => { if (podeEscrever()) dev.ptyWrite(t.id, '\x03'); },
     });
     // Copiar ao marcar: o realce continua (a seleção não é limpa). Cada arraste dispara vários eventos de seleção,
