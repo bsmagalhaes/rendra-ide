@@ -270,19 +270,20 @@ function registerDevCode({ ipcMain, dialog, store, getWindow, deps = {} }) {
   // nunca abre nem executa: o renderer abre o resultado no editor ou revela a pasta na árvore.
   const STAT_TIMEOUT_MS = 1500;
   const comLimite = p => Promise.race([p, new Promise(r => setTimeout(() => r(null), deps.statTimeoutMs || STAT_TIMEOUT_MS))]);
-  // stat + realpath: o caminho REAL (depois de junção/symlink) também tem de estar dentro das pastas abertas.
+  // realpath: o caminho REAL (depois de junção/symlink) também tem de estar dentro das pastas abertas.
+  const realDentro = async alvo => {
+    const real = await fs.promises.realpath(alvo);
+    if (inside(real)) return true;
+    for (const r of roots) { // a própria pasta aberta pode ser um link (ou ter nome curto 8.3): compara com o real dela
+      const rr = await fs.promises.realpath(r).catch(() => null);
+      if (rr && inside0(real, rr)) return true;
+    }
+    return false;
+  };
   const statComLimite = alvo => comLimite((async () => {
     try {
       const st = await fs.promises.stat(alvo);
-      const real = await fs.promises.realpath(alvo);
-      let dentro = inside(real);
-      if (!dentro) { // a própria pasta aberta pode ser um link (ou ter nome curto 8.3): compara com o real dela
-        for (const r of roots) {
-          const rr = await fs.promises.realpath(r).catch(() => null);
-          if (rr && inside0(real, rr)) { dentro = true; break; }
-        }
-      }
-      return dentro ? { isDir: st.isDirectory(), isFile: st.isFile() } : null;
+      return (await realDentro(alvo)) ? { isDir: st.isDirectory(), isFile: st.isFile() } : null;
     } catch { return null; }
   })());
   ipcMain.handle('dev:resolve-path', async (_e, { texto, cwd, root } = {}) => {
@@ -299,9 +300,10 @@ function registerDevCode({ ipcMain, dialog, store, getWindow, deps = {} }) {
     return null;
   });
 
-  ipcMain.handle('dev:read', (_e, file) => {
+  ipcMain.handle('dev:read', async (_e, file) => {
     try {
       const full = guard(file);
+      if (!(await comLimite(realDentro(full).catch(() => false)))) return { error: 'Caminho fora das pastas abertas' };
       const stat = fs.statSync(full);
       if (stat.size > MAX_FILE_BYTES) return { error: 'Arquivo grande demais para abrir no editor (limite de 5 MB)' };
       const buf = fs.readFileSync(full);

@@ -51,6 +51,11 @@ function navegacaoDoAppPermitida(urlDestino, urlAtual) {
   return typeof urlDestino === 'string' && urlDestino === urlAtual;
 }
 
+// Navegação já concluída que viola "só http(s)" (about:blank). chrome-error: é a página de erro do Chromium (sem conteúdo).
+function deveDesfazer(u) {
+  return typeof u === 'string' && !urlPermitida(u) && !u.startsWith('chrome-error:');
+}
+
 const janelas = new Set();
 
 function criarRendraBrowser(electron, url, { oculta = false } = {}) {
@@ -87,6 +92,17 @@ function criarRendraBrowser(electron, url, { oculta = false } = {}) {
   const bloqueia = (e, u) => { if (!urlPermitida(u)) e.preventDefault(); };
   wc.on('will-navigate', bloqueia);
   wc.on('will-redirect', bloqueia);
+  // about:blank disparado pela página (location.href) não passa pelo will-navigate: depois que acontece, volta para a
+  // entrada anterior do histórico e apaga a entrada em branco; sem entrada anterior permitida, recarrega a inicial.
+  wc.on('did-navigate', (_e, u) => {
+    if (!deveDesfazer(u)) return;
+    const h = wc.navigationHistory, ativo = h.getActiveIndex();
+    const anterior = ativo > 0 ? h.getEntryAtIndex(ativo - 1) : null;
+    if (anterior && urlPermitida(anterior.url)) {
+      h.goToIndex(ativo - 1);
+      wc.once('did-navigate', () => { try { h.removeEntryAtIndex(ativo); } catch { /* sem entrada */ } });
+    } else wc.loadURL(seguro).catch(() => {});
+  });
   wc.on('page-title-updated', e => e.preventDefault()); // o título da janela é sempre a URL
   for (const ev of ['did-navigate', 'did-navigate-in-page', 'did-finish-load', 'did-stop-loading']) wc.on(ev, estado);
 
@@ -113,4 +129,4 @@ function criarRendraBrowser(electron, url, { oculta = false } = {}) {
   return win;
 }
 
-module.exports = { PARTICAO, BARRA_ALTURA, prefsPagina, prefsBarra, opcoesJanela, urlPermitida, decideJanelaFilha, negaPermissao, negaVerificacao, configuraSessao, navegacaoDoAppPermitida, criarRendraBrowser, janelas };
+module.exports = { PARTICAO, BARRA_ALTURA, prefsPagina, prefsBarra, opcoesJanela, urlPermitida, decideJanelaFilha, negaPermissao, negaVerificacao, configuraSessao, navegacaoDoAppPermitida, deveDesfazer, criarRendraBrowser, janelas };

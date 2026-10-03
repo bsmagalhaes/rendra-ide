@@ -89,7 +89,9 @@ function montar(raiz, deps = {}) {
   const dados = new Map([['devcode.workspaces', { list: [{ name: 'w', root: raiz }], active: 0 }]]);
   registerDevCode({ ipcMain: { handle: (n, f) => handlers.set(n, f), on() {}, once() {}, removeHandler() {} }, dialog: {}, store: { get: k => dados.get(k), set: (k, v) => dados.set(k, v), delete: k => dados.delete(k) }, getWindow: () => null, deps });
   handlers.get('dev:load-workspaces')({});
-  return (texto, cwd, root) => handlers.get('dev:resolve-path')({}, { texto, cwd, root });
+  const f = (texto, cwd, root) => handlers.get('dev:resolve-path')({}, { texto, cwd, root });
+  f.ler = file => handlers.get('dev:read')({}, file);
+  return f;
 }
 
 test('dev:resolve-path: arquivo e pasta existentes dentro da pasta aberta; inexistente, fora e inválido não', async () => {
@@ -151,4 +153,21 @@ test('dev:resolve-path: caminho Linux /mnt/<letra>/ vira o arquivo do Windows', 
   const linux = '/mnt/' + raiz[0].toLowerCase() + '/' + raiz.slice(3).replace(/\\/g, '/') + '/m.txt';
   assert.deepStrictEqual(await resolve(linux, raiz, raiz), { path: path.join(raiz, 'm.txt'), isDir: false });
   assert.strictEqual(await resolve('/home/ninguem/m.txt', raiz, raiz), null);
+});
+
+test('dev:read: não segue junção para fora da pasta aberta; leitura normal e junção interna seguem', async () => {
+  const raiz = pasta(), fora = pasta();
+  fs.writeFileSync(path.join(fora, 'segredo.txt'), 'SEGREDO');
+  fs.symlinkSync(fora, path.join(raiz, 'jun'), 'junction');
+  fs.mkdirSync(path.join(raiz, 'real'));
+  fs.writeFileSync(path.join(raiz, 'real', 'i.txt'), 'interno');
+  fs.symlinkSync(path.join(raiz, 'real'), path.join(raiz, 'interna'), 'junction');
+  fs.writeFileSync(path.join(raiz, 'ok.txt'), 'normal');
+  const { ler } = montar(raiz);
+  const r = await ler(path.join(raiz, 'jun', 'segredo.txt'));
+  assert.ok(r.error && !r.content, 'pela junção para fora: recusado');
+  assert.deepStrictEqual(await ler(path.join(raiz, 'ok.txt')), { content: 'normal' });
+  assert.deepStrictEqual(await ler(path.join(raiz, 'interna', 'i.txt')), { content: 'interno' });
+  assert.ok((await ler(path.join(fora, 'segredo.txt'))).error, 'fora léxico: recusado');
+  assert.ok((await ler(path.join(raiz, 'nao-existe.txt'))).error);
 });

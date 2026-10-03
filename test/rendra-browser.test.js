@@ -85,3 +85,49 @@ test('o main nega janelas e navegação não pedidas e expõe só a abertura con
   assert.match(dev, /Abrir no Rendra Browser/);
   assert.match(dev, /Abrir no navegador padrão/);
 });
+
+// ── criarRendraBrowser com Electron falso: os bloqueios de navegação ─────────────────────────────────────────────
+const { EventEmitter } = require('events');
+function montarFalso(urlAtual = 'http://localhost/') {
+  const wcs = [];
+  class WC extends EventEmitter {
+    constructor() { super(); this.id = wcs.push(this); this.hist = [urlAtual]; this.i = 0; this.carregou = []; this.navigationHistory = { canGoBack: () => this.i > 0, canGoForward: () => false, goBack: () => { this.i--; this.voltou = (this.voltou || 0) + 1; }, getActiveIndex: () => this.i, getEntryAtIndex: n => this.hist[n] ? { url: this.hist[n] } : null, goToIndex: n => { this.i = n; }, removeEntryAtIndex: n => { this.hist.splice(n, 1); } }; }
+    getURL() { return this.hist[this.i]; } isDestroyed() { return false; } setWindowOpenHandler() {} send() {} close() {}
+    loadURL(u) { this.carregou.push(u); return Promise.resolve(); } loadFile() {} getLastWebPreferences() { return {}; }
+  }
+  class Win extends EventEmitter { constructor() { super(); this.contentView = { addChildView() {} }; } removeMenu() {} getContentBounds() { return { width: 800, height: 600 }; } isDestroyed() { return false; } setTitle() {} once() {} }
+  class View { constructor() { this.webContents = new WC(); } setBounds() {} }
+  const ses = { setPermissionRequestHandler() {}, setPermissionCheckHandler() {}, setDevicePermissionHandler() {}, on() {} };
+  const electron = { BrowserWindow: Win, WebContentsView: View, session: { fromPartition: () => ses }, ipcMain: { on() {}, removeListener() {} }, shell: {} };
+  return { electron, wcs };
+}
+const tenta = (wc, ev, url) => { let barrou = false; wc.emit(ev, { preventDefault: () => { barrou = true; } }, url); return barrou; };
+
+test('Rendra Browser: will-navigate e will-redirect cancelam o que não é http(s) e deixam passar http(s)', () => {
+  const { electron, wcs } = montarFalso();
+  assert.ok(rb.criarRendraBrowser(electron, 'http://localhost/'));
+  const pagina = wcs[0];
+  for (const ev of ['will-navigate', 'will-redirect']) {
+    for (const ruim of ['file:///C:/Windows/win.ini', 'data:text/html,x', 'blob:http://localhost/abc', 'javascript:alert(1)', 'about:blank', 'http://u:p@localhost/', '']) assert.strictEqual(tenta(pagina, ev, ruim), true, `${ev} ${ruim}`);
+    for (const bom of ['http://localhost/x', 'https://exemplo.com/a?b=1']) assert.strictEqual(tenta(pagina, ev, bom), false, `${ev} ${bom}`);
+  }
+});
+
+test('Rendra Browser: about:blank que a página provoca (did-navigate) volta à página anterior e apaga a entrada; http(s) e página de erro ficam', () => {
+  const { electron, wcs } = montarFalso();
+  rb.criarRendraBrowser(electron, 'http://localhost/');
+  const pagina = wcs[0];
+  pagina.hist = ['http://localhost/', 'http://localhost/b']; pagina.i = 1;
+  pagina.emit('did-navigate', {}, 'http://localhost/b');
+  pagina.emit('did-navigate', {}, 'chrome-error://chromewebdata/');
+  assert.deepStrictEqual([pagina.voltou || 0, pagina.carregou.length], [0, 1], 'http(s) e página de erro não desfazem nada (só o carregamento inicial)');
+  pagina.hist.push('about:blank'); pagina.i = 2;
+  pagina.emit('did-navigate', {}, 'about:blank');
+  assert.strictEqual(pagina.i, 1, 'voltou para a página anterior');
+  pagina.emit('did-navigate', {}, 'http://localhost/b'); // a volta termina: a entrada em branco é apagada
+  assert.deepStrictEqual(pagina.hist, ['http://localhost/', 'http://localhost/b']);
+  const sem = montarFalso();
+  rb.criarRendraBrowser(sem.electron, 'http://localhost/');
+  sem.wcs[0].emit('did-navigate', {}, 'about:blank'); // sem entrada anterior: recarrega a URL inicial
+  assert.strictEqual(sem.wcs[0].carregou.at(-1), 'http://localhost/');
+});

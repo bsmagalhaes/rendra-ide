@@ -231,6 +231,10 @@ async function alvos(porta, tipo) {
           await rbEv(`wc.executeJavaScript("location.href='file:///C:/Windows/win.ini'").catch(() => {}); return 1;`);
           await sleep(800);
           afirma((await rbEv('return wc.getURL();')) === URL_LOCAL + 'filho', 'navegação para file: é negada');
+          await rbEv(`wc.executeJavaScript("location.href='about:blank'").catch(() => {}); return 1;`);
+          await sleep(1200);
+          afirma((await rbEv('return wc.getURL();')) === URL_LOCAL + 'filho', 'navegação da página para about:blank é desfeita (só http(s))');
+          afirma((await rbEv('return wc.navigationHistory.getAllEntries().map(x => x.url);')).every(x => x.startsWith('http')), 'o histórico não guarda a entrada em branco');
           // barra: "Abrir no navegador padrão" e voltar
           const nAb2 = (await abertos()).length;
           await mev(`jr().rendraBrowser.barra.executeJavaScript("window.rb.comando('abrir-padrao')"); return 1;`);
