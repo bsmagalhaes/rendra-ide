@@ -1075,10 +1075,18 @@
       if (pressionado && ev && Math.hypot(ev.clientX - pressionado.x, ev.clientY - pressionado.y) > 4) return;
       if ($('save-overlay').classList.contains('visible')) return;
       askChoice({
-        title: 'Abrir no navegador?',
+        title: 'Abrir link?',
         body: `<code class="link-url">${esc(url)}</code>`,
-        buttons: [{ choice: 'cancel', label: 'Cancelar' }, { choice: 'open', label: 'Abrir', primary: true }],
-      }).then(c => { if (c === 'open') window.rendra.openExternal(url); term.focus(); });
+        buttons: [
+          { choice: 'cancel', label: 'Cancelar' },
+          { choice: 'rendra', label: 'Abrir no Rendra Browser' },
+          { choice: 'open', label: 'Abrir no navegador padrão', primary: true },
+        ],
+      }).then(c => {
+        if (c === 'open') window.rendra.openExternal(url);
+        else if (c === 'rendra') window.rendra.openRendraBrowser(url);
+        term.focus();
+      });
     };
     const dicaLink = () => { body.title = /Mac/i.test(navigator.platform) ? 'Clique para abrir (Cmd+clique abre direto)' : 'Clique para abrir (Ctrl+clique abre direto)'; };
     const limpaDica = () => { body.title = ''; };

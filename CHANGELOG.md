@@ -14,7 +14,9 @@
 - Com conta e sem limites a barra agora fica visível, com a conta e o texto "sem dados"; antes ela sumia. Sem conta e sem limites ela continua escondida.
 - Limites conhecidos: o Claude em uma distro WSL mostra só a identidade da conta ("sem dados" nos limites), porque a ponte da statusline só é instalada no Windows. Uma distro só aparece se tiver `.claude/projects` ou `.codex/sessions`.
 ### Links no terminal
-- Clicar num link do terminal (clique simples) agora mostra a confirmação "Abrir no navegador?" com o endereço completo e os botões "Abrir" e "Cancelar" (Esc também cancela). Ctrl+clique (Cmd+clique no Mac) continua abrindo direto, e arrastar para selecionar um texto que contém link não dispara a confirmação.
+- Clicar num link do terminal (clique simples) agora mostra a confirmação "Abrir link?" com o endereço completo e três opções: "Abrir no Rendra Browser", "Abrir no navegador padrão" (Enter) e "Cancelar" (Esc também cancela). Ctrl+clique (Cmd+clique no Mac) continua abrindo direto, e arrastar para selecionar um texto que contém link não dispara a confirmação.
+- O Rendra Browser é uma janela própria e isolada para ver a página: sem acesso à IDE, sessão separada que não guarda nada, só http e https, downloads e permissões (câmera, microfone, notificações, localização) negados, e links que abririam janela nova abrem na mesma janela. Tem barra mínima com voltar, avançar, recarregar, endereço e "Abrir no navegador padrão".
+- Corrigido: ao clicar num link do terminal aparecia ao mesmo tempo o diálogo em inglês do xterm, uma janela nova da IDE e o navegador. Agora a IDE nega janelas e navegações que ninguém pediu e só abre o link pelo caminho que você escolheu na confirmação.
 - Caminhos de arquivo no texto do terminal (como docs/specs/plano.md, ./src/app.js:12, D:\pasta\arquivo.md ou /mnt/d/projeto/arquivo.md) ficam clicáveis quando o arquivo existe dentro das pastas abertas: o clique abre o arquivo no editor da lateral, na linha indicada, sem confirmação. Pasta é revelada no explorador. No WSL, o caminho Linux abre o mesmo arquivo. Caminho que não existe não vira link.
 
 ## 1.3.1 · 03/10/2026

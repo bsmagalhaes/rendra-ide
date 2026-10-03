@@ -40,6 +40,7 @@ and in the About page credits.
 | `src/codex-limits.js` | Light Codex limits for the bar (every 60 s): only rollouts of the last 8 days (folders `YYYY/MM/DD` pruned before any stat), tail read, cache by path+mtime+size |
 | `src/wsl-ambientes.js` | WSL distros and their Claude/Codex homes (UNC `\wsl.localhost<distro>`) for the selector |
 | `src/statusline.sh` | Claude Code statusline bridge: saves `rate_limits` to `~/.rendra-ide/`, chains the user's statusline |
+| `src/rendra-browser.js`, `src/rendra-browser-preload.js`, `renderer/rendra-browser-barra.html` | Rendra Browser: janela isolada (página sem preload, sandbox, sessão `rendra-browser` em memória, só http(s), permissões e downloads negados) com barra mínima; o `main.js` nega `window.open`/navegação não pedidos em todo `webContents` |
 | `src/devcode.js` | IDE backend: folders (incl. WSL), file I/O confined to open folders, git status, watchers, PTYs |
 | `src/rtk-paths.js`, `rtk-config.js`, `rtk-env.js`, `rtk-status.js`, `rtk-install.js`, `rtk-enable.js`, `rtk-ipc.js` | RTK por agente e por sistema (host e WSL): caminhos e versões, edição dos hooks (Claude Code e Codex), execução no host/distro, leitura do estado, instalação, ativação com cópia e rollback, canais IPC |
 | `renderer/rtk-agents.js` | Visão da página RTK por agente e por sistema (UMD, sem DOM, testável no node) |

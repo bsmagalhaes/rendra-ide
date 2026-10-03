@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('rendra', {
   windowMaximize: () => ipcRenderer.invoke('window-maximize'),
   windowClose: () => ipcRenderer.invoke('window-close'),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
+  openRendraBrowser: (url) => ipcRenderer.invoke('open-rendra-browser', url),
   onUsageUpdated: (cb) => ipcRenderer.on('usage-updated', (_e, data) => cb(data)),
   removeUsageUpdatedListener: () => ipcRenderer.removeAllListeners('usage-updated'),
   showNotification: (title, body) => ipcRenderer.invoke('show-notification', { title, body }),

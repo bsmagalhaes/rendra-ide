@@ -4,6 +4,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const http = require('http');
 const { spawn, execFileSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..');
@@ -78,6 +79,9 @@ async function alvos(porta, tipo) {
     if (!tPag) throw new Error('o app não abriu');
     pagina = cliente(tPag.webSocketDebuggerUrl); await pagina.pronto;
     const { send, ev } = pagina;
+    const dialogos = [];
+    pagina.ws.addEventListener('message', e => { const m = JSON.parse(e.data); if (m.method === 'Page.javascriptDialogOpening') { dialogos.push(m.params.message); send('Page.handleJavaScriptDialog', { accept: false }).catch(() => { }); } });
+    await send('Page.enable');
     await send('Emulation.setDeviceMetricsOverride', { width: 1600, height: 900, deviceScaleFactor: 1, mobile: false });
     const espera = async (expr, ms = 20000, msg = expr) => { const fim = Date.now() + ms; while (Date.now() < fim) { try { if (await ev(expr)) return true; } catch { } await sleep(150); } throw new Error(`tempo esgotado: ${msg}`); };
     await espera(`!!document.querySelector('.ws.active')`, 30000, 'workspace ativo');
@@ -154,7 +158,7 @@ async function alvos(porta, tipo) {
       // a) clique simples: confirmação, nada aberto
       await passa(pHttp); await clica(pHttp);
       let m = await modal();
-      afirma(!!m && m.titulo === 'Abrir no navegador?' && m.url === URL1 && m.botoes.join('|') === 'Cancelar|Abrir', `clique simples mostra a confirmação com a URL completa: ${JSON.stringify(m)}`);
+      afirma(!!m && m.titulo === 'Abrir link?' && m.url === URL1 && m.botoes.join('|') === 'Cancelar|Abrir no Rendra Browser|Abrir no navegador padrão', `clique simples mostra a confirmação com a URL completa e as 3 opções: ${JSON.stringify(m)}`);
       afirma((await abertos()).length === antes, 'a confirmação sozinha não abre nada');
       const fotoM = await send('Page.captureScreenshot', { format: 'png' });
       fs.mkdirSync(SAIDA, { recursive: true }); fs.writeFileSync(path.join(SAIDA, 'confirmacao-link.png'), Buffer.from(fotoM.data, 'base64'));
@@ -181,6 +185,79 @@ async function alvos(porta, tipo) {
       await mouse('mouseReleased', pHttp.x + 28, pHttp.y, { button: 'left', clickCount: 1 }); await sleep(600);
       const sel = await ev(`(() => { const s = String(window.getSelection()); return s; })()`);
       afirma(!(await modal()) && (await abertos()).length === antes + 2, `arrastar sobre o link não mostra a confirmação nem abre (selecionado: "${String(sel).slice(0, 30)}")`);
+      // g) Enter = navegador padrão
+      const nEnter = (await abertos()).length;
+      await clica(pHttp); afirma(!!(await modal()), 'clique simples mostra a confirmação (teste do Enter)');
+      await tecla('Enter'); await sleep(500);
+      lista = await abertos();
+      afirma(!(await modal()) && lista.length === nEnter + 1 && lista[lista.length - 1] === URL1, `Enter na confirmação abre no navegador padrão: ${JSON.stringify(lista.slice(-2))}`);
+      // h) Rendra Browser: janela isolada com uma URL local de teste
+      const mev = expr => main.ev(`(async () => { const { BrowserWindow, session } = process.mainModule.require('electron'); const jr = () => BrowserWindow.getAllWindows().find(w => w.rendraBrowser); return JSON.stringify(await (async () => { ${expr} })()); })()`, { includeCommandLineAPI: true }).then(JSON.parse);
+      const nJan = () => mev('return BrowserWindow.getAllWindows().length;');
+      const janBase = await nJan();
+      const paginasDo = async () => (await (await fetch(`http://127.0.0.1:${porta}/json`)).json()).filter(t => t.type === 'page').map(t => t.url);
+      const paginasBase = await paginasDo();
+      const srv = http.createServer((rq, rs) => { rs.setHeader('content-type', 'text/html; charset=utf-8'); rs.end(rq.url === '/filho' ? '<title>Filho</title><h1>filho</h1>' : '<title>Pagina local de teste</title><h1 id="h">ola rendra browser</h1><a id="l" target="_blank" href="/filho">filho</a>'); });
+      await new Promise(r => srv.listen(0, '127.0.0.1', r));
+      const URL_LOCAL = `http://127.0.0.1:${srv.address().port}/`;
+      try {
+        await digita(`Write-Host "${URL_LOCAL}"`);
+        linhas = await ev(`[...document.querySelectorAll('.ws.active .xterm-rows > div')].map(d => d.textContent)`);
+        const pLocal = await linha(URL_LOCAL, 10);
+        afirma(!!pLocal, 'linha com a URL local impressa no terminal');
+        if (pLocal) {
+          const nAb = (await abertos()).length;
+          await clica(pLocal);
+          afirma(!!(await modal()), 'clique na URL local mostra a confirmação');
+          await ev(`document.querySelector('#save-actions [data-choice="rendra"]').click()`);
+          let achou = false;
+          for (let i = 0; i < 60 && !achou; i++) { await sleep(250); achou = await mev(`const w = jr(); return !!w && w.rendraBrowser.wc.getURL() === ${JSON.stringify(URL_LOCAL)};`); }
+          afirma(achou, 'Rendra Browser abriu a URL local de teste');
+          afirma((await nJan()) === janBase + 1, `só uma janela nova (${janBase} -> ${await nJan()})`);
+          afirma((await abertos()).length === nAb, 'Rendra Browser não aciona o navegador padrão (open-external)');
+          const rbEv = codigo => mev(`const w = jr(); const wc = w.rendraBrowser.wc; ${codigo}`);
+          const info = await rbEv(`const pr = wc.getLastWebPreferences(); return { titulo: w.getTitle(), nodeInt: pr.nodeIntegration, ctx: pr.contextIsolation, sandbox: pr.sandbox, preload: !!pr.preload, propria: wc.session === session.fromPartition('rendra-browser'), persiste: wc.session.isPersistent(), isolado: await wc.executeJavaScript('[typeof window.rendra, typeof require, typeof process, typeof ipcRenderer].join(",")') };`);
+          afirma(info.titulo === URL_LOCAL, `título da janela é a URL: ${info.titulo}`);
+          afirma(info.nodeInt === false && info.ctx === true && info.sandbox === true && info.preload === false && info.propria === true, `página sem preload, nodeIntegration off, contextIsolation e sandbox on, sessão própria: ${JSON.stringify(info)}`);
+          afirma(info.persiste === false, 'sessão do Rendra Browser não persiste');
+          afirma(info.isolado === 'undefined,undefined,undefined,undefined', `a página não vê a IDE nem o Node: ${info.isolado}`);
+          const perm = await rbEv(`return await wc.executeJavaScript('Notification.requestPermission()');`);
+          afirma(perm === 'denied', `notificações negadas por padrão: ${perm}`);
+          // janela filha (target=_blank) fica na mesma janela
+          await rbEv(`await wc.executeJavaScript("document.getElementById('l').click()"); return 1;`);
+          await sleep(1200);
+          afirma((await nJan()) === janBase + 1 && (await rbEv('return wc.getURL();')) === URL_LOCAL + 'filho', 'link target=_blank abre na mesma janela, sem janela extra');
+          // esquema não permitido é negado
+          await rbEv(`wc.executeJavaScript("location.href='file:///C:/Windows/win.ini'").catch(() => {}); return 1;`);
+          await sleep(800);
+          afirma((await rbEv('return wc.getURL();')) === URL_LOCAL + 'filho', 'navegação para file: é negada');
+          // barra: "Abrir no navegador padrão" e voltar
+          const nAb2 = (await abertos()).length;
+          await mev(`jr().rendraBrowser.barra.executeJavaScript("window.rb.comando('abrir-padrao')"); return 1;`);
+          await sleep(700);
+          lista = await abertos();
+          afirma(lista.length === nAb2 + 1 && lista[lista.length - 1] === URL_LOCAL + 'filho', `barra: "Abrir no navegador padrão" chama open-external com a URL atual: ${lista[lista.length - 1]}`);
+          await mev(`jr().rendraBrowser.barra.executeJavaScript("window.rb.comando('voltar')"); return 1;`);
+          await sleep(1000);
+          afirma((await rbEv('return wc.getURL();')) === URL_LOCAL, 'barra: voltar retorna à página anterior');
+          const barraInfo = await mev(`return await jr().rendraBrowser.barra.executeJavaScript('({ url: document.getElementById("url").value, ro: document.getElementById("url").readOnly, botoes: [...document.querySelectorAll("button")].map(x => x.id) })');`);
+          afirma(barraInfo.ro === true && barraInfo.botoes.join(',') === 'voltar,avancar,recarregar,abrir' && barraInfo.url === URL_LOCAL, `barra mínima com endereço só leitura: ${JSON.stringify(barraInfo)}`);
+          // foto da barra e da página (a captura de janela fora da tela pode falhar em alguns ambientes: não reprova)
+          const fotoR = await mev(`const w = jr(); try { const a = await w.rendraBrowser.barra.capturePage(); const b = await w.rendraBrowser.wc.capturePage(); return { barra: a.toPNG().toString('base64'), pagina: b.toPNG().toString('base64') }; } catch (e) { return null; }`).catch(() => null);
+          if (fotoR) { fs.mkdirSync(SAIDA, { recursive: true }); fs.writeFileSync(path.join(SAIDA, 'rendra-browser-barra.png'), Buffer.from(fotoR.barra, 'base64')); fs.writeFileSync(path.join(SAIDA, 'rendra-browser-pagina.png'), Buffer.from(fotoR.pagina, 'base64')); }
+          await mev(`BrowserWindow.getAllWindows().filter(w => w.rendraBrowser).forEach(w => w.destroy()); return 1;`);
+          await sleep(400);
+          afirma((await nJan()) === janBase, 'ao fechar o Rendra Browser, sobra só a janela da IDE');
+        }
+      } finally { srv.close(); }
+      // i) nenhum diálogo nativo, nenhuma janela solta: window.open no renderer da IDE é negado
+      const janAntesOpen = await nJan();
+      await ev(`(() => { try { window.open('https://exemplo.invalid/solta'); } catch { } return 1; })()`);
+      await sleep(800);
+      afirma((await nJan()) === janAntesOpen, 'window.open no renderer da IDE não cria janela');
+      const paginasFim = await paginasDo();
+      afirma(paginasFim.length === paginasBase.length, `nenhuma página/janela extra além das ${paginasBase.length} da IDE (${paginasFim.length}): ${JSON.stringify(paginasFim.filter(u => !paginasBase.includes(u)))}`);
+      afirma(dialogos.length === 0, `nenhum diálogo nativo (confirm/alert) apareceu em todo o teste: ${JSON.stringify(dialogos)}`);
       const n0 = (await abertos()).length;
       await fora(); await passa(pOsc);
       await mouse('mousePressed', pOsc.x, pOsc.y, { button: 'left', clickCount: 1, modifiers: 2 }); await mouse('mouseReleased', pOsc.x, pOsc.y, { button: 'left', clickCount: 1, modifiers: 2 }); await sleep(700);

@@ -220,6 +220,25 @@ ipcMain.handle('open-external', (_e, url) => {
   const seguro = require('./src/terminal-env').urlWebSegura(url);
   return seguro ? shell.openExternal(seguro) : false;
 });
+// Rendra Browser: janela isolada (src/rendra-browser.js); mesmo filtro http(s) do navegador padrão
+ipcMain.handle('open-rendra-browser', (_e, url) => {
+  const rb = require('./src/rendra-browser');
+  return !!rb.criarRendraBrowser(require('electron'), url, { oculta: !!process.env.RENDRA_E2E_HIDDEN });
+});
+
+// Janela nova ou navegação que ninguém pediu (window.open do terminal/addon, link com target, location.href) nunca
+// acontece: o único caminho de abertura é o clique confirmado (open-external ou Rendra Browser). As páginas do
+// Rendra Browser têm política própria (src/rendra-browser.js) e ficam de fora deste filtro.
+app.on('web-contents-created', (_e, wc) => {
+  wc.setWindowOpenHandler(() => ({ action: 'deny' }));
+  const rb = require('./src/rendra-browser');
+  const navegaSo = (e, url) => {
+    if (wc.session === require('electron').session.fromPartition(rb.PARTICAO)) return;
+    if (!rb.navegacaoDoAppPermitida(url, wc.getURL())) e.preventDefault();
+  };
+  wc.on('will-navigate', navegaSo);
+  wc.on('will-redirect', navegaSo);
+});
 
 ipcMain.handle('set-filters', async (_e, filters) => {
   store.set('filters', {
