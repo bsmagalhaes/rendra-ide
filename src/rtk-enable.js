@@ -161,7 +161,7 @@ function createRtkEnable(deps) {
           cur = a.text;
           const b = C.applyCodexTrust(cur, targets);
           if (b.changed) { cur = b.text; out.changed = true; out.notes.push('O hook do RTK foi aprovado no Codex.'); }
-          if (!b.recognized && targets.length) out.notes.push('O config.toml usa uma forma de hooks.state que a IDE não edita; a aprovação do hook ficou para o Codex.');
+          if (!b.recognized && targets.length) out.notes.push('O config.toml tem uma configuração de hooks que a IDE não sabe editar; a aprovação do hook do RTK ficou para você fazer no Codex.');
           const w = C.patchWritableRoots(cur, P.codexDbDir(o), { platform: dirs.platform });
           if (w.changed) { cur = w.text; out.changed = true; out.notes.push('A pasta do banco do RTK foi liberada para o Codex gravar.'); }
           return { ...out, text: cur };

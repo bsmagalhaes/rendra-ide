@@ -80,6 +80,8 @@
   // ── Visão por agente: linhas por sistema, avisos e HTML (sem DOM) ───────────
   const NL = String.fromCharCode(10);
   const AGENT_NAME = { claude: 'Claude Code', codex: 'Codex' };
+  // O Codex só relê o config.toml ao reiniciar: o texto de sucesso mantém o pedido de reinício
+  const PRONTO_CODEX = 'Pronto, o Codex já pode usar o RTK. Se o Codex estiver aberto, feche e abra de novo.';
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   function rowOf(e, agent) {
@@ -133,7 +135,7 @@
   function confirmText(agent, envLabel, files) {
     const lista = (files || []).map(f => `- ${f}`).join(NL);
     const extra = agent === 'codex'
-      ? 'Também acrescenta [shell_environment_policy] com o RTK_DB_PATH do Codex ao config.toml (o que já existe nele não é mexido).'
+      ? 'Também registra no config.toml o banco do RTK para o Codex (RTK_DB_PATH) e a sua aprovação do hook do RTK, para o Codex não precisar perguntar (o que já existe nele não é mexido).'
       : 'Também define env.RTK_DB_PATH no settings.json.';
     return [
       `Ativar o RTK no ${AGENT_NAME[agent]} em ${envLabel}?`, '',
@@ -165,6 +167,7 @@
     if (!(res.changes || []).length) linhas.push('Nenhum arquivo precisou mudar.');
     for (const n of res.notes || []) linhas.push('', n);
     if (res.trustMessage) linhas.push('', res.trustMessage);
+    else if (agent === 'codex' && res.trust === 'trusted') linhas.push('', PRONTO_CODEX);
     return linhas.join(NL);
   }
 

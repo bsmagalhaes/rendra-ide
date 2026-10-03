@@ -554,3 +554,27 @@ test('writable_roots (host): no Windows nunca grava, mesmo com workspace-write; 
     assert.strictEqual(ler(toml).includes('sandbox_workspace_write'), process.platform !== 'win32');
   } finally { limpar(t); }
 });
+
+test('textos devolvidos pela ativação (notas e aviso) sem jargão nem travessão; a pendência cita /hooks, PreToolUse e t', async () => {
+  const TECNICO = /hash|sandbox|writable_roots|trusted_hash|hooks\.state/i;
+  const sweep = r => [...r.notes, r.trustMessage || ''].forEach(x => { assert.ok(!TECNICO.test(x), x); assert.ok(!/[—–]/.test(x), x); });
+  const t = ambiente({ distro: true });
+  try {
+    codexBase(t);
+    escrever(path.join(t.d.codex, 'config.toml'), 'sandbox_mode = "workspace-write"\n');
+    const ok = await ativador(t).enable(await alvo(t), 'codex');
+    sweep(ok);
+    assert.ok(ok.notes.some(n => /aprovado/.test(n)));
+    assert.strictEqual(ok.trustMessage, null);
+  } finally { limpar(t); }
+  const t2 = ambiente();
+  try {
+    codexBase(t2);
+    escrever(path.join(t2.d.codex, 'config.toml'), 'hooks = { state = {} }\n');
+    const pend = await ativador(t2).enable(await alvo(t2), 'codex');
+    sweep(pend);
+    assert.match(pend.trustMessage, /\/hooks/);
+    assert.match(pend.trustMessage, /PreToolUse/);
+    assert.match(pend.trustMessage, /aperte t\b/);
+  } finally { limpar(t2); }
+});

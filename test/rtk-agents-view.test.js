@@ -86,7 +86,8 @@ test('confirmação lista todos os arquivos tocados e diz o que muda no hook e n
   const t = A.confirmText('codex', 'Ubuntu-24.04', ['/h/.codex/hooks.json', '/h/.codex/config.toml', '/h/.codex/RTK.md', '/h/.codex/AGENTS.md']);
   for (const f of ['hooks.json', 'config.toml', 'RTK.md', 'AGENTS.md']) assert.ok(t.includes(`- /h/.codex/${f}`), f);
   assert.match(t, /cópia de segurança/);
-  assert.match(t, /shell_environment_policy/);
+  assert.match(t, /RTK_DB_PATH/);
+  assert.match(t, /aprovação do hook do RTK/);
   assert.match(t, /Ubuntu-24\.04/);
   const c = A.confirmText('claude', 'Windows', ['C:\\u\\.claude\\settings.json', 'C:\\u\\.claude\\CLAUDE.md']);
   assert.match(c, /env\.RTK_DB_PATH no settings\.json/);
@@ -132,4 +133,29 @@ test('texto da instalação: versão, PATH da distro e aviso do WinGet; falha e 
   assert.match(A.installText({ ok: true, upToDate: true, version: '0.50.1' }, 'Windows'), /já está na versão 0\.50\.1/);
   assert.match(A.installText({ ok: false, state: 'wsl-off', error: 'desligada' }, 'U'), /não acorda distros/);
   assert.match(A.installText(null, 'U'), /sem resposta/);
+});
+
+// ── T9: textos para leigo ───────────────────────────────────────────────────
+const TECNICO = /hash|sandbox|writable_roots|trusted_hash|hooks\.state/i;
+const TRAVESSAO = /[—–]/;
+const limpo = (nome, t) => { assert.ok(!TECNICO.test(t), `${nome}: jargão em "${t}"`); assert.ok(!TRAVESSAO.test(t), `${nome}: travessão em "${t}"`); };
+
+test('resultado: aprovado mostra o "Pronto" com o pedido de reinício; pendente mostra os passos do /hooks; sem jargão nem travessão', () => {
+  const ok = A.resultText({ ok: true, changes: [], notes: ['O hook do RTK foi aprovado no Codex.'], trust: 'trusted', trustMessage: null }, 'codex', 'Windows');
+  assert.match(ok, /Pronto, o Codex já pode usar o RTK\. Se o Codex estiver aberto, feche e abra de novo\./);
+  assert.ok(!/\/hooks/.test(ok), 'aprovado: nenhuma linha de "aprove o hook"');
+  const pend = A.resultText({ ok: true, changes: [], trust: 'untrusted', trustMessage: MSG }, 'codex', 'Windows');
+  assert.match(pend, /\/hooks/);
+  assert.match(pend, /PreToolUse/);
+  assert.match(pend, /aperte t\b/);
+  assert.ok(!/Pronto, o Codex já pode/.test(pend));
+  assert.ok(!/Pronto, o Codex/.test(A.resultText({ ok: true, changes: [], trust: 'trusted' }, 'claude', 'W')), 'só o Codex');
+  for (const [nome, t] of Object.entries({ ok, pend, MSG, confirmCodex: A.confirmText('codex', 'Windows', ['/h/.codex/config.toml']), confirmClaude: A.confirmText('claude', 'Windows', []) })) limpo(nome, t);
+});
+
+test('avisos por estado do Codex: texto visível em português simples', () => {
+  for (const trust of ['modified', 'untrusted']) {
+    const v = A.agentView([env('host', 'Windows', { codex: ag({ trust, trustMessage: MSG }) })], 'codex');
+    limpo(trust, A.warningsHtml(v.warnings));
+  }
 });
