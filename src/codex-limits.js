@@ -1,4 +1,4 @@
-/*! Rendra IDE v1.3.0 | MIT | © 2026 Bruno Magalhaes | brunomagalhaes.me */
+/*! Rendra IDE v1.3.1 | MIT | © 2026 Bruno Magalhaes | brunomagalhaes.me */
 // Limites do Codex para a barra de título, em leitura leve (a cada 60 s, por ambiente).
 // Não usa aggregateCodex (varre 90 dias e calcula custo): lista os rollouts dos últimos 8 dias
 // (a janela é semanal), ordena por mtime decrescente (o nome traz a data de INÍCIO da sessão, e a
@@ -21,7 +21,7 @@ const _limpaCache = () => { cache = new Map(); };
 // meia-noite). Nome fora do padrão numérico é percorrido, por segurança.
 const FOLGA = 2 * 86400000;
 function dentroDoCorte(nome, nivel, partes, corte) {
-  if (!/^d+$/.test(nome) || nivel > 2) return true;
+  if (!/^\d+$/.test(nome) || nivel > 2) return true;
   const n = Number(nome);
   const fim = nivel === 0 ? Date.UTC(n + 1, 0, 1)
     : nivel === 1 ? Date.UTC(partes[0], n, 1)

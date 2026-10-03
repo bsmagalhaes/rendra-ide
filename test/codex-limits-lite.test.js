@@ -122,8 +122,7 @@ test('pastas AAAA/MM/DD fora do corte nem são listadas nem têm stat (poda ante
   const velhoMes = path.join(dir, '2026', '07', '04');
   fs.mkdirSync(velha, { recursive: true });
   fs.mkdirSync(velhoMes, { recursive: true });
-  for (const d of [velha, velhoMes]) fs.writeFileSync(path.join(d, 'rollout-x.jsonl'), '{}
-');
+  for (const d of [velha, velhoMes]) fs.writeFileSync(path.join(d, 'rollout-x.jsonl'), '{}\n');
   const recente = rollout(dir, 'rollout-a.jsonl', [evento(AGORA, { primary: janela(12, 10080, resetSeg), secondary: null })], AGORA);
   const stats = [], lists = [];
   const stat = fs.promises.stat, readdir = fs.promises.readdir;
@@ -135,6 +134,6 @@ test('pastas AAAA/MM/DD fora do corte nem são listadas nem têm stat (poda ante
   } finally { fs.promises.stat = stat; fs.promises.readdir = readdir; }
   assert.strictEqual(r.limits[0].percent, 12);
   assert.ok(stats.includes(recente), 'a pasta do dia dentro do corte é lida');
-  assert.ok(!stats.some(p => p.includes(path.join('2025', '01')) || p.includes(path.join('2026', '07'))), 'nenhum stat nas pastas antigas');
+  assert.ok(!stats.some(p => p.includes(path.join('2025', '01')) || p.includes(path.join('2026', '07'))), 'nenhum stat nas pastas antigas ');
   assert.ok(!lists.some(p => p.includes(path.join('2025', '01')) || p.includes(path.join('2026', '07'))), 'pastas antigas nem listadas');
 });

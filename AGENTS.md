@@ -35,6 +35,10 @@ and in the About page credits.
 | `src/pricer.js` | Per-token cost; bundled `pricing.json` overridden by `userData/pricing-user.json` |
 | `src/pricing-sync.js` | Parses the official price pages (maintainer tool only, via `npm run prices:update`) |
 | `src/accounts.js` | Current Claude account + plan limits (statusline bridge by default, usage endpoint opt-in) |
+| `src/provider-snapshot.js` | Title-bar selector data (`provider:snapshot`): one entry per provider and environment (`claude:local`, `codex:wsl:<distro>`), account + limits, 3 s timeout per environment, async only; never exposes tokens |
+| `src/codex-account.js` | Codex account (email, name, organization, plan) from the `id_token` payload of `auth.json`; fixed field list, never returns or logs tokens |
+| `src/codex-limits.js` | Light Codex limits for the bar (every 60 s): only rollouts of the last 8 days (folders `YYYY/MM/DD` pruned before any stat), tail read, cache by path+mtime+size |
+| `src/wsl-ambientes.js` | WSL distros and their Claude/Codex homes (UNC `\wsl.localhost<distro>`) for the selector |
 | `src/statusline.sh` | Claude Code statusline bridge: saves `rate_limits` to `~/.rendra-ide/`, chains the user's statusline |
 | `src/devcode.js` | IDE backend: folders (incl. WSL), file I/O confined to open folders, git status, watchers, PTYs |
 | `src/rtk-paths.js`, `rtk-config.js`, `rtk-env.js`, `rtk-status.js`, `rtk-install.js`, `rtk-enable.js`, `rtk-ipc.js` | RTK por agente e por sistema (host e WSL): caminhos e versões, edição dos hooks (Claude Code e Codex), execução no host/distro, leitura do estado, instalação, ativação com cópia e rollback, canais IPC |

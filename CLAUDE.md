@@ -2,6 +2,8 @@
 
 Autor: Bruno Magalhaes, brunomagalhaes.me, instagram.com/brunomagalhaes.me.
 
+Barra de título (seletor de provedor): módulos novos `src/provider-snapshot.js`, `src/codex-account.js`, `src/codex-limits.js` e `src/wsl-ambientes.js` (descritos no AGENTS.md). `limitsBridge.read` (preload) e o canal `limits:statusline` ficam como contrato público mesmo sem chamador no renderer.
+
 # Publicar versões, preços e o site (manual do mantenedor)
 
 ## Estado atual (26/09/2026)
