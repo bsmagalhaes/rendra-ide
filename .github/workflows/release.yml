@@ -110,7 +110,18 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PUBLICAR: ${{ github.ref_type == 'tag' && 'always' || 'never' }}
-        run: npx electron-builder ${{ matrix.alvo }} --publish "$PUBLICAR"
+        # Falha de rede momentânea (DNS, reset) repete o comando uma vez; qualquer outro erro falha direto.
+        # O electron-builder troca o asset de mesmo nome no rascunho, então a repetição não duplica nada.
+        run: |
+          set -o pipefail
+          for tentativa in 1 2; do
+            npx electron-builder ${{ matrix.alvo }} --publish "$PUBLICAR" 2>&1 | tee tentativa.log && exit 0
+            if [ "$tentativa" = 1 ] && grep -Eq "ENOTFOUND|ECONNRESET|ETIMEDOUT|EAI_AGAIN|socket hang up" tentativa.log; then
+              echo "::warning::falha de rede no envio, repetindo uma vez"
+            else
+              exit 1
+            fi
+          done
       - name: Ícones versionados (aviso, não falha)
         if: matrix.nome == 'windows'
         run: |
@@ -150,8 +161,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # macos-15 fixo: o macos-latest agora é o macOS 26, onde o electron-builder 26.15.3 falha ao
+          # destravar o keychain (SecKeychainUnlock) antes de assinar
           - arch: arm64
-            os: macos-latest
+            os: macos-15
           - arch: x64
             os: macos-15-intel
     runs-on: ${{ matrix.os }}
@@ -193,7 +206,18 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PUBLICAR: ${{ github.ref_type == 'tag' && 'always' || 'never' }}
-        run: npx electron-builder --mac --${{ matrix.arch }} --publish "$PUBLICAR" 2>&1 | tee build-mac.log
+        # Falha de rede momentânea (DNS, reset) repete o comando uma vez; qualquer outro erro falha direto.
+        # O electron-builder troca o asset de mesmo nome no rascunho, então a repetição não duplica nada.
+        run: |
+          set -o pipefail
+          for tentativa in 1 2; do
+            npx electron-builder --mac --${{ matrix.arch }} --publish "$PUBLICAR" 2>&1 | tee -a build-mac.log | tee tentativa.log && exit 0
+            if [ "$tentativa" = 1 ] && grep -Eq "ENOTFOUND|ECONNRESET|ETIMEDOUT|EAI_AGAIN|socket hang up" tentativa.log; then
+              echo "::warning::falha de rede no envio, repetindo uma vez"
+            else
+              exit 1
+            fi
+          done
       - name: Conferir assinatura e notarização
         run: |
           if grep -Ei "skipped macOS (notarization|application code signing)" build-mac.log; then

@@ -113,3 +113,27 @@ test('o rascunho é criado uma vez e como pré-release quando a versão tem sufi
   assert.match(run, /--prerelease/);
   assert.match(run, /gh release view/);
 });
+
+test('build-mac: arm64 no macos-15 fixo (o macos-latest quebra o keychain) e x64 no macos-15-intel', () => {
+  const inc = jobs['build-mac'].strategy.matrix.include;
+  assert.strictEqual(inc.find(i => i.arch === 'arm64').os, 'macos-15');
+  assert.strictEqual(inc.find(i => i.arch === 'x64').os, 'macos-15-intel');
+  assert.doesNotMatch(JSON.stringify(inc), /macos-latest/);
+});
+
+test('o envio repete uma vez só em falha de rede, nos builds mac, Windows e Linux, sem publicar a release', () => {
+  for (const [j, nome] of [['build-mac', 'Construir, assinar e notarizar'], ['build', 'Construir o instalador']]) {
+    const run = jobs[j].steps.find(s => s.name === nome).run;
+    assert.match(run, /set -o pipefail/, j);
+    assert.match(run, /for tentativa in 1 2/, j);
+    assert.match(run, /ENOTFOUND\|ECONNRESET\|ETIMEDOUT\|EAI_AGAIN/, j);
+    assert.match(run, /\[ "\$tentativa" = 1 \]/, j);
+    assert.match(run, /--publish "\$PUBLICAR"/, j);
+    assert.doesNotMatch(run, /--draft=false|gh release edit/, j);
+  }
+  // só o job publicar tira do rascunho
+  for (const [nome, job] of Object.entries(jobs)) {
+    if (nome === 'publicar') continue;
+    assert.doesNotMatch(JSON.stringify(job.steps), /--draft=false/, nome);
+  }
+});
