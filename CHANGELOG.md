@@ -1,5 +1,9 @@
 # Novidades
 
+## Próxima versão
+### Editor
+- Arquivos `.env` (`.env`, `.env.local`, `.env.example`, `producao.env` e parecidos) abrem com realce de cores: a chave em laranja, o valor em verde, os comentários em cinza itálico, o `=` e o `export` discretos e a interpolação `${VAR}` em amarelo. É só cor: os valores continuam visíveis e nada é mascarado.
+
 ## 1.3.0 · 02/10/2026
 ### Instaladores
 - A Rendra IDE passa a ter instalador para Windows (`Rendra-IDE-Setup.exe`) e Linux (AppImage e `.deb`), na página de Releases do GitHub e no site. O instalador do Mac (Apple Silicon e Intel) entra quando a assinatura estiver configurada. A instalação por `git clone` continua valendo e se atualiza pelo próprio caminho.

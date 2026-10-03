@@ -128,10 +128,11 @@
         window.require.config({ paths: { vs: MONACO_BASE } });
         window.require(['vs/editor/editor.main'], () => {
           monaco = window.monaco;
+          window.RendraDotenv.registrar(monaco);
           monaco.editor.defineTheme('rendra', {
             base: 'vs-dark',
             inherit: true,
-            rules: [{ token: 'comment', foreground: '707070', fontStyle: 'italic' }],
+            rules: [{ token: 'comment', foreground: '707070', fontStyle: 'italic' }, ...window.RendraDotenv.REGRAS_TEMA],
             colors: {
               'editor.background': '#161616',
               'editor.foreground': '#e8e8e8',
@@ -851,7 +852,7 @@
     if (!files.has(filePath)) {
       const res = await dev.read(filePath);
       if (res.error) { if (!opts.group && !opts.newGroup) toast(res.error); return; }
-      const model = monaco.editor.createModel(res.content, undefined, monaco.Uri.file(filePath));
+      const model = monaco.editor.createModel(res.content, window.RendraDotenv.linguagemPorNome(filePath), monaco.Uri.file(filePath));
       files.set(filePath, { model, savedVersion: model.getAlternativeVersionId(), name: baseName(filePath) });
       model.onDidChangeContent(() => renderAllTabs());
     }

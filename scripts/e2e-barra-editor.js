@@ -64,6 +64,7 @@ function criarSandbox(opts = {}) {
   escreve(path.join(projeto, 'a.txt'), 'primeiro arquivo\nlinha dois\n');
   escreve(path.join(projeto, 'b.txt'), 'segundo arquivo\n');
   escreve(path.join(projeto, 'sub', 'c.txt'), 'terceiro arquivo\n');
+  for (const [nome, texto] of Object.entries(opts.arquivos || {})) escreve(path.join(projeto, nome), texto);
   const sb = { dir, home, data, projeto, statusFile: path.join(home, '.rendra-ide', 'claude-status.json') };
 
   if (opts.conta !== false) {
@@ -961,6 +962,52 @@ CENARIOS['novidades'] = async () => {
     await app.espera(`!!document.querySelector('.ws.active')`, 30000, 'app recarregado');
     await sleep(3000);
     afirma(!(await visivel()), 'na abertura seguinte o modal não volta');
+  });
+};
+
+// Realce do .env (renderer/dotenv-lang.js): o arquivo fictício abre com a linguagem dotenv, cada classe
+// de token tem a sua cor, o contraste fica acima de 4,5:1 e o texto não é alterado (só cor).
+const ENV_FICTICIO = [
+  '# banco de dados (fictício)',
+  'export API_URL="https://exemplo.test/${HOST}/v1"  # produção',
+  'DB_HOST=localhost',
+  "SEGREDO='valor-ficticio # com cerquilha'",
+  'PORT=3000 # porta',
+  'CAMINHO=${HOME}/app',
+  '',
+].join('\n');
+CENARIOS['realce-env'] = async () => {
+  await comApp({ arquivos: { '.env': ENV_FICTICIO, '.env.local': 'A=1\n', 'environment.js': 'const A = 1;\n' } }, async app => {
+    await abrirArquivo(app, '.env');
+    const lang = nome => app.ev(`window.monaco.editor.getModels().find(m => m.uri.path.endsWith('/${nome}'))?.getLanguageId() ?? null`);
+    afirma(await lang('.env') === 'dotenv', '.env abre com a linguagem dotenv');
+    await abrirArquivo(app, '.env.local');
+    afirma(await lang('.env.local') === 'dotenv', '.env.local abre com a linguagem dotenv');
+    await abrirArquivo(app, 'environment.js');
+    afirma(await lang('environment.js') === 'javascript', 'environment.js continua javascript');
+    await abrirArquivo(app, '.env');
+    await sleep(600);
+    const tipos = await app.ev(`(() => { const t = window.monaco.editor.tokenize(${JSON.stringify(ENV_FICTICIO)}, 'dotenv'); return t.map(l => l.map(x => x.type)); })()`);
+    const usados = new Set(tipos.flat());
+    for (const t of ['comment.dotenv', 'keyword.export.dotenv', 'variable.name.dotenv', 'delimiter.dotenv', 'string.value.dotenv', 'variable.interp.dotenv'])
+      afirma(usados.has(t), `token ${t} aparece no .env fictício`);
+    // cores reais na tela: chave, valor e comentário diferentes entre si, todos legíveis sobre o fundo
+    const cores = await app.ev(`(() => {
+      const fundo = getComputedStyle(document.querySelector('.ws.active .monaco-editor .monaco-editor-background')).backgroundColor;
+      const linhas = [...document.querySelectorAll('.ws.active .monaco-editor .view-line')];
+      const spans = linhas.flatMap(l => [...l.querySelectorAll('span > span')]);
+      const cor = txt => { const s = spans.find(e => e.textContent.replace(/ /g, " ").startsWith(txt)); return s ? getComputedStyle(s).color : null; };
+      return { fundo, chave: cor('DB_HOST'), valor: cor('localhost'), comentario: cor('# banco'), igual: cor('=') };
+    })()`);
+    afirma(cores.chave && cores.valor && cores.comentario && cores.igual, `spans coloridos achados ${JSON.stringify(cores)}`);
+    if (cores.chave && cores.valor && cores.comentario && cores.igual) {
+      afirma(new Set([cores.chave, cores.valor, cores.comentario]).size === 3, 'chave, valor e comentário têm cores diferentes');
+      for (const k of ['chave', 'valor', 'comentario', 'igual'])
+        afirma(contraste(cores[k], cores.fundo) >= 4.5, `contraste de ${k} >= 4,5:1`);
+    }
+    afirma(await textoDoModelo(app, '.env') === ENV_FICTICIO, 'o texto do arquivo não foi alterado (nada é mascarado)');
+    const c = await app.caixa('.ws.active .dev-editors');
+    await app.foto('realce-env', { x: c.x, y: c.y, width: c.w, height: c.h });
   });
 };
 
