@@ -1,5 +1,11 @@
 # Novidades
 
+## Próxima versão
+### Conversas do terminal
+- Ao abrir um terminal numa pasta, a IDE mostra as 10 conversas mais recentes do Claude Code e do Codex daquela pasta, da mais nova para a mais antiga, com o ícone do provedor, o título (o nome salvo ou o começo da conversa) e a data. Clicar numa delas retoma a conversa ali mesmo. "Ver todas" lista as demais.
+- Abaixo da lista, "Nova conversa no Claude" e "Nova conversa no Codex" iniciam uma conversa nova, e "Só o terminal" (ou Esc) deixa o terminal puro. Só aparecem os provedores que respondem no sistema daquele terminal (Windows ou a distro do WSL); sem nenhum deles, o terminal abre direto, como antes.
+- Pasta sem conversa anterior mostra só as opções de nova conversa, e o terminal avulso (sem pasta) não mostra nada. A IDE só guarda o título e a data na memória, nunca em disco, e escreve no terminal apenas o comando fixo de retomar com o identificador da conversa.
+
 ## 1.4.0 · 03/10/2026
 ### Terminal
 - No Windows, o terminal passa a usar o ConPTY embarcado (o que acompanha o node-pty), no lugar do que vem no sistema. Com ele, programas de terminal como o Codex conseguem detectar as cores do terminal (consulta OSC 10 e 11), e o campo de digitação e as mensagens enviadas voltam a ser pintados. Vale para PowerShell e para o WSL; a resposta chega em poucos milissegundos.
