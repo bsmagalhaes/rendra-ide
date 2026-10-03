@@ -1,4 +1,4 @@
-// Regenerates docs/images/*.png (README and GitHub Pages) from the real app running on DEMO data:
+// Regenerates docs/images/*.webp (README and GitHub Pages) from the real app running on DEMO data:
 // a temporary home with made-up Claude Code / Codex sessions, a demo project with git changes and
 // a separate app data folder (RENDRA_DATA_DIR). The maintainer's own sessions, projects, e-mail,
 // paths and settings never appear, and nothing of theirs is read or written.
@@ -212,9 +212,10 @@ async function main() {
     await send('Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceScaleFactor: 1, mobile: false });
     const shot = async name => {
       await sleep(400);
-      const { data } = await send('Page.captureScreenshot', { format: 'png' });
-      fs.writeFileSync(path.join(OUT, `${name}.png`), Buffer.from(data, 'base64'));
-      console.log(`✓ docs/images/${name}.png`);
+      // WebP (rule 9 of the Rendra umbrella): Chromium encodes it, no extra dependency
+      const { data } = await send('Page.captureScreenshot', { format: 'webp', quality: 92 });
+      fs.writeFileSync(path.join(OUT, `${name}.webp`), Buffer.from(data, 'base64'));
+      console.log(`✓ docs/images/${name}.webp`);
     };
     const go = async (page, wait = 1500) => { await ev(`document.querySelector('[data-page=${page}]').click()`); await sleep(wait); };
     for (let i = 0; i < 90 && !/sessões/.test(await ev("document.getElementById('cl-header-sub')?.textContent || ''")); i++) await sleep(1000);
@@ -277,7 +278,7 @@ async function main() {
     await shot('terminal');
 
     // Social image (Open Graph, 1200x630): name, tagline and the IDE screenshot
-    const img = fs.readFileSync(path.join(OUT, 'ide.png')).toString('base64');
+    const img = fs.readFileSync(path.join(OUT, 'ide.webp')).toString('base64');
     const icon = fs.readFileSync(path.join(ROOT, 'assets', 'icon.svg'), 'utf8');
     const og = `<!doctype html><html><head><meta charset="utf-8"><style>
       html,body{margin:0;width:1200px;height:630px;overflow:hidden;background:#111;font-family:'Segoe UI',system-ui,sans-serif;color:#f2f2f2}
@@ -291,7 +292,7 @@ async function main() {
       <div class="txt"><div class="logo">${icon}</div><h1>Rendra <span>IDE</span></h1>
       <p>Terminais, editor e o consumo de tokens do Claude Code e do Codex, com custo por token.</p></div>
       <div class="by">MIT · github.com/bsmagalhaes/rendra-ui-ide</div>
-      <img class="shot" src="data:image/png;base64,${img}">
+      <img class="shot" src="data:image/webp;base64,${img}">
     </body></html>`;
     await send('Emulation.setDeviceMetricsOverride', { width: 1200, height: 630, deviceScaleFactor: 1, mobile: false });
     const { frameTree } = await send('Page.getFrameTree');

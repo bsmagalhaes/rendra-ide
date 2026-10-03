@@ -110,7 +110,7 @@ Preços. Confira o diff antes do commit: se as páginas mudaram de formato, o sc
 - O site é `docs/index.html`, publicado por `.github/workflows/pages.yml` a cada push na `main`
   que mexa em `docs/`. Endereço: https://bsmagalhaes.github.io/rendra-ui-ide/
 - Prints: `npm run docs:images` abre o app com dados de demonstração (pasta temporária, nunca os
-  seus dados) e grava `docs/images/*.png` (1920x1080) e `docs/og-image.png` (1200x630), usadas
+  seus dados) e grava `docs/images/*.webp` (1920x1080) e `docs/og-image.png` (1200x630), usadas
   pelo README e pelo site. Rode depois de mudar a interface, **abra cada imagem e confira** que
   nenhum caminho, nome de usuário ou dado real apareceu, e faça commit. A tela do RTK fica de fora
   de propósito: o `rtk` lê a pasta real do usuário, não a de demonstração.

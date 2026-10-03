@@ -164,7 +164,7 @@
         </div>
         <div class="tags"><span>Windows</span><span>macOS</span><span>Linux</span><span>WSL</span><span>MIT</span></div>
       </div>
-      <img class="hero-shot" src="images/ide.png" alt="Rendra IDE: explorador com cores do Git, dois terminais e o editor" data-open="ide" width="1920" height="1080">
+      <img class="hero-shot" src="images/ide.webp" alt="Rendra IDE: explorador com cores do Git, dois terminais e o editor" data-open="ide" width="1920" height="1080">
     </div>
   </div>
 </header>
@@ -228,8 +228,8 @@
         <li>Clique em <b>Executar assim mesmo</b>.</li>
       </ol>
       <div class="prints">
-        <figure><img src="images/smartscreen-1.png" alt="Tela do SmartScreen, O Windows protegeu o computador, com o link Mais informações sob o texto do aviso" loading="lazy" width="523" height="484"></figure>
-        <figure><img src="images/smartscreen-2.png" alt="Tela do SmartScreen após Mais informações: aplicativo Rendra-IDE-Setup.exe, fornecedor desconhecido, com os botões Executar assim mesmo e Não executar" loading="lazy" width="527" height="495"></figure>
+        <figure><img src="images/smartscreen-1.webp" alt="Tela do SmartScreen, O Windows protegeu o computador, com o link Mais informações sob o texto do aviso" loading="lazy" width="523" height="484"></figure>
+        <figure><img src="images/smartscreen-2.webp" alt="Tela do SmartScreen após Mais informações: aplicativo Rendra-IDE-Setup.exe, fornecedor desconhecido, com os botões Executar assim mesmo e Não executar" loading="lazy" width="527" height="495"></figure>
       </div>
     </div>
     <h2>Ou instale pelo código</h2>
@@ -313,7 +313,7 @@ npm start</div>
   ];
   const gallery = document.getElementById('gallery');
   gallery.innerHTML = IMAGES.filter(([id]) => id !== 'ide').map(([id, title, text]) =>
-    `<figure><button type="button" data-open="${id}" aria-label="Ampliar: ${title}"><img src="images/${id}.png" alt="${title}: ${text}" loading="lazy" width="1920" height="1080"></button><figcaption><b>${title}</b> · ${text}</figcaption></figure>`).join('');
+    `<figure><button type="button" data-open="${id}" aria-label="Ampliar: ${title}"><img src="images/${id}.webp" alt="${title}: ${text}" loading="lazy" width="1920" height="1080"></button><figcaption><b>${title}</b> · ${text}</figcaption></figure>`).join('');
 
   const lb = document.getElementById('lightbox');
   const lbImg = lb.querySelector('img');
@@ -321,7 +321,7 @@ npm start</div>
   function show(i, push = true) {
     current = (i + IMAGES.length) % IMAGES.length;
     const [id, title, text] = IMAGES[current];
-    lbImg.src = `images/${id}.png`;
+    lbImg.src = `images/${id}.webp`;
     lbImg.alt = `${title}: ${text}`;
     lb.querySelector('.cap').textContent = `${title} · ${text}`;
     lb.classList.add('open');

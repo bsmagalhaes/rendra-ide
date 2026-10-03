@@ -8,11 +8,11 @@
 
 | IDE: explorador, terminais e editor                                                       | Consumo do Claude Code                                                                          |
 | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| [![IDE](docs/images/ide.png)](https://bsmagalhaes.github.io/rendra-ui-ide/?imagem=ide) | [![Claude Code](docs/images/claude.png)](https://bsmagalhaes.github.io/rendra-ui-ide/?imagem=claude) |
+| [![IDE](docs/images/ide.webp)](https://bsmagalhaes.github.io/rendra-ui-ide/?imagem=ide) | [![Claude Code](docs/images/claude.webp)](https://bsmagalhaes.github.io/rendra-ui-ide/?imagem=claude) |
 
 | Codex CLI                                                                                     | Preços por token                                                                               |
 | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| [![Codex](docs/images/codex.png)](https://bsmagalhaes.github.io/rendra-ui-ide/?imagem=codex) | [![Preços](docs/images/precos.png)](https://bsmagalhaes.github.io/rendra-ui-ide/?imagem=precos) |
+| [![Codex](docs/images/codex.webp)](https://bsmagalhaes.github.io/rendra-ui-ide/?imagem=codex) | [![Preços](docs/images/precos.webp)](https://bsmagalhaes.github.io/rendra-ui-ide/?imagem=precos) |
 
 > As telas usam dados de demonstração, gerados a partir do app real com `npm run docs:images`.
 
@@ -41,12 +41,12 @@ Três regras guiam o app:
 
 | Terminal                                                                                          | Novidades de cada versão                                                                              |
 | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| [![Terminal](docs/images/terminal.png)](https://bsmagalhaes.github.io/rendra-ui-ide/?imagem=terminal) | [![Novidades](docs/images/novidades.png)](https://bsmagalhaes.github.io/rendra-ui-ide/?imagem=novidades) |
+| [![Terminal](docs/images/terminal.webp)](https://bsmagalhaes.github.io/rendra-ui-ide/?imagem=terminal) | [![Novidades](docs/images/novidades.webp)](https://bsmagalhaes.github.io/rendra-ui-ide/?imagem=novidades) |
 
 <details>
 <summary><strong>Sobre, créditos e licenças</strong> (clique para abrir aqui mesmo)</summary>
 
-[![Sobre](docs/images/sobre.png)](https://bsmagalhaes.github.io/rendra-ui-ide/?imagem=sobre)
+[![Sobre](docs/images/sobre.webp)](https://bsmagalhaes.github.io/rendra-ui-ide/?imagem=sobre)
 
 </details>
 
