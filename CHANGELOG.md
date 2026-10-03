@@ -20,6 +20,13 @@
 - Caminhos de arquivo no texto do terminal (como docs/specs/plano.md, ./src/app.js:12, D:\pasta\arquivo.md ou /mnt/d/projeto/arquivo.md) ficam clicáveis quando o arquivo existe dentro das pastas abertas: o clique abre o arquivo no editor da lateral, na linha indicada, sem confirmação. Pasta é revelada no explorador. No WSL, o caminho Linux abre o mesmo arquivo. Caminho que não existe não vira link.
 - Segurança: o editor também não abre mais arquivo lido por junção ou link simbólico que aponte para fora das pastas abertas, e o Rendra Browser desfaz uma navegação da página para `about:blank` (só http e https).
 
+### RTK e Codex
+- Ativar o RTK no Codex agora já deixa o hook aprovado: não é mais preciso abrir o Codex e aprová-lo à mão. A IDE registra a aprovação só do hook do RTK, no mesmo passo da ativação, com cópia de segurança e desfazendo tudo se algo falhar. Se o Codex estiver aberto, feche e abra de novo.
+- A página RTK mostra se o hook do Codex está aprovado, foi alterado ou ainda espera aprovação. O aviso só aparece quando falta aprovar e diz o caminho: no Codex, digite /hooks, entre em PreToolUse e aperte t no hook do RTK.
+- No Linux e no WSL, quando o Codex já está no modo que grava arquivos (workspace-write), a IDE libera sozinha a pasta do banco do RTK para ele registrar a economia. Ela nunca muda o modo do Codex e não faz isso no Windows.
+- O "Status da instalação" mostra só o Claude Code e o Codex, por sistema, com o estado do Codex; OpenCode, Cursor e o CLAUDE.md local saíram.
+- O aviso sobre o RTK antigo do WinGet some quando o RTK da IDE é o primeiro no PATH e os hooks usam o caminho dele.
+
 ## 1.3.1 · 03/10/2026
 ### Instalador do Mac
 - O instalador do Mac chega para Apple Silicon (`Rendra-IDE-mac-arm64.dmg`) e Intel (`Rendra-IDE-mac-x64.dmg`), assinado e notarizado pela Apple, na página de Releases do GitHub e no site. Ele se atualiza sozinho, como os de Windows e Linux.
