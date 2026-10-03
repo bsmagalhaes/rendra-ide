@@ -208,12 +208,9 @@
       </div>
       <div>
         <h3>macOS</h3>
-        <p>O instalador para Mac chega em breve. Enquanto isso, dá para rodar pelo código-fonte (veja o README).</p>
-        <!-- Para reativar: quando a release tiver Rendra-IDE-mac-arm64.dmg e Rendra-IDE-mac-x64.dmg, troque cada <span class="btn" aria-disabled="true"> por
-             <a class="btn primary" href="https://github.com/bsmagalhaes/rendra-ui-ide/releases/latest/download/Rendra-IDE-mac-arm64.dmg"> (Apple Silicon)
-             e <a class="btn" href="https://github.com/bsmagalhaes/rendra-ui-ide/releases/latest/download/Rendra-IDE-mac-x64.dmg"> (Intel), remova o texto "Em breve", e restaure as linhas do Mac na tabela do README. -->
-        <span class="btn" role="link" aria-disabled="true">Apple Silicon (M1 ou mais novo): Em breve</span>
-        <span class="btn" role="link" aria-disabled="true">Intel: Em breve</span>
+        <p>Escolha pelo chip do seu Mac (menu Apple &gt; Sobre este Mac).</p>
+        <a class="btn primary" href="https://github.com/bsmagalhaes/rendra-ui-ide/releases/latest/download/Rendra-IDE-mac-arm64.dmg">Apple Silicon (M1 ou mais novo)</a>
+        <a class="btn" href="https://github.com/bsmagalhaes/rendra-ui-ide/releases/latest/download/Rendra-IDE-mac-x64.dmg">Intel</a>
       </div>
       <div>
         <h3>Linux</h3>
@@ -269,7 +266,7 @@ npm start</div>
     <details><summary>O custo mostrado é o que eu pago?</summary><p>Não necessariamente. É o custo equivalente pelo preço de tabela da API (tokens × preço por 1 milhão). Em planos por assinatura, serve para comparar projetos e modelos e ver onde o consumo está, não como fatura.</p></details>
     <details><summary>Preciso ter o Claude Code ou o Codex instalados?</summary><p>Não. A IDE e a página Terminal funcionam sozinhas. As páginas de consumo aparecem preenchidas assim que houver sessões dessas CLIs na máquina.</p></details>
     <details><summary>O Windows mostrou um aviso azul ao instalar. É seguro?</summary><p>É o SmartScreen, que avisa sobre instaladores sem assinatura digital paga. Clique em <b>Mais informações</b> e depois em <b>Executar assim mesmo</b>. O código é aberto (MIT) e o instalador é gerado pelo GitHub a partir dele.</p></details>
-    <details><summary>Funciona no macOS e no Linux?</summary><p>Sim. Os terminais se adaptam ao sistema: zsh, bash e fish no macOS e Linux; PowerShell, Git Bash, CMD e WSL no Windows. O instalador do macOS chega em breve; o do Linux já está disponível.</p></details>
+    <details><summary>Funciona no macOS e no Linux?</summary><p>Sim. Os terminais se adaptam ao sistema: zsh, bash e fish no macOS e Linux; PowerShell, Git Bash, CMD e WSL no Windows. Há instalador para Windows, macOS e Linux.</p></details>
     <details><summary>Como o app lê os limites do plano sem a minha senha?</summary><p>O Claude Code envia os limites de uso ao comando da statusline. O Rendra IDE registra esses dados num arquivo local e repassa tudo para a statusline que você já usava.</p></details>
   </div>
 </section>
